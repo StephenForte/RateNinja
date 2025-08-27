@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ocean Freight Container Rates</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1><i class="fas fa-ship"></i> Vortecx Rate Engine</h1>
+            <p class="subtitle">Ocean Freight Container Rates</p>
+        </header>
+
+        <div class="controls">
+            <div class="search-container">
+                <i class="fas fa-search"></i>
+                <input type="text" id="searchInput" placeholder="Search rates, routes, carriers...">
+            </div>
+            
+            <div class="filter-container">
+                <select id="carrierFilter">
+                    <option value="">All Carriers</option>
+                </select>
+                
+                <select id="originPortFilter">
+                    <option value="">All Origin Ports</option>
+                </select>
+                
+                <select id="destinationPortFilter">
+                    <option value="">All Destination Ports</option>
+                </select>
+                
+                <select id="contractOwnerFilter">
+                    <option value="">All Contract Owners</option>
+                </select>
+            </div>
+            
+            <button id="refreshBtn" class="refresh-btn">
+                <i class="fas fa-sync-alt"></i> Refresh
+            </button>
+        </div>
+
+
+
+        <div class="table-container">
+            <div class="loading" id="loading">
+                <i class="fas fa-spinner fa-spin"></i>
+                <span>Loading shipping rates...</span>
+            </div>
+            
+            <div class="error" id="error" style="display: none;">
+                <i class="fas fa-exclamation-triangle"></i>
+                <span id="errorMessage">Failed to load data</span>
+            </div>
+
+            <table class="rates-table" id="ratesTable">
+                <thead>
+                    <tr>
+                        <th class="sortable" data-column="rateType">
+                            Rate Type <i class="fas fa-sort"></i>
+                        </th>
+                        <th class="sortable" data-column="originPort">
+                            Origin Port <i class="fas fa-sort"></i>
+                        </th>
+                        <th class="sortable" data-column="destinationPort">
+                            Destination Port/Via Port <i class="fas fa-sort"></i>
+                        </th>
+                        <th class="sortable" data-column="carrier">
+                            Carrier <i class="fas fa-sort"></i>
+                        </th>
+                        <th class="sortable" data-column="contractOwner">
+                            Contract Owner <i class="fas fa-sort"></i>
+                        </th>
+                        <th class="sortable" data-column="rate20D">
+                            20D Rate (USD) <i class="fas fa-sort"></i>
+                        </th>
+                        <th class="sortable" data-column="rate40D">
+                            40D Rate (USD) <i class="fas fa-sort"></i>
+                        </th>
+                        <th class="sortable" data-column="rate40HC">
+                            40HC Rate (USD) <i class="fas fa-sort"></i>
+                        </th>
+                        <th class="sortable" data-column="rateEffectiveDate">
+                            Rate Effective Date <i class="fas fa-sort"></i>
+                        </th>
+                        <th class="sortable" data-column="rateExpirationDate">
+                            Rate Expiration Date <i class="fas fa-sort"></i>
+                        </th>
+                        <th class="sortable" data-column="notes1">
+                            Notes 1 <i class="fas fa-sort"></i>
+                        </th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="ratesTableBody">
+                </tbody>
+            </table>
+        </div>
+
+        <div class="pagination" id="pagination">
+            <button id="prevBtn" class="pagination-btn" disabled>
+                <i class="fas fa-chevron-left"></i> Previous
+            </button>
+            <span id="pageInfo">Page 1 of 1</span>
+            <button id="nextBtn" class="pagination-btn" disabled>
+                Next <i class="fas fa-chevron-right"></i>
+            </button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
