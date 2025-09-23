@@ -203,6 +203,66 @@
         </div>
     </div>
 
+    <!-- Contract Details Popup Modal -->
+    <div id="contractModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="contractModalTitle">Contract Details</h2>
+                <span class="close" id="closeContractModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="contract-details">
+                    <div class="contract-header">
+                        <h3 id="contractTitle">Contract Information</h3>
+                        <div class="contract-meta">
+                            <span class="contract-id" id="contractId">Contract ID: HM4599TP3</span>
+                            <span class="contract-type" id="contractType">Annual Contract</span>
+                        </div>
+                    </div>
+                    
+                    <div class="contract-description">
+                        <h4>Contract Terms & Conditions</h4>
+                        <p>This Master Service Agreement (MSA) establishes the terms and conditions governing the provision of ocean freight transportation services between the Carrier and Kings Group. The contract encompasses spot rate quotations, service level commitments, and operational protocols for containerized cargo movements across designated trade lanes.</p>
+                        
+                        <p>All rates quoted herein are subject to the terms of this agreement, including but not limited to: minimum quantity commitments, service frequency requirements, equipment availability, and force majeure provisions. Rates are valid for the specified validity period and may be subject to adjustment based on market conditions, fuel surcharges, and regulatory changes.</p>
+                        
+                        <p>The Carrier warrants that all services will be performed in accordance with industry standards and applicable international maritime regulations. Kings Group agrees to provide accurate cargo information and comply with all documentation requirements as specified in the International Maritime Dangerous Goods (IMDG) Code and relevant customs regulations.</p>
+                    </div>
+                    
+                    <div class="contract-rates">
+                        <h4>Contract Rates</h4>
+                        <div class="rates-grid">
+                            <div class="rate-card">
+                                <div class="rate-type">20' Dry Container</div>
+                                <div class="rate-value" id="contract20D">$0</div>
+                                <div class="rate-note">Per container</div>
+                            </div>
+                            <div class="rate-card">
+                                <div class="rate-type">40' Dry Container</div>
+                                <div class="rate-value" id="contract40D">$0</div>
+                                <div class="rate-note">Per container</div>
+                            </div>
+                            <div class="rate-card">
+                                <div class="rate-type">40' High Cube</div>
+                                <div class="rate-value" id="contract40HC">$0</div>
+                                <div class="rate-note">Per container</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="contract-footer">
+                        <div class="validity-info">
+                            <strong>Rate Validity:</strong> <span id="contractValidity">N/A</span>
+                        </div>
+                        <div class="route-info">
+                            <strong>Trade Lane:</strong> <span id="contractRoute">N/A</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="script.js"></script>
 </body>
 </html>

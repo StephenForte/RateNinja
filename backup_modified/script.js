@@ -3,12 +3,10 @@ const AIRTABLE_BASE_ID = 'appBLegnJMAienppq';
 const AIRTABLE_RATE_TABLE_ID = 'tbl5OpIdW2kyRRWLp';
 const AIRTABLE_USER_TABLE_ID = 'tblwtjp73CaWe3GKy'; // UserInfo table ID
 const AIRTABLE_COMPANY_TABLE_ID = 'CompanyReference'; // CompanyReference table ID
-const AIRTABLE_SAILINGS_TABLE_ID = 'Sailings'; // Sailings table ID
 const AIRTABLE_API_KEY = 'patmavgfaBmeaZt0V.31aae1face1c9ecbebb893a46eb6672104ea7aa700164c2cc7e7a952a088045f';
 const AIRTABLE_RATE_URL = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_RATE_TABLE_ID}`;
 const AIRTABLE_USER_URL = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_USER_TABLE_ID}`;
 const AIRTABLE_COMPANY_URL = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_COMPANY_TABLE_ID}`;
-const AIRTABLE_SAILINGS_URL = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_SAILINGS_TABLE_ID}`;
 
 // Global variables
 let allRates = [];
@@ -285,17 +283,6 @@ function setupEventListeners() {
     
     // Refresh button
     refreshBtn.addEventListener('click', loadRates);
-    
-    // Modal close button
-    document.getElementById('closeModal').addEventListener('click', closeSailingsModal);
-    
-    // Close modal when clicking outside
-    window.addEventListener('click', function(event) {
-        const sailingsModal = document.getElementById('sailingsModal');
-        if (event.target === sailingsModal) {
-            closeSailingsModal();
-        }
-    });
     
     // Pagination
     prevBtn.addEventListener('click', () => changePage(-1));
@@ -657,7 +644,7 @@ function renderTable() {
                 <td>${escapeHtml(rate.rateType)}</td>
                 <td>${escapeHtml(rate.originPort)}</td>
                 <td>${escapeHtml(rate.destinationPort)}</td>
-                <td><a href="#" class="carrier-link" onclick="openSailingsModal('${escapeHtml(rate.carrier)}', '${escapeHtml(rate.originPort)}', '${escapeHtml(rate.destinationPort)}', '${escapeHtml(rate.rateEffectiveDate)}'); return false;">${escapeHtml(rate.carrier)}</a></td>
+                <td>${escapeHtml(rate.carrier)}</td>
                 <td>${escapeHtml(rate.contractOwner)}</td>
                 <td>
                     <span class="rate-value">$${formatNumber(rate.rate20D)}</span>
@@ -763,100 +750,3 @@ function viewDetails(rateId) {
         alert(`Rate Details:\n\nRate Type: ${rate.rateType}\nOrigin Port: ${rate.originPort}\nDestination Port: ${rate.destinationPort}\nCarrier: ${rate.carrier}\nContract Owner: ${rate.contractOwner}\n\nFINAL RATES (with margin applied):\n20D Rate: $${formatNumber(rate.rate20D)}\n40D Rate: $${formatNumber(rate.rate40D)}\n40HC Rate: $${formatNumber(rate.rate40HC)}\n\nORIGINAL BASE RATES:\n20D Base: $${formatNumber(rate.originalRate20D)}\n40D Base: $${formatNumber(rate.originalRate40D)}\n40HC Base: $${formatNumber(rate.originalRate40HC)}\n\nMARGIN SETTINGS:\nAdmin: ${isAdmin ? 'Yes (no margin applied)' : 'No'}\nMargin Percent: ${marginPercent}%\nMargin Number: $${marginNumber}\n\nRate Effective Date: ${formatDate(rate.rateEffectiveDate)}\nRate Expiration Date: ${formatDate(rate.rateExpirationDate)}\n\nNotes: ${rate.notes1 || 'No additional notes'}`);
     }
 }
-
-// Sailings Modal Functions
-function openSailingsModal(carrier, originPort, destinationPort, rateEffectiveDate) {
-    const modal = document.getElementById('sailingsModal');
-    const loading = document.getElementById('sailingsLoading');
-    const content = document.getElementById('sailingsContent');
-    const error = document.getElementById('sailingsError');
-    
-    // Show modal and loading state
-    modal.style.display = 'block';
-    loading.style.display = 'flex';
-    content.style.display = 'none';
-    error.style.display = 'none';
-    
-    // Update modal title
-    document.getElementById('modalTitle').textContent = `Available Sailings - ${carrier}`;
-    
-    // Load sailings data
-    loadSailingsData(carrier, originPort, destinationPort, rateEffectiveDate);
-}
-
-function closeSailingsModal() {
-    document.getElementById('sailingsModal').style.display = 'none';
-}
-
-async function loadSailingsData(carrier, originPort, destinationPort, rateEffectiveDate) {
-    const loading = document.getElementById('sailingsLoading');
-    const content = document.getElementById('sailingsContent');
-    const error = document.getElementById('sailingsError');
-    const summary = document.getElementById('sailingsSummary');
-    const tableBody = document.getElementById('sailingsTableBody');
-    
-    try {
-        // Build Airtable filter formula
-        // Filter by: Carrier = carrier AND DeparturePort = originPort AND Departure > rateEffectiveDate
-        const filterFormula = `AND({Carrier} = "${carrier}", {DeparturePort} = "${originPort}", {Departure} > "${rateEffectiveDate}")`;
-        
-        console.log('Loading sailings with filter:', filterFormula);
-        
-        const response = await fetch(`${AIRTABLE_SAILINGS_URL}?filterByFormula=${encodeURIComponent(filterFormula)}&sort[0][field]=Departure&sort[0][direction]=asc`, {
-            headers: {
-                'Authorization': `Bearer ${AIRTABLE_API_KEY}`,
-                'Content-Type': 'application/json'
-            }
-        });
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        
-        // Hide loading, show content
-        loading.style.display = 'none';
-        content.style.display = 'block';
-        
-        if (data.records.length === 0) {
-            summary.innerHTML = `<p>No sailings found for ${carrier} from ${originPort} departing after ${formatDate(rateEffectiveDate)}.</p>`;
-            tableBody.innerHTML = '';
-            return;
-        }
-        
-        // Update summary
-        summary.innerHTML = `
-            <p><strong>${data.records.length}</strong> available sailings found for ${carrier} from ${originPort} to ${destinationPort}.</p>
-            <p><strong>Carrier:</strong> ${carrier} | <strong>Route:</strong> ${originPort} → ${destinationPort} | <strong>Departing after:</strong> ${formatDate(rateEffectiveDate)}</p>
-        `;
-        
-        // Populate table
-        tableBody.innerHTML = data.records.map(sailing => {
-            const departure = formatDate(sailing.fields.Departure);
-            const arrival = formatDate(sailing.fields.Arrival);
-            const transitTime = sailing.fields.TransitTime || 'N/A';
-            const vessel = sailing.fields.Vessel || 'N/A';
-            const voyage = sailing.fields.Voyage || 'N/A';
-            const service = sailing.fields.Service || 'N/A';
-            
-            return `
-                <tr>
-                    <td>${departure}</td>
-                    <td>${arrival}</td>
-                    <td>${transitTime} days</td>
-                    <td>${escapeHtml(vessel)}</td>
-                    <td>${escapeHtml(voyage)}</td>
-                    <td>${escapeHtml(service)}</td>
-                </tr>
-            `;
-        }).join('');
-        
-    } catch (err) {
-        console.error('Error loading sailings:', err);
-        loading.style.display = 'none';
-        error.style.display = 'flex';
-        document.getElementById('sailingsErrorMessage').textContent = `Failed to load sailings: ${err.message}`;
-    }
-}
-
