@@ -591,6 +591,20 @@ body {
     text-decoration: underline;
 }
 
+/* Contract Link Styles */
+.contract-link {
+    color: #667eea;
+    text-decoration: none;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.contract-link:hover {
+    color: #5a67d8;
+    text-decoration: underline;
+}
+
 /* Pagination */
 .pagination {
     display: flex;

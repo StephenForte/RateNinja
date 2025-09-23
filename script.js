@@ -101,16 +101,21 @@ function setupLogin() {
     });
 
     // Logout functionality
-    logoutBtn.addEventListener('click', function() {
-        localStorage.removeItem('loggedInUser');
-        localStorage.removeItem('userRateOwner');
-        localStorage.removeItem('userCompanyReference');
-        localStorage.removeItem('userCompanyID');
-        currentUserRateOwner = null;
-        currentUserCompanyReference = null;
-        currentUserCompanyID = null;
-        showLoginPage();
-    });
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', function() {
+            console.log('Logout button clicked');
+            localStorage.removeItem('loggedInUser');
+            localStorage.removeItem('userRateOwner');
+            localStorage.removeItem('userCompanyReference');
+            localStorage.removeItem('userCompanyID');
+            currentUserRateOwner = null;
+            currentUserCompanyReference = null;
+            currentUserCompanyID = null;
+            showLoginPage();
+        });
+    } else {
+        console.error('Logout button not found');
+    }
 
     function showLoginPage() {
         loginPage.style.display = 'block';
@@ -292,10 +297,17 @@ function setupEventListeners() {
     // Close modal when clicking outside
     window.addEventListener('click', function(event) {
         const sailingsModal = document.getElementById('sailingsModal');
+        const contractModal = document.getElementById('contractModal');
         if (event.target === sailingsModal) {
             closeSailingsModal();
         }
+        if (event.target === contractModal) {
+            closeContractModal();
+        }
     });
+    
+    // Contract modal close button
+    document.getElementById('closeContractModal').addEventListener('click', closeContractModal);
     
     // Pagination
     prevBtn.addEventListener('click', () => changePage(-1));
@@ -658,7 +670,7 @@ function renderTable() {
                 <td>${escapeHtml(rate.originPort)}</td>
                 <td>${escapeHtml(rate.destinationPort)}</td>
                 <td><a href="#" class="carrier-link" onclick="openSailingsModal('${escapeHtml(rate.carrier)}', '${escapeHtml(rate.originPort)}', '${escapeHtml(rate.destinationPort)}', '${escapeHtml(rate.rateEffectiveDate)}'); return false;">${escapeHtml(rate.carrier)}</a></td>
-                <td>${escapeHtml(rate.contractOwner)}</td>
+                <td><a href="#" class="contract-link" onclick="openContractModal('${escapeHtml(rate.contractOwner)}', '${escapeHtml(rate.carrier)}', '${escapeHtml(rate.originPort)}', '${escapeHtml(rate.destinationPort)}', '${escapeHtml(rate.rateEffectiveDate)}', '${escapeHtml(rate.rateExpirationDate)}', '${rate.rate20D}', '${rate.rate40D}', '${rate.rate40HC}'); return false;">${escapeHtml(rate.contractOwner)}</a></td>
                 <td>
                     <span class="rate-value">$${formatNumber(rate.rate20D)}</span>
                 </td>
@@ -857,6 +869,70 @@ async function loadSailingsData(carrier, originPort, destinationPort, rateEffect
         loading.style.display = 'none';
         error.style.display = 'flex';
         document.getElementById('sailingsErrorMessage').textContent = `Failed to load sailings: ${err.message}`;
+    }
+}
+
+// Contract Modal Functions
+function openContractModal(contractOwner, carrier, originPort, destinationPort, rateEffectiveDate, rateExpirationDate, rate20D, rate40D, rate40HC) {
+    const modal = document.getElementById('contractModal');
+    modal.style.display = 'block';
+    loadContractData(contractOwner, carrier, originPort, destinationPort, rateEffectiveDate, rateExpirationDate, rate20D, rate40D, rate40HC);
+}
+
+function closeContractModal() {
+    document.getElementById('contractModal').style.display = 'none';
+}
+
+function loadContractData(contractOwner, carrier, originPort, destinationPort, rateEffectiveDate, rateExpirationDate, rate20D, rate40D, rate40HC) {
+    // Generate dynamic contract information based on the data
+    const contractId = generateContractId(contractOwner, carrier);
+    const contractTitle = `${carrier} Annual Contract with ${contractOwner} for Spot Rates`;
+    
+    // Update contract details with dynamic information
+    document.getElementById('contractTitle').textContent = contractTitle;
+    document.getElementById('contractId').textContent = `Contract ID: ${contractId}`;
+    document.getElementById('contractType').textContent = 'Annual Contract';
+    
+    // Update contract rates with the actual rates from the rate entry
+    document.getElementById('contract20D').textContent = `$${formatNumber(parseFloat(rate20D))}`;
+    document.getElementById('contract40D').textContent = `$${formatNumber(parseFloat(rate40D))}`;
+    document.getElementById('contract40HC').textContent = `$${formatNumber(parseFloat(rate40HC))}`;
+    
+    // Update validity and route info
+    document.getElementById('contractValidity').textContent = `${formatDate(rateEffectiveDate)} to ${formatDate(rateExpirationDate)}`;
+    document.getElementById('contractRoute').textContent = `${originPort} → ${destinationPort}`;
+}
+
+function generateContractId(contractOwner, carrier) {
+    // Generate a dynamic contract ID based on contract owner and carrier
+    const ownerPrefix = contractOwner.substring(0, 3).toUpperCase();
+    const carrierPrefix = carrier.substring(0, 2).toUpperCase();
+    const randomNum = Math.floor(Math.random() * 9000) + 1000; // 4-digit random number
+    return `${ownerPrefix}${carrierPrefix}${randomNum}`;
+}
+
+// Global logout function
+function performLogout() {
+    console.log('Performing logout');
+    localStorage.removeItem('loggedInUser');
+    localStorage.removeItem('userRateOwner');
+    localStorage.removeItem('userCompanyReference');
+    localStorage.removeItem('userCompanyID');
+    currentUserRateOwner = null;
+    currentUserCompanyReference = null;
+    currentUserCompanyID = null;
+    
+    // Show login page
+    const loginPage = document.getElementById('loginPage');
+    const mainPage = document.getElementById('mainPage');
+    const loginForm = document.getElementById('loginForm');
+    
+    if (loginPage && mainPage) {
+        loginPage.style.display = 'block';
+        mainPage.style.display = 'none';
+        if (loginForm) {
+            loginForm.reset();
+        }
     }
 }
 
