@@ -56,11 +56,11 @@ function setupLogin() {
 
     // Check if user is already logged in
     const loggedInUser = localStorage.getItem('loggedInUser');
-    const storedRateOwner = localStorage.getItem('userRateOwner');
+    const storedRateView = localStorage.getItem('userRateView');
     const storedCompanyReference = localStorage.getItem('userCompanyReference');
     const storedCompanyID = localStorage.getItem('userCompanyID');
-    if (loggedInUser && storedRateOwner && storedCompanyReference && storedCompanyID) {
-        currentUserRateOwner = storedRateOwner;
+    if (loggedInUser && storedRateView && storedCompanyReference && storedCompanyID) {
+        currentUserRateOwner = storedRateView;
         currentUserCompanyReference = storedCompanyReference;
         currentUserCompanyID = storedCompanyID;
         showMainPage(loggedInUser);
@@ -78,12 +78,12 @@ function setupLogin() {
             // Authenticate user and get RateOwner from UserInfo table
             const userInfo = await authenticateUser(username, password);
             if (userInfo) {
-                // Store login state and RateOwner
+                // Store login state and RateView
                 localStorage.setItem('loggedInUser', username);
-                localStorage.setItem('userRateOwner', userInfo.rateOwner);
+                localStorage.setItem('userRateView', userInfo.rateView);
                 localStorage.setItem('userCompanyReference', userInfo.companyReference);
                 localStorage.setItem('userCompanyID', userInfo.companyID);
-                currentUserRateOwner = userInfo.rateOwner;
+                currentUserRateOwner = userInfo.rateView;
                 currentUserCompanyReference = userInfo.companyReference;
                 currentUserCompanyID = userInfo.companyID;
                 showMainPage(username);
@@ -105,7 +105,7 @@ function setupLogin() {
         logoutBtn.addEventListener('click', function() {
             console.log('Logout button clicked');
             localStorage.removeItem('loggedInUser');
-            localStorage.removeItem('userRateOwner');
+            localStorage.removeItem('userRateView');
             localStorage.removeItem('userCompanyReference');
             localStorage.removeItem('userCompanyID');
             currentUserRateOwner = null;
@@ -180,7 +180,7 @@ async function authenticateUser(username, password) {
             
             return {
                 username: username,
-                rateOwner: rateView, // This is the integer RateView value
+                rateView: rateView, // This is the integer RateView value from UserInfo
                 companyReference: companyReference, // CompanyReference record ID for margin logic
                 companyID: companyID // CompanyID for margin calculations
             };
@@ -195,7 +195,7 @@ async function authenticateUser(username, password) {
         if (username === 'BobJ' && password === 'aabbccdd') {
             return {
                 username: username,
-                rateOwner: 'COMP001' // Default company for testing
+                rateView: 1 // Default RateView for testing
             };
         }
         
@@ -330,9 +330,9 @@ async function loadRates() {
         // Build URL with filter for CompanyID
         let url = AIRTABLE_RATE_URL;
         
-        // Let's load all rates first to see what's actually in the table
-        console.log('Loading all rates to debug...');
-        console.log('User RateView (should match RateOwner):', currentUserRateOwner);
+        // Load rates filtered by user's RateView
+        console.log('Loading rates filtered by user RateView...');
+        console.log('User RateView:', currentUserRateOwner);
         
         const response = await fetch(url, {
             headers: {
@@ -353,14 +353,18 @@ async function loadRates() {
             console.log('Sample RateEntry record:', data.records[0].fields);
             
             // Show all RateOwner values in the table
-            const allRateOwners = new Set();
+            const allRateViews = new Set();
             data.records.forEach(record => {
-                const rateOwner = record.fields['RateOwner'];
-                if (rateOwner !== undefined && rateOwner !== null) {
-                    allRateOwners.add(rateOwner);
+                const rateView = record.fields['RateView'];
+                if (rateView !== undefined && rateView !== null) {
+                    if (Array.isArray(rateView)) {
+                        rateView.forEach(rv => allRateViews.add(rv));
+                    } else {
+                        allRateViews.add(rateView);
+                    }
                 }
             });
-            console.log('All RateOwner values in RateEntry table:', Array.from(allRateOwners));
+            console.log('All RateView values in RateEntry table:', Array.from(allRateViews));
             console.log('Total records with RateOwner field:', data.records.filter(r => r.fields['RateOwner'] !== undefined).length);
         }
         
@@ -390,15 +394,24 @@ async function loadRates() {
             createdTime: record.createdTime
         }));
         
-        // For now, show all rates since RateView fields are empty
-        filteredRates = [...allRates];
-        console.log('Total rates loaded (showing all since RateView fields are empty):', allRates.length);
-        
-        // If user has RateView, show what we're looking for
-        if (currentUserRateOwner) {
-            console.log('User RateView:', currentUserRateOwner);
-            console.log('Looking for RateView =', currentUserRateOwner);
-            console.log('NOTE: All RateView fields in RateEntry are empty arrays. Please populate them in Airtable.');
+        // Filter rates by user's RateView
+        if (currentUserRateOwner !== null && currentUserRateOwner !== undefined) {
+            console.log('Filtering rates by user RateView:', currentUserRateOwner);
+            
+            filteredRates = allRates.filter(rate => {
+                const rateViews = Array.isArray(rate.rateView) ? rate.rateView : [rate.rateView];
+                const matches = rateViews.includes(currentUserRateOwner);
+                if (matches) {
+                    console.log('Match found for rate:', rate.id, 'RateView:', rateViews);
+                }
+                return matches;
+            });
+            
+            console.log(`Filtered ${filteredRates.length} rates out of ${allRates.length} total rates`);
+        } else {
+            // If no RateView set, show all rates
+            filteredRates = [...allRates];
+            console.log('No RateView filter applied, showing all rates:', allRates.length);
         }
         
         populateFilters();
@@ -456,17 +469,20 @@ async function loadRates() {
                     }
                     
                     // Filter client-side by RateView
-                    if (currentUserRateOwner) {
+                    if (currentUserRateOwner !== null && currentUserRateOwner !== undefined) {
                         console.log('Current user RateView (from UserInfo.RateView):', currentUserRateOwner);
                         
                         // Filter by RateView (integer) - RateEntry.RateView should contain UserInfo.RateView
                         filteredRates = allRates.filter(rate => {
                             const rateViews = Array.isArray(rate.rateView) ? rate.rateView : [rate.rateView];
-                            console.log('Checking rate:', rate.id, 'RateView array:', rateViews);
-                            return rateViews.includes(currentUserRateOwner);
+                            const matches = rateViews.includes(currentUserRateOwner);
+                            if (matches) {
+                                console.log('Match found for rate:', rate.id, 'RateView:', rateViews);
+                            }
+                            return matches;
                         });
                         
-                        console.log('Filtered rates count:', filteredRates.length);
+                        console.log(`Filtered ${filteredRates.length} rates out of ${allRates.length} total rates`);
                         
                         // If no matches found, let's see what RateView values exist
                         if (filteredRates.length === 0) {
@@ -480,6 +496,7 @@ async function loadRates() {
                         }
                     } else {
                         filteredRates = [...allRates];
+                        console.log('No RateView filter applied, showing all rates:', allRates.length);
                     }
                     
                     populateFilters();
@@ -915,7 +932,7 @@ function generateContractId(contractOwner, carrier) {
 function performLogout() {
     console.log('Performing logout');
     localStorage.removeItem('loggedInUser');
-    localStorage.removeItem('userRateOwner');
+    localStorage.removeItem('userRateView');
     localStorage.removeItem('userCompanyReference');
     localStorage.removeItem('userCompanyID');
     currentUserRateOwner = null;
