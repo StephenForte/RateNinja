@@ -4,15 +4,67 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ocean Freight Container Rates</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="stylesheet" href="styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
-    <div class="container">
+    <!-- Login Page -->
+    <div id="loginPage" class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <h1><i class="fas fa-ship"></i> Vortecx Rate Engine</h1>
+                <p class="login-subtitle">Ocean Freight Container Rates</p>
+            </div>
+            
+            <form id="loginForm" class="login-form">
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <div class="input-container">
+                        <i class="fas fa-user"></i>
+                        <input type="text" id="username" name="username" required>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <div class="input-container">
+                        <i class="fas fa-lock"></i>
+                        <input type="password" id="password" name="password" required>
+                    </div>
+                </div>
+                
+                <button type="submit" class="login-btn">
+                    <i class="fas fa-sign-in-alt"></i> Sign In
+                </button>
+                
+                <div id="loginError" class="error-message" style="display: none;">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <span id="loginErrorMessage">Invalid username or password</span>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main Application Page -->
+    <div id="mainPage" class="container" style="display: none;">
         <header class="header">
-            <h1><i class="fas fa-ship"></i> Vortecx Rate Engine</h1>
-            <p class="subtitle">Ocean Freight Container Rates</p>
+            <div class="header-content">
+                <div class="header-left">
+                    <h1><i class="fas fa-ship"></i> Vortecx Rate Engine</h1>
+                    <p class="subtitle">Ocean Freight Container Rates</p>
+                </div>
+                <div class="header-right">
+                    <div class="welcome-message">
+                        <i class="fas fa-user-circle"></i>
+                        <span id="welcomeText">Welcome, User</span>
+                    </div>
+                    <button id="logoutBtn" class="logout-btn">
+                        <i class="fas fa-sign-out-alt"></i> Logout
+                    </button>
+                </div>
+            </div>
         </header>
 
         <div class="controls">
@@ -111,6 +163,7 @@
             </button>
         </div>
     </div>
+
 
     <script src="script.js"></script>
 </body>
