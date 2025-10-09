@@ -52,6 +52,9 @@
         <header class="header">
             <div class="header-content">
                 <div class="header-left">
+                    <button id="hamburgerBtn" class="hamburger-btn" style="display: none;">
+                        <i class="fas fa-bars"></i>
+                    </button>
                     <h1><i class="fas fa-ship"></i> Vortecx Rate Engine</h1>
                     <p class="subtitle">Ocean Freight Container Rates</p>
                 </div>
@@ -64,6 +67,13 @@
                         <i class="fas fa-sign-out-alt"></i> Logout
                     </button>
                 </div>
+            </div>
+            
+            <!-- Hamburger Menu Dropdown -->
+            <div id="hamburgerMenu" class="hamburger-menu" style="display: none;">
+                <a href="#" id="rateAdjustmentLink" class="menu-item">
+                    <i class="fas fa-cog"></i> Rate Adjustment
+                </a>
             </div>
         </header>
 
@@ -166,6 +176,52 @@
             <button id="nextBtn" class="pagination-btn" disabled>
                 Next <i class="fas fa-chevron-right"></i>
             </button>
+        </div>
+    </div>
+
+    <!-- Admin Screen for Rate Adjustment -->
+    <div id="adminScreen" class="container" style="display: none;">
+        <header class="header">
+            <div class="header-content">
+                <div class="header-left">
+                    <button id="backToMainBtn" class="back-btn">
+                        <i class="fas fa-arrow-left"></i>
+                    </button>
+                    <h1><i class="fas fa-cog"></i> Rate Adjustment</h1>
+                    <p class="subtitle">Manage Company Margins</p>
+                </div>
+                <div class="header-right">
+                    <button id="saveChangesBtn" class="save-btn">
+                        <i class="fas fa-save"></i> Save Changes
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <div class="admin-content">
+            <div class="loading" id="adminLoading">
+                <i class="fas fa-spinner fa-spin"></i>
+                <span>Loading companies...</span>
+            </div>
+            
+            <div class="error" id="adminError" style="display: none;">
+                <i class="fas fa-exclamation-triangle"></i>
+                <span id="adminErrorMessage">Failed to load data</span>
+            </div>
+
+            <div class="admin-table-container" id="adminTableContainer" style="display: none;">
+                <table class="admin-table" id="adminTable">
+                    <thead>
+                        <tr>
+                            <th>Company Name</th>
+                            <th>Margin Percent (%)</th>
+                            <th>Margin Number ($)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="adminTableBody">
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 

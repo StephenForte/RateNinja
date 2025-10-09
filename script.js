@@ -21,6 +21,7 @@ let sortDirection = 'asc';
 let currentUserRateOwner = null; // Store the user's RateOwner (CompanyID) for filtering
 let currentUserCompanyReference = null; // Store the user's CompanyReference for margin calculations
 let currentUserCompanyID = null; // Store the user's CompanyID for margin calculations
+let currentUserIsAdmin = false; // Store if user has admin access
 let companyReferenceData = null; // Store CompanyReference table data for margin calculations
 
 // DOM elements
@@ -60,10 +61,12 @@ function setupLogin() {
     const storedRateView = localStorage.getItem('userRateView');
     const storedCompanyReference = localStorage.getItem('userCompanyReference');
     const storedCompanyID = localStorage.getItem('userCompanyID');
+    const storedIsAdmin = localStorage.getItem('userIsAdmin') === 'true';
     if (loggedInUser && storedRateView && storedCompanyReference && storedCompanyID) {
         currentUserRateOwner = storedRateView;
         currentUserCompanyReference = storedCompanyReference;
         currentUserCompanyID = storedCompanyID;
+        currentUserIsAdmin = storedIsAdmin;
         showMainPage(loggedInUser);
         return;
     }
@@ -84,9 +87,11 @@ function setupLogin() {
                 localStorage.setItem('userRateView', userInfo.rateView);
                 localStorage.setItem('userCompanyReference', userInfo.companyReference);
                 localStorage.setItem('userCompanyID', userInfo.companyID);
+                localStorage.setItem('userIsAdmin', userInfo.isAdmin);
                 currentUserRateOwner = userInfo.rateView;
                 currentUserCompanyReference = userInfo.companyReference;
                 currentUserCompanyID = userInfo.companyID;
+                currentUserIsAdmin = userInfo.isAdmin;
                 showMainPage(username);
             } else {
                 showLoginError('Invalid username or password');
@@ -129,6 +134,7 @@ function setupLogin() {
         loginPage.style.display = 'none';
         mainPage.style.display = 'block';
         welcomeText.textContent = `Welcome, ${username}`;
+        setupAdminMenu(); // Setup admin menu if user is admin
         loadRates();
     }
 
@@ -176,14 +182,18 @@ async function authenticateUser(username, password) {
             const companyID = Array.isArray(user.fields['CompanyID (from CompanyReference)']) 
                 ? user.fields['CompanyID (from CompanyReference)'][0] 
                 : user.fields['CompanyID (from CompanyReference)'];
+            // Get AdminScreen flag
+            const isAdmin = user.fields.AdminScreen === true;
             
             console.log('User CompanyID extracted:', companyID, 'Type:', typeof companyID);
+            console.log('User Admin status:', isAdmin);
             
             return {
                 username: username,
                 rateView: rateView, // This is the integer RateView value from UserInfo
                 companyReference: companyReference, // CompanyReference record ID for margin logic
-                companyID: companyID // CompanyID for margin calculations
+                companyID: companyID, // CompanyID for margin calculations
+                isAdmin: isAdmin // AdminScreen flag
             };
         }
         
@@ -946,21 +956,281 @@ function performLogout() {
     localStorage.removeItem('userRateView');
     localStorage.removeItem('userCompanyReference');
     localStorage.removeItem('userCompanyID');
+    localStorage.removeItem('userIsAdmin');
     currentUserRateOwner = null;
     currentUserCompanyReference = null;
     currentUserCompanyID = null;
+    currentUserIsAdmin = false;
     
     // Show login page
     const loginPage = document.getElementById('loginPage');
     const mainPage = document.getElementById('mainPage');
+    const adminScreen = document.getElementById('adminScreen');
     const loginForm = document.getElementById('loginForm');
     
-    if (loginPage && mainPage) {
+    if (loginPage && mainPage && adminScreen) {
         loginPage.style.display = 'block';
         mainPage.style.display = 'none';
+        adminScreen.style.display = 'none';
         if (loginForm) {
             loginForm.reset();
         }
     }
 }
+
+// ================== ADMIN SCREEN FUNCTIONS ==================
+
+// Setup hamburger menu for admin users
+function setupAdminMenu() {
+    const hamburgerBtn = document.getElementById('hamburgerBtn');
+    const hamburgerMenu = document.getElementById('hamburgerMenu');
+    const rateAdjustmentLink = document.getElementById('rateAdjustmentLink');
+    
+    if (currentUserIsAdmin) {
+        // Show hamburger button
+        hamburgerBtn.style.display = 'inline-block';
+        
+        // Toggle menu
+        hamburgerBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const isVisible = hamburgerMenu.style.display === 'block';
+            hamburgerMenu.style.display = isVisible ? 'none' : 'block';
+        });
+        
+        // Close menu when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!hamburgerBtn.contains(e.target) && !hamburgerMenu.contains(e.target)) {
+                hamburgerMenu.style.display = 'none';
+            }
+        });
+        
+        // Handle Rate Adjustment link
+        rateAdjustmentLink.addEventListener('click', function(e) {
+            e.preventDefault();
+            showAdminScreen();
+            hamburgerMenu.style.display = 'none';
+        });
+    }
+}
+
+// Show admin screen
+function showAdminScreen() {
+    const mainPage = document.getElementById('mainPage');
+    const adminScreen = document.getElementById('adminScreen');
+    
+    mainPage.style.display = 'none';
+    adminScreen.style.display = 'block';
+    
+    loadAdminCompanies();
+}
+
+// Go back to main page
+function backToMain() {
+    const mainPage = document.getElementById('mainPage');
+    const adminScreen = document.getElementById('adminScreen');
+    
+    adminScreen.style.display = 'none';
+    mainPage.style.display = 'block';
+}
+
+// Store for company data
+let adminCompanies = [];
+let adminChanges = {};
+
+// Load companies for admin screen
+async function loadAdminCompanies() {
+    const adminLoading = document.getElementById('adminLoading');
+    const adminError = document.getElementById('adminError');
+    const adminTableContainer = document.getElementById('adminTableContainer');
+    
+    adminLoading.style.display = 'block';
+    adminError.style.display = 'none';
+    adminTableContainer.style.display = 'none';
+    
+    try {
+        // Fetch all CompanyReference records
+        const response = await fetch(AIRTABLE_COMPANY_URL, {
+            headers: {
+                'Authorization': `Bearer ${AIRTABLE_API_KEY}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        // Filter for companies with CompanyType=2 and matching RateView
+        adminCompanies = data.records.filter(record => {
+            const companyType = record.fields.CompanyType;
+            const companyTypeId = Array.isArray(companyType) ? companyType[0] : companyType;
+            
+            // CompanyType field is a link to another table, check if it matches the expected record ID
+            // For CompanyType=2, we need to check the linked record
+            // For now, we'll filter by checking if the record has the expected structure
+            
+            return companyTypeId && record.fields.RateView === currentUserRateOwner;
+        });
+        
+        console.log('Filtered admin companies:', adminCompanies);
+        
+        // Reset changes tracking
+        adminChanges = {};
+        
+        // Render the table
+        renderAdminTable();
+        
+        adminLoading.style.display = 'none';
+        adminTableContainer.style.display = 'block';
+        
+    } catch (error) {
+        console.error('Error loading companies:', error);
+        adminLoading.style.display = 'none';
+        adminError.style.display = 'block';
+        document.getElementById('adminErrorMessage').textContent = `Failed to load companies: ${error.message}`;
+    }
+}
+
+// Render admin table
+function renderAdminTable() {
+    const tableBody = document.getElementById('adminTableBody');
+    
+    if (adminCompanies.length === 0) {
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="3" style="text-align: center; padding: 40px; color: #666;">
+                    <i class="fas fa-inbox" style="font-size: 2rem; margin-bottom: 15px; display: block;"></i>
+                    No companies found matching your criteria
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    tableBody.innerHTML = adminCompanies.map(company => {
+        const companyName = company.fields.CompanyName || 'N/A';
+        const marginPercent = company.fields.MarginPercent || 0;
+        const marginNumber = company.fields.MarginNumber || 0;
+        const recordId = company.id;
+        
+        return `
+            <tr data-record-id="${recordId}">
+                <td>${escapeHtml(companyName)}</td>
+                <td>
+                    <input 
+                        type="number" 
+                        step="0.01" 
+                        value="${marginPercent}" 
+                        data-field="MarginPercent"
+                        data-record-id="${recordId}"
+                        onchange="trackChange(this)"
+                    />
+                </td>
+                <td>
+                    <input 
+                        type="number" 
+                        step="0.01" 
+                        value="${marginNumber}" 
+                        data-field="MarginNumber"
+                        data-record-id="${recordId}"
+                        onchange="trackChange(this)"
+                    />
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// Track changes
+function trackChange(input) {
+    const recordId = input.dataset.recordId;
+    const field = input.dataset.field;
+    const value = parseFloat(input.value) || 0;
+    
+    if (!adminChanges[recordId]) {
+        adminChanges[recordId] = {};
+    }
+    
+    adminChanges[recordId][field] = value;
+    input.classList.add('changed');
+    
+    console.log('Changes tracked:', adminChanges);
+}
+
+// Make trackChange global
+window.trackChange = trackChange;
+
+// Save changes
+async function saveAdminChanges() {
+    const saveBtn = document.getElementById('saveChangesBtn');
+    
+    if (Object.keys(adminChanges).length === 0) {
+        alert('No changes to save');
+        return;
+    }
+    
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+    
+    try {
+        // Update each changed record
+        const updatePromises = Object.entries(adminChanges).map(async ([recordId, fields]) => {
+            const response = await fetch(`${AIRTABLE_COMPANY_URL}/${recordId}`, {
+                method: 'PATCH',
+                headers: {
+                    'Authorization': `Bearer ${AIRTABLE_API_KEY}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    fields: fields
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Failed to update record ${recordId}`);
+            }
+            
+            return response.json();
+        });
+        
+        await Promise.all(updatePromises);
+        
+        // Success
+        alert('Changes saved successfully!');
+        adminChanges = {};
+        
+        // Remove changed class from inputs
+        document.querySelectorAll('.admin-table input.changed').forEach(input => {
+            input.classList.remove('changed');
+        });
+        
+        // Reload company reference data for margin calculations
+        await fetchCompanyReferenceData();
+        
+        saveBtn.innerHTML = '<i class="fas fa-save"></i> Save Changes';
+        saveBtn.disabled = false;
+        
+    } catch (error) {
+        console.error('Error saving changes:', error);
+        alert(`Failed to save changes: ${error.message}`);
+        saveBtn.innerHTML = '<i class="fas fa-save"></i> Save Changes';
+        saveBtn.disabled = false;
+    }
+}
+
+// Setup admin screen event listeners
+document.addEventListener('DOMContentLoaded', function() {
+    const backToMainBtn = document.getElementById('backToMainBtn');
+    const saveChangesBtn = document.getElementById('saveChangesBtn');
+    
+    if (backToMainBtn) {
+        backToMainBtn.addEventListener('click', backToMain);
+    }
+    
+    if (saveChangesBtn) {
+        saveChangesBtn.addEventListener('click', saveAdminChanges);
+    }
+});
 
