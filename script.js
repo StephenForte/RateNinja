@@ -986,20 +986,29 @@ function setupAdminMenu() {
     const hamburgerMenu = document.getElementById('hamburgerMenu');
     const rateAdjustmentLink = document.getElementById('rateAdjustmentLink');
     
+    console.log('Setting up admin menu. currentUserIsAdmin:', currentUserIsAdmin);
+    
     if (currentUserIsAdmin) {
         // Show hamburger button
         hamburgerBtn.style.display = 'inline-block';
+        console.log('Hamburger button shown');
+        
+        // Remove existing click handler to avoid duplicates
+        const newHamburgerBtn = hamburgerBtn.cloneNode(true);
+        hamburgerBtn.parentNode.replaceChild(newHamburgerBtn, hamburgerBtn);
         
         // Toggle menu
-        hamburgerBtn.addEventListener('click', function(e) {
+        newHamburgerBtn.addEventListener('click', function(e) {
             e.stopPropagation();
+            console.log('Hamburger clicked');
             const isVisible = hamburgerMenu.style.display === 'block';
             hamburgerMenu.style.display = isVisible ? 'none' : 'block';
+            console.log('Menu display set to:', hamburgerMenu.style.display);
         });
         
         // Close menu when clicking outside
         document.addEventListener('click', function(e) {
-            if (!hamburgerBtn.contains(e.target) && !hamburgerMenu.contains(e.target)) {
+            if (!newHamburgerBtn.contains(e.target) && !hamburgerMenu.contains(e.target)) {
                 hamburgerMenu.style.display = 'none';
             }
         });
@@ -1007,9 +1016,14 @@ function setupAdminMenu() {
         // Handle Rate Adjustment link
         rateAdjustmentLink.addEventListener('click', function(e) {
             e.preventDefault();
+            console.log('Rate Adjustment link clicked');
             showAdminScreen();
             hamburgerMenu.style.display = 'none';
         });
+    } else {
+        // Hide hamburger button for non-admin users
+        hamburgerBtn.style.display = 'none';
+        console.log('User is not admin, hamburger button hidden');
     }
 }
 
