@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ocean Freight Rates - API Documentation</title>
+    <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+        }
+        .topbar {
+            display: none;
+        }
+        .swagger-ui .info {
+            margin: 50px 0;
+        }
+        .swagger-ui .info .title {
+            font-size: 36px;
+            color: #2c5282;
+        }
+    </style>
+</head>
+<body>
+    <div id="swagger-ui"></div>
+    <script src="https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui-bundle.js"></script>
+    <script src="https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui-standalone-preset.js"></script>
+    <script>
+        window.onload = function() {
+            const spec = {
+                "openapi": "3.0.0",
+                "info": {
+                    "title": "Ocean Freight Rates API",
+                    "version": "1.0.0",
+                    "description": "API documentation for the Ocean Freight Rates application powered by Airtable. This API provides endpoints for user authentication, rate management, company reference data, and sailing information.",
+                    "contact": {
+                        "name": "Stephen Forte",
+                        "url": "https://github.com/StephenForte/RateNinja"
+                    }
+                },
+                "servers": [
+                    {
+                        "url": "https://api.airtable.com/v0/appBLegnJMAienppq",
+                        "description": "Airtable API Base"
+                    }
+                ],
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    {
+                        "name": "Authentication",
+                        "description": "User authentication and session management"
+                    },
+                    {
+                        "name": "Rate Entry",
+                        "description": "Ocean freight shipping rates and filtering"
+                    },
+                    {
+                        "name": "Company Reference",
+                        "description": "Company information and margin management"
+                    },
+                    {
+                        "name": "Sailings",
+                        "description": "Vessel sailing schedules"
+                    }
+                ],
+                "paths": {
+                    "/UserInfo": {
+                        "get": {
+                            "tags": ["Authentication"],
+                            "summary": "Get User Information",
+                            "description": "Retrieves user information from the UserInfo table. Used for authentication and determining user access levels (RateView, AdminScreen).",
+                            "parameters": [
+                                {
+                                    "name": "filterByFormula",
+                                    "in": "query",
+                                    "description": "Airtable formula to filter users by username and password",
+                                    "schema": {
+                                        "type": "string",
+                                        "example": "AND({UserName}='BobJ',{Pwd}='aabbccdd')"
+                                    }
+                                }
+                            ],
+                            "responses": {
+                                "200": {
+                                    "description": "Successful response",
+                                    "content": {
+                                        "application/json": {
+                                            "schema": {
+                                                "$ref": "#/components/schemas/UserInfoResponse"
+                                            }
+                                        }
+                                    }
+                                },
+                                "401": {
+                                    "description": "Unauthorized - Invalid API key"
+                                },
+                                "403": {
+                                    "description": "Forbidden - Insufficient permissions"
+                                }
+                            }
+                        }
+                    },
+                    "/Rate Entry": {
+                        "get": {
+                            "tags": ["Rate Entry"],
+                            "summary": "Get Shipping Rates",
+                            "description": "Retrieves ocean freight shipping rates. Automatically filtered by user's RateView to show only accessible rates. Supports pagination.",
+                            "parameters": [
+                                {
+                                    "name": "filterByFormula",
+                                    "in": "query",
+                                    "description": "Airtable formula to filter rates by RateOwner (matches user's RateView)",
+                                    "schema": {
+                                        "type": "string",
+                                        "example": "{RateOwner}=1"
+                                    }
+                                },
+                                {
+                                    "name": "offset",
+                                    "in": "query",
+                                    "description": "Pagination offset for retrieving next page of records",
+                                    "schema": {
+                                        "type": "string"
+                                    }
+                                }
+                            ],
+                            "responses": {
+                                "200": {
+                                    "description": "Successful response",
+                                    "content": {
+                                        "application/json": {
+                                            "schema": {
+                                                "$ref": "#/components/schemas/RateEntryResponse"
+                                            }
+                                        }
+                                    }
+                                },
+                                "422": {
+                                    "description": "Invalid filter formula"
+                                }
+                            }
+                        }
+                    },
+                    "/CompanyReference": {
+                        "get": {
+                            "tags": ["Company Reference"],
+                            "summary": "Get Company Reference Data",
+                            "description": "Retrieves company information including margin settings (MarginPercent, MarginNumber) and admin status. Used for rate calculations and admin screen filtering.",
+                            "responses": {
+                                "200": {
+                                    "description": "Successful response",
+                                    "content": {
+                                        "application/json": {
+                                            "schema": {
+                                                "$ref": "#/components/schemas/CompanyReferenceResponse"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "/CompanyReference/{recordId}": {
+                        "patch": {
+                            "tags": ["Company Reference"],
+                            "summary": "Update Company Margin Settings",
+                            "description": "Updates margin settings for a company. Only accessible by admin users. Used to modify MarginPercent and MarginNumber for rate calculations.",
+                            "parameters": [
+                                {
+                                    "name": "recordId",
+                                    "in": "path",
+                                    "required": true,
+                                    "description": "Airtable record ID of the company",
+                                    "schema": {
+                                        "type": "string",
+                                        "example": "recKB5pgQ9MfFN5Pi"
+                                    }
+                                }
+                            ],
+                            "requestBody": {
+                                "required": true,
+                                "content": {
+                                    "application/json": {
+                                        "schema": {
+                                            "$ref": "#/components/schemas/CompanyUpdateRequest"
+                                        }
+                                    }
+                                }
+                            },
+                            "responses": {
+                                "200": {
+                                    "description": "Successfully updated company settings"
+                                },
+                                "400": {
+                                    "description": "Invalid request body"
+                                },
+                                "404": {
+                                    "description": "Company record not found"
+                                }
+                            }
+                        }
+                    },
+                    "/Sailings": {
+                        "get": {
+                            "tags": ["Sailings"],
+                            "summary": "Get Vessel Sailing Schedules",
+                            "description": "Retrieves upcoming vessel sailings filtered by carrier, departure port, and date. Used in the sailings modal when clicking on a carrier name.",
+                            "parameters": [
+                                {
+                                    "name": "filterByFormula",
+                                    "in": "query",
+                                    "description": "Airtable formula to filter sailings by carrier, port, and date",
+                                    "schema": {
+                                        "type": "string",
+                                        "example": "AND({Carrier}='MSC',{DeparturePort}='Shanghai',{Departure}>'2025-01-01')"
+                                    }
+                                }
+                            ],
+                            "responses": {
+                                "200": {
+                                    "description": "Successful response",
+                                    "content": {
+                                        "application/json": {
+                                            "schema": {
+                                                "$ref": "#/components/schemas/SailingsResponse"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "components": {
+                    "securitySchemes": {
+                        "BearerAuth": {
+                            "type": "http",
+                            "scheme": "bearer",
+                            "description": "Airtable Personal Access Token (PAT). Format: `patxxxxxxxxxx...`"
+                        }
+                    },
+                    "schemas": {
+                        "UserInfoResponse": {
+                            "type": "object",
+                            "properties": {
+                                "records": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/UserRecord"
+                                    }
+                                }
+                            }
+                        },
+                        "UserRecord": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string",
+                                    "example": "recWfaQIr1u85NCZB"
+                                },
+                                "fields": {
+                                    "type": "object",
+                                    "properties": {
+                                        "UserID": {
+                                            "type": "integer",
+                                            "example": 1
+                                        },
+                                        "UserName": {
+                                            "type": "string",
+                                            "example": "SteveF"
+                                        },
+                                        "Pwd": {
+                                            "type": "string",
+                                            "example": "aabbccdd"
+                                        },
+                                        "DisplayName": {
+                                            "type": "string",
+                                            "example": "Stephen Forte"
+                                        },
+                                        "CompanyReference": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            },
+                                            "example": ["recKB5pgQ9MfFN5Pi"]
+                                        },
+                                        "CompanyID (from CompanyReference)": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "integer"
+                                            },
+                                            "example": [1]
+                                        },
+                                        "RateView": {
+                                            "type": "integer",
+                                            "description": "Determines which rates the user can view",
+                                            "example": 1
+                                        },
+                                        "AdminScreen": {
+                                            "type": "boolean",
+                                            "description": "Whether user has access to admin features",
+                                            "example": true
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "RateEntryResponse": {
+                            "type": "object",
+                            "properties": {
+                                "records": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/RateRecord"
+                                    }
+                                },
+                                "offset": {
+                                    "type": "string",
+                                    "description": "Token for fetching next page of results"
+                                }
+                            }
+                        },
+                        "RateRecord": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string",
+                                    "example": "rec2ZZbOSd521P3et"
+                                },
+                                "fields": {
+                                    "type": "object",
+                                    "properties": {
+                                        "RateOwner": {
+                                            "type": "integer",
+                                            "description": "Matches UserInfo.RateView for filtering",
+                                            "example": 1
+                                        },
+                                        "CompanyID": {
+                                            "type": "integer",
+                                            "description": "Company that owns this rate",
+                                            "example": 1
+                                        },
+                                        "Carrier": {
+                                            "type": "string",
+                                            "example": "MSC"
+                                        },
+                                        "ContractOwner": {
+                                            "type": "string",
+                                            "example": "Acme Logistics"
+                                        },
+                                        "OriginPort": {
+                                            "type": "string",
+                                            "example": "Shanghai"
+                                        },
+                                        "OriginCountry": {
+                                            "type": "string",
+                                            "example": "China"
+                                        },
+                                        "DestinationPort": {
+                                            "type": "string",
+                                            "example": "Los Angeles"
+                                        },
+                                        "DestinationCountry": {
+                                            "type": "string",
+                                            "example": "USA"
+                                        },
+                                        "ServiceType": {
+                                            "type": "string",
+                                            "example": "Direct"
+                                        },
+                                        "Rate20D": {
+                                            "type": "number",
+                                            "description": "Base rate for 20' Dry container",
+                                            "example": 1500.00
+                                        },
+                                        "Rate40D": {
+                                            "type": "number",
+                                            "description": "Base rate for 40' Dry container",
+                                            "example": 2000.00
+                                        },
+                                        "Rate40HC": {
+                                            "type": "number",
+                                            "description": "Base rate for 40' High Cube container",
+                                            "example": 2100.00
+                                        },
+                                        "RateEffectiveDate": {
+                                            "type": "string",
+                                            "format": "date",
+                                            "example": "2025-01-01"
+                                        },
+                                        "RateExpirationDate": {
+                                            "type": "string",
+                                            "format": "date",
+                                            "example": "2025-03-31"
+                                        },
+                                        "InlandDeliveryLocation": {
+                                            "type": "string",
+                                            "example": "Chicago, IL"
+                                        },
+                                        "CommodityType": {
+                                            "type": "string",
+                                            "example": "Electronics"
+                                        },
+                                        "TransitTime": {
+                                            "type": "integer",
+                                            "description": "Transit time in days",
+                                            "example": 14
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "CompanyReferenceResponse": {
+                            "type": "object",
+                            "properties": {
+                                "records": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/CompanyRecord"
+                                    }
+                                }
+                            }
+                        },
+                        "CompanyRecord": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string",
+                                    "example": "recKB5pgQ9MfFN5Pi"
+                                },
+                                "fields": {
+                                    "type": "object",
+                                    "properties": {
+                                        "CompanyID": {
+                                            "type": "integer",
+                                            "example": 1
+                                        },
+                                        "CompanyName": {
+                                            "type": "string",
+                                            "example": "Acme Logistics"
+                                        },
+                                        "CompanyType": {
+                                            "type": "integer",
+                                            "description": "1=Admin, 2=Regular",
+                                            "example": 2
+                                        },
+                                        "RateView": {
+                                            "type": "integer",
+                                            "description": "Which rate view group this company belongs to",
+                                            "example": 1
+                                        },
+                                        "Admin": {
+                                            "type": "boolean",
+                                            "description": "If true, no margin calculations applied",
+                                            "example": false
+                                        },
+                                        "MarginPercent": {
+                                            "type": "number",
+                                            "description": "Percentage margin (e.g., 0.25 for 25%)",
+                                            "example": 0.25
+                                        },
+                                        "MarginNumber": {
+                                            "type": "number",
+                                            "description": "Fixed dollar amount to add",
+                                            "example": 100.00
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "CompanyUpdateRequest": {
+                            "type": "object",
+                            "properties": {
+                                "fields": {
+                                    "type": "object",
+                                    "properties": {
+                                        "MarginPercent": {
+                                            "type": "number",
+                                            "example": 0.30
+                                        },
+                                        "MarginNumber": {
+                                            "type": "number",
+                                            "example": 150.00
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "SailingsResponse": {
+                            "type": "object",
+                            "properties": {
+                                "records": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/SailingRecord"
+                                    }
+                                }
+                            }
+                        },
+                        "SailingRecord": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string",
+                                    "example": "recSAILING123"
+                                },
+                                "fields": {
+                                    "type": "object",
+                                    "properties": {
+                                        "Carrier": {
+                                            "type": "string",
+                                            "example": "MSC"
+                                        },
+                                        "VesselName": {
+                                            "type": "string",
+                                            "example": "MSC MAYA"
+                                        },
+                                        "VoyageNumber": {
+                                            "type": "string",
+                                            "example": "FM2501"
+                                        },
+                                        "DeparturePort": {
+                                            "type": "string",
+                                            "example": "Shanghai"
+                                        },
+                                        "ArrivalPort": {
+                                            "type": "string",
+                                            "example": "Los Angeles"
+                                        },
+                                        "Departure": {
+                                            "type": "string",
+                                            "format": "date",
+                                            "example": "2025-02-15"
+                                        },
+                                        "Arrival": {
+                                            "type": "string",
+                                            "format": "date",
+                                            "example": "2025-03-01"
+                                        },
+                                        "TransitTime": {
+                                            "type": "integer",
+                                            "example": 14
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+
+            SwaggerUIBundle({
+                spec: spec,
+                dom_id: '#swagger-ui',
+                deepLinking: true,
+                presets: [
+                    SwaggerUIBundle.presets.apis,
+                    SwaggerUIStandalonePreset
+                ],
+                plugins: [
+                    SwaggerUIBundle.plugins.DownloadUrl
+                ],
+                layout: "StandaloneLayout",
+                defaultModelsExpandDepth: 1,
+                defaultModelExpandDepth: 3,
+                docExpansion: 'list',
+                filter: true,
+                tryItOutEnabled: true
+            });
+        }
+    </script>
+</body>
+</html>
+
