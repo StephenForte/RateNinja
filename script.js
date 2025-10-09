@@ -376,6 +376,8 @@ async function loadRates() {
             destinationPort: Array.isArray(record.fields['Destination Port/Via Port']) 
                 ? record.fields['Destination Port/Via Port'].join(', ') 
                 : (record.fields['Destination Port/Via Port'] || 'N/A'),
+            inlandDeliveryLocation: record.fields['Inland Delivery Location'] || 'N/A',
+            commodityType: record.fields['CommodityType'] || 'N/A',
             carrier: record.fields.Carrier || 'N/A',
             contractOwner: record.fields['Contract Owner'] || 'N/A',
             // Calculate final rates (original rate + margin) based on logged-in user's CompanyID
@@ -443,6 +445,8 @@ async function loadRates() {
                         destinationPort: Array.isArray(record.fields['Destination Port/Via Port']) 
                             ? record.fields['Destination Port/Via Port'].join(', ') 
                             : (record.fields['Destination Port/Via Port'] || 'N/A'),
+                        inlandDeliveryLocation: record.fields['Inland Delivery Location'] || 'N/A',
+                        commodityType: record.fields['CommodityType'] || 'N/A',
                         carrier: record.fields.Carrier || 'N/A',
                         contractOwner: record.fields['Contract Owner'] || 'N/A',
             // Calculate final rates (original rate + margin) based on logged-in user's CompanyID
@@ -673,7 +677,7 @@ function renderTable() {
     if (pageRates.length === 0) {
         ratesTableBody.innerHTML = `
             <tr>
-                <td colspan="12" style="text-align: center; padding: 40px; color: #666;">
+                <td colspan="14" style="text-align: center; padding: 40px; color: #666;">
                     <i class="fas fa-search" style="font-size: 2rem; margin-bottom: 15px; display: block;"></i>
                     No shipping rates found matching your criteria
                 </td>
@@ -686,6 +690,8 @@ function renderTable() {
                 <td>${escapeHtml(rate.rateType)}</td>
                 <td>${escapeHtml(rate.originPort)}</td>
                 <td>${escapeHtml(rate.destinationPort)}</td>
+                <td>${escapeHtml(rate.inlandDeliveryLocation)}</td>
+                <td>${escapeHtml(rate.commodityType)}</td>
                 <td><a href="#" class="carrier-link" onclick="openSailingsModal('${escapeHtml(rate.carrier)}', '${escapeHtml(rate.originPort)}', '${escapeHtml(rate.destinationPort)}', '${escapeHtml(rate.rateEffectiveDate)}'); return false;">${escapeHtml(rate.carrier)}</a></td>
                 <td><a href="#" class="contract-link" onclick="openContractModal('${escapeHtml(rate.contractOwner)}', '${escapeHtml(rate.carrier)}', '${escapeHtml(rate.originPort)}', '${escapeHtml(rate.destinationPort)}', '${escapeHtml(rate.rateEffectiveDate)}', '${escapeHtml(rate.rateExpirationDate)}', '${rate.rate20D}', '${rate.rate40D}', '${rate.rate40HC}'); return false;">${escapeHtml(rate.contractOwner)}</a></td>
                 <td>
