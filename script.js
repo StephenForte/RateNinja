@@ -1076,16 +1076,24 @@ async function loadAdminCompanies() {
         
         const data = await response.json();
         
+        console.log('Current user CompanyID:', currentUserCompanyID);
+        console.log('Total companies fetched:', data.records.length);
+        
         // Filter for companies with CompanyType=2 and matching RateView
+        // Exclude the user's own company
         adminCompanies = data.records.filter(record => {
             const companyType = record.fields.CompanyType;
             const companyTypeId = Array.isArray(companyType) ? companyType[0] : companyType;
+            const companyID = record.fields.CompanyID;
             
             // CompanyType field is a link to another table, check if it matches the expected record ID
             // For CompanyType=2, we need to check the linked record
             // For now, we'll filter by checking if the record has the expected structure
+            // Also exclude the user's own company
             
-            return companyTypeId && record.fields.RateView === currentUserRateOwner;
+            return companyTypeId && 
+                   record.fields.RateView === currentUserRateOwner && 
+                   companyID !== currentUserCompanyID;
         });
         
         console.log('Filtered admin companies:', adminCompanies);
