@@ -347,7 +347,8 @@ body {
 .table-container {
     background: white;
     border-radius: 16px;
-    overflow: hidden;
+    overflow-x: auto;
+    overflow-y: hidden;
     box-shadow: 0 10px 30px rgba(0,0,0,0.1);
     margin-bottom: 30px;
 }
@@ -373,6 +374,7 @@ body {
 /* Table */
 .rates-table {
     width: 100%;
+    min-width: 1400px;
     border-collapse: collapse;
     font-size: 14px;
 }

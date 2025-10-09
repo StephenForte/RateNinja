@@ -677,7 +677,7 @@ function renderTable() {
     if (pageRates.length === 0) {
         ratesTableBody.innerHTML = `
             <tr>
-                <td colspan="14" style="text-align: center; padding: 40px; color: #666;">
+                <td colspan="13" style="text-align: center; padding: 40px; color: #666;">
                     <i class="fas fa-search" style="font-size: 2rem; margin-bottom: 15px; display: block;"></i>
                     No shipping rates found matching your criteria
                 </td>
@@ -711,11 +711,6 @@ function renderTable() {
                 </td>
                 <td>
                     <span class="notes">${escapeHtml(rate.notes1)}</span>
-                </td>
-                <td>
-                    <button class="action-btn" onclick="viewDetails('${rate.id}')">
-                        <i class="fas fa-eye"></i> View
-                    </button>
                 </td>
             `;
             ratesTableBody.appendChild(row);
