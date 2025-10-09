@@ -12,6 +12,7 @@ const AIRTABLE_SAILINGS_URL = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/$
 
 // Global variables
 let allRates = [];
+let rateViewFilteredRates = []; // Rates filtered by user's RateView
 let filteredRates = [];
 let currentPage = 1;
 const recordsPerPage = 20;
@@ -400,7 +401,7 @@ async function loadRates() {
         if (currentUserRateOwner !== null && currentUserRateOwner !== undefined) {
             console.log('Filtering rates by user RateView:', currentUserRateOwner);
             
-            filteredRates = allRates.filter(rate => {
+            rateViewFilteredRates = allRates.filter(rate => {
                 const rateViews = Array.isArray(rate.rateView) ? rate.rateView : [rate.rateView];
                 const matches = rateViews.includes(currentUserRateOwner);
                 if (matches) {
@@ -409,12 +410,15 @@ async function loadRates() {
                 return matches;
             });
             
-            console.log(`Filtered ${filteredRates.length} rates out of ${allRates.length} total rates`);
+            console.log(`Filtered ${rateViewFilteredRates.length} rates out of ${allRates.length} total rates`);
         } else {
             // If no RateView set, show all rates
-            filteredRates = [...allRates];
+            rateViewFilteredRates = [...allRates];
             console.log('No RateView filter applied, showing all rates:', allRates.length);
         }
+        
+        // Start with RateView-filtered rates
+        filteredRates = [...rateViewFilteredRates];
         
         populateFilters();
         renderTable();
@@ -477,7 +481,7 @@ async function loadRates() {
                         console.log('Current user RateView (from UserInfo.RateView):', currentUserRateOwner);
                         
                         // Filter by RateView (integer) - RateEntry.RateView should contain UserInfo.RateView
-                        filteredRates = allRates.filter(rate => {
+                        rateViewFilteredRates = allRates.filter(rate => {
                             const rateViews = Array.isArray(rate.rateView) ? rate.rateView : [rate.rateView];
                             const matches = rateViews.includes(currentUserRateOwner);
                             if (matches) {
@@ -486,10 +490,10 @@ async function loadRates() {
                             return matches;
                         });
                         
-                        console.log(`Filtered ${filteredRates.length} rates out of ${allRates.length} total rates`);
+                        console.log(`Filtered ${rateViewFilteredRates.length} rates out of ${allRates.length} total rates`);
                         
                         // If no matches found, let's see what RateView values exist
-                        if (filteredRates.length === 0) {
+                        if (rateViewFilteredRates.length === 0) {
                             console.log('No matches found. Available RateView values:');
                             const allRateViews = new Set();
                             allRates.forEach(rate => {
@@ -499,9 +503,12 @@ async function loadRates() {
                             console.log('All RateView values in RateEntry table:', Array.from(allRateViews));
                         }
                     } else {
-                        filteredRates = [...allRates];
+                        rateViewFilteredRates = [...allRates];
                         console.log('No RateView filter applied, showing all rates:', allRates.length);
                     }
+                    
+                    // Start with RateView-filtered rates
+                    filteredRates = [...rateViewFilteredRates];
                     
                     populateFilters();
                     renderTable();
@@ -542,10 +549,11 @@ function hideError() {
 
 // Populate filter dropdowns
 function populateFilters() {
-    const carriers = [...new Set(allRates.map(rate => rate.carrier))].filter(Boolean);
-    const originPorts = [...new Set(allRates.map(rate => rate.originPort))].filter(Boolean);
-    const destinationPorts = [...new Set(allRates.map(rate => rate.destinationPort))].filter(Boolean);
-    const contractOwners = [...new Set(allRates.map(rate => rate.contractOwner))].filter(Boolean);
+    // Use rateViewFilteredRates so dropdowns only show options available to the user
+    const carriers = [...new Set(rateViewFilteredRates.map(rate => rate.carrier))].filter(Boolean);
+    const originPorts = [...new Set(rateViewFilteredRates.map(rate => rate.originPort))].filter(Boolean);
+    const destinationPorts = [...new Set(rateViewFilteredRates.map(rate => rate.destinationPort))].filter(Boolean);
+    const contractOwners = [...new Set(rateViewFilteredRates.map(rate => rate.contractOwner))].filter(Boolean);
     
     // Populate carrier filter
     carrierFilter.innerHTML = '<option value="">All Carriers</option>';
@@ -590,7 +598,8 @@ function populateFilters() {
 function handleSearch() {
     const searchTerm = searchInput.value.toLowerCase().trim();
     
-    filteredRates = allRates.filter(rate => {
+    // Start from rateViewFilteredRates to respect RateView filter
+    filteredRates = rateViewFilteredRates.filter(rate => {
         return rate.carrier.toLowerCase().includes(searchTerm) ||
                rate.originPort.toLowerCase().includes(searchTerm) ||
                rate.destinationPort.toLowerCase().includes(searchTerm) ||
@@ -610,7 +619,8 @@ function handleFilter() {
     const destinationPortValue = destinationPortFilter.value;
     const contractOwnerValue = contractOwnerFilter.value;
     
-    filteredRates = allRates.filter(rate => {
+    // Start from rateViewFilteredRates to respect RateView filter
+    filteredRates = rateViewFilteredRates.filter(rate => {
         const carrierMatch = !carrierValue || rate.carrier === carrierValue;
         const originPortMatch = !originPortValue || rate.originPort === originPortValue;
         const destinationPortMatch = !destinationPortValue || rate.destinationPort === destinationPortValue;
