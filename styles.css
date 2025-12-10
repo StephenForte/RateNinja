@@ -7,7 +7,7 @@
 
 body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: #add8e6;
     min-height: 100vh;
     color: #333;
     line-height: 1.6;
@@ -47,7 +47,7 @@ body {
 
 .login-header h1 i {
     margin-right: 15px;
-    color: #667eea;
+    color: #FF9800;
 }
 
 .login-subtitle {
@@ -202,7 +202,7 @@ body {
 
 .header h1 i {
     margin-right: 15px;
-    color: #4CAF50;
+    color: #FF9800;
 }
 
 .subtitle {
