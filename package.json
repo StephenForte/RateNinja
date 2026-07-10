@@ -1,0 +1,13 @@
+{
+  "name": "rate-ninja",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Ocean freight rate lookup application",
+  "scripts": {
+    "start": "node server.js",
+    "check": "node --check server.js && node --check script.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

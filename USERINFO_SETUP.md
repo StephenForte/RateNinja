@@ -13,15 +13,15 @@ To enable company-specific rate filtering, you need to create a UserInfo table i
 
 | Field Name | Field Type | Description | Example |
 |------------|------------|-------------|---------|
-| **Username** | Single line text | User's login username | `BobJ` |
-| **Password** | Single line text | User's login password | `aabbccdd` |
+| **Username** | Single line text | User's login username | `example-user` |
+| **Password** | Single line text | User's login password | Use a unique password; do not add sample credentials to the repository. |
 | **RateOwner** | Single line text | CompanyID that matches the CompanyID field in RateEntry table | `COMP001` |
 
 ### Sample Records
 
 | Username | Password | RateOwner |
 |----------|----------|-----------|
-| BobJ | aabbccdd | COMP001 |
+| example-user | Use a unique password | COMP001 |
 | AliceS | password123 | COMP002 |
 | JohnD | securepass | COMP001 |
 

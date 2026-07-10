@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ocean Freight Container Rates</title>
+    <meta name="theme-color" content="#102a43">
+    <title>Rate Ninja | Ocean Freight Intelligence</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="stylesheet" href="styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -14,8 +15,8 @@
     <div id="loginPage" class="login-container">
         <div class="login-card">
             <div class="login-header">
-                <h1><i class="fas fa-ship"></i> Vortecx Rate Engine</h1>
-                <p class="login-subtitle">Ocean Freight Container Rates</p>
+                <h1><i class="fas fa-ship"></i> Rate Ninja</h1>
+                <p class="login-subtitle">Ocean freight intelligence, simplified.</p>
             </div>
             
             <form id="loginForm" class="login-form">
@@ -39,7 +40,7 @@
                     <i class="fas fa-sign-in-alt"></i> Sign In
                 </button>
                 
-                <div id="loginError" class="error-message" style="display: none;">
+                <div id="loginError" class="error-message" hidden>
                     <i class="fas fa-exclamation-triangle"></i>
                     <span id="loginErrorMessage">Invalid username or password</span>
                 </div>
@@ -48,29 +49,29 @@
     </div>
 
     <!-- Main Application Page -->
-    <div id="mainPage" class="container" style="display: none;">
+    <div id="mainPage" class="container" hidden>
         <header class="header">
             <div class="header-content">
                 <div class="header-left">
-                    <button id="hamburgerBtn" class="hamburger-btn" style="display: none;">
+                    <button id="hamburgerBtn" class="hamburger-btn" type="button" hidden aria-label="Open administration menu">
                         <i class="fas fa-bars"></i>
                     </button>
-                    <h1><i class="fas fa-ship"></i> Vortecx Rate Engine</h1>
-                    <p class="subtitle">Ocean Freight Container Rates</p>
+                    <h1><i class="fas fa-ship"></i> Rate Ninja</h1>
+                    <p class="subtitle">Ocean freight intelligence</p>
                 </div>
                 <div class="header-right">
                     <div class="welcome-message">
                         <i class="fas fa-user-circle"></i>
                         <span id="welcomeText">Welcome, User</span>
                     </div>
-                    <button id="logoutBtn" class="logout-btn" onclick="performLogout(); return false;">
+                    <button id="logoutBtn" class="logout-btn" type="button">
                         <i class="fas fa-sign-out-alt"></i> Logout
                     </button>
                 </div>
             </div>
             
             <!-- Hamburger Menu Dropdown -->
-            <div id="hamburgerMenu" class="hamburger-menu" style="display: none;">
+            <div id="hamburgerMenu" class="hamburger-menu" hidden>
                 <a href="#" id="rateAdjustmentLink" class="menu-item">
                     <i class="fas fa-cog"></i> Rate Adjustment
                 </a>
@@ -80,23 +81,23 @@
         <div class="controls">
             <div class="search-container">
                 <i class="fas fa-search"></i>
-                <input type="text" id="searchInput" placeholder="Search rates, routes, carriers...">
+                <input type="search" id="searchInput" placeholder="Search routes, carriers, contracts…" aria-label="Search rates">
             </div>
             
             <div class="filter-container">
-                <select id="carrierFilter">
+                <select id="carrierFilter" aria-label="Filter by carrier">
                     <option value="">All Carriers</option>
                 </select>
                 
-                <select id="originPortFilter">
+                <select id="originPortFilter" aria-label="Filter by origin port">
                     <option value="">All Origin Ports</option>
                 </select>
                 
-                <select id="destinationPortFilter">
+                <select id="destinationPortFilter" aria-label="Filter by destination port">
                     <option value="">All Destination Ports</option>
                 </select>
                 
-                <select id="contractOwnerFilter">
+                <select id="contractOwnerFilter" aria-label="Filter by contract owner">
                     <option value="">All Contract Owners</option>
                 </select>
             </div>
@@ -114,7 +115,7 @@
                 <span>Loading shipping rates...</span>
             </div>
             
-            <div class="error" id="error" style="display: none;">
+            <div class="error" id="error" hidden>
                 <i class="fas fa-exclamation-triangle"></i>
                 <span id="errorMessage">Failed to load data</span>
             </div>
@@ -180,7 +181,7 @@
     </div>
 
     <!-- Admin Screen for Rate Adjustment -->
-    <div id="adminScreen" class="container" style="display: none;">
+    <div id="adminScreen" class="container" hidden>
         <header class="header">
             <div class="header-content">
                 <div class="header-left">
@@ -204,12 +205,12 @@
                 <span>Loading companies...</span>
             </div>
             
-            <div class="error" id="adminError" style="display: none;">
+            <div class="error" id="adminError" hidden>
                 <i class="fas fa-exclamation-triangle"></i>
                 <span id="adminErrorMessage">Failed to load data</span>
             </div>
 
-            <div class="admin-table-container" id="adminTableContainer" style="display: none;">
+            <div class="admin-table-container" id="adminTableContainer" hidden>
                 <table class="admin-table" id="adminTable">
                     <thead>
                         <tr>
@@ -226,18 +227,18 @@
     </div>
 
     <!-- Sailings Popup Modal -->
-    <div id="sailingsModal" class="modal" style="display: none;">
+    <div id="sailingsModal" class="modal" hidden>
         <div class="modal-content">
             <div class="modal-header">
                 <h2 id="modalTitle">Available Sailings</h2>
-                <span class="close" id="closeModal">&times;</span>
+                <button class="close" id="closeModal" type="button" aria-label="Close sailings">&times;</button>
             </div>
             <div class="modal-body">
                 <div id="sailingsLoading" class="loading-modal">
                     <i class="fas fa-spinner fa-spin"></i>
                     <span>Loading sailings...</span>
                 </div>
-                <div id="sailingsContent" style="display: none;">
+                <div id="sailingsContent" hidden>
                     <div id="sailingsSummary"></div>
                     <div class="sailings-table-container">
                         <table class="sailings-table" id="sailingsTable">
@@ -256,7 +257,7 @@
                         </table>
                     </div>
                 </div>
-                <div id="sailingsError" class="error-modal" style="display: none;">
+                <div id="sailingsError" class="error-modal" hidden>
                     <i class="fas fa-exclamation-triangle"></i>
                     <span id="sailingsErrorMessage">Failed to load sailings</span>
                 </div>
@@ -265,11 +266,11 @@
     </div>
 
     <!-- Contract Details Popup Modal -->
-    <div id="contractModal" class="modal" style="display: none;">
+    <div id="contractModal" class="modal" hidden>
         <div class="modal-content">
             <div class="modal-header">
                 <h2 id="contractModalTitle">Contract Details</h2>
-                <span class="close" id="closeContractModal">&times;</span>
+                <button class="close" id="closeContractModal" type="button" aria-label="Close contract">&times;</button>
             </div>
             <div class="modal-body">
                 <div class="contract-details">
