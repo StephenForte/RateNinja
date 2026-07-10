@@ -27,6 +27,7 @@
             <tr><td><code>PATCH /api/admin/companies/:recordId</code></td><td>Administrator</td><td>Updates a company's margin percent and fixed margin.</td></tr>
             <tr><td><code>GET /api/v1/rates</code></td><td>Demo API key</td><td>Returns base rates with optional carrier, originPort, destinationPort, page, and pageSize filters.</td></tr>
             <tr><td><code>GET /api/v1/sailings</code></td><td>Demo API key</td><td>Returns sailings for carrier, originPort, and after query parameters.</td></tr>
+            <tr><td><code>GET /api/v1/predictive-pricing</code></td><td>Demo API key</td><td>Returns stub predictive prices for carrier, originPort, and an after date more than 90 days out.</td></tr>
         </tbody>
     </table>
     <p>The v1 demo API requires <code>X-API-Key</code>, returns base rates only, and is limited to 60 requests per minute per running server instance. See <a href="API-README.md">API-README.md</a> for examples. Do not put an Airtable personal access token in a browser, this page, or source control.</p>

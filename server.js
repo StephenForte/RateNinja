@@ -285,6 +285,47 @@ function matchesSearch(value, query) {
     return !query || String(value).toLowerCase().includes(query.toLowerCase());
 }
 
+function parseDateOnly(value) {
+    const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return null;
+    const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+    return date.getUTCFullYear() === Number(match[1]) && date.getUTCMonth() === Number(match[2]) - 1 && date.getUTCDate() === Number(match[3])
+        ? date
+        : null;
+}
+
+function fullDaysUntil(date) {
+    const today = new Date();
+    const todayUtc = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+    return Math.floor((date.getTime() - todayUtc) / (24 * 60 * 60 * 1000));
+}
+
+function expirationTimestamp(value) {
+    const timestamp = Date.parse(value);
+    return Number.isNaN(timestamp) ? Number.NEGATIVE_INFINITY : timestamp;
+}
+
+function calculatePredictiveRate(value, fullThirtyDayPeriods) {
+    const baseRate = Number(value) || 0;
+    return Math.round(baseRate * (1 + (fullThirtyDayPeriods * 0.05)));
+}
+
+function latestPredictiveRateRecords(records, carrier, originPort) {
+    const latestByRoute = new Map();
+    for (const record of records) {
+        const fields = record.fields;
+        if (!sameValue(fields.Carrier, carrier) || !sameValue(fields['Origin Port'], originPort)) continue;
+        const destinationPort = normalizeValue(fields['Destination Port/Via Port']);
+        const arrival = normalizeValue(fields.Arrival, '');
+        const routeKey = [fields.Carrier, fields['Origin Port'], destinationPort, arrival].join('\u0000');
+        const latest = latestByRoute.get(routeKey);
+        if (!latest || expirationTimestamp(fields['Rate Expiration Date']) > expirationTimestamp(latest.fields['Rate Expiration Date'])) {
+            latestByRoute.set(routeKey, record);
+        }
+    }
+    return [...latestByRoute.values()];
+}
+
 async function handlePublicRates(request, response, url) {
     if (!requirePublicApiAccess(request, response)) return;
     const carrier = url.searchParams.get('carrier') || '';
@@ -332,6 +373,41 @@ async function handlePublicSailings(request, response, url) {
         service: normalizeValue(record.fields.Service)
     }));
     sendJson(response, 200, { data: sailings, meta: { total: sailings.length } }, securityHeaders());
+}
+
+async function handlePredictivePricing(request, response, url) {
+    if (!requirePublicApiAccess(request, response)) return;
+    const carrier = url.searchParams.get('carrier') || '';
+    const originPort = url.searchParams.get('originPort') || '';
+    const after = url.searchParams.get('after') || '';
+    if (!carrier || !originPort || !after) {
+        sendError(response, 400, 'Carrier, originPort, and after query parameters are required.');
+        return;
+    }
+
+    const departureDate = parseDateOnly(after);
+    const daysUntilDeparture = departureDate && fullDaysUntil(departureDate);
+    if (!departureDate || daysUntilDeparture <= 90) {
+        sendError(response, 400, 'Departing after must be more than 90 days in the future.');
+        return;
+    }
+
+    const fullThirtyDayPeriods = Math.floor(daysUntilDeparture / 30);
+    const records = latestPredictiveRateRecords(await fetchAllRecords(config.tables.rates), carrier, originPort);
+    const predictions = records.map(record => {
+        const fields = record.fields;
+        return {
+            carrier: normalizeValue(fields.Carrier),
+            originPort: normalizeValue(fields['Origin Port']),
+            destinationPort: normalizeValue(fields['Destination Port/Via Port']),
+            arrival: normalizeValue(fields.Arrival, ''),
+            departingAfter: after,
+            rate20D: calculatePredictiveRate(fields['20D Rate'], fullThirtyDayPeriods),
+            rate40D: calculatePredictiveRate(fields['40D rate'], fullThirtyDayPeriods),
+            rate40HC: calculatePredictiveRate(fields['40HC Rate'], fullThirtyDayPeriods)
+        };
+    });
+    sendJson(response, 200, { data: predictions, meta: { total: predictions.length } }, securityHeaders());
 }
 
 async function handleSailings(request, response, session, url) {
@@ -440,12 +516,13 @@ const server = http.createServer(async (request, response) => {
                 name: 'Rate Ninja Demo API',
                 version: 'v1',
                 authentication: 'Send your demo key in the X-API-Key header.',
-                endpoints: ['/api/v1/rates', '/api/v1/sailings']
+                endpoints: ['/api/v1/rates', '/api/v1/sailings', '/api/v1/predictive-pricing']
             }, securityHeaders());
             return;
         }
         if (pathname === '/api/v1/rates' && request.method === 'GET') return handlePublicRates(request, response, url);
         if (pathname === '/api/v1/sailings' && request.method === 'GET') return handlePublicSailings(request, response, url);
+        if (pathname === '/api/v1/predictive-pricing' && request.method === 'GET') return handlePredictivePricing(request, response, url);
 
         const session = pathname.startsWith('/api/') ? await requireSession(request, response) : null;
         if (pathname.startsWith('/api/') && !session) return;

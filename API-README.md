@@ -29,6 +29,7 @@ Send that key in the `X-API-Key` header. The demo has an in-memory limit of 60 r
 | `GET /api/v1` | — | Returns version and endpoint metadata. |
 | `GET /api/v1/rates` | `carrier`, `originPort`, `destinationPort`, `page`, `pageSize` | Searches rates. Text filters are case-insensitive; `pageSize` is capped at 100. |
 | `GET /api/v1/sailings` | `carrier`, `originPort`, `after` | Returns matching sailings; all three query parameters are required. |
+| `GET /api/v1/predictive-pricing` | `carrier`, `originPort`, `after` | Stub pricing forecast. The date must be more than 90 days in the future; it returns the latest-expiring Rate Entry for each matching destination/arrival group with a linear 5% increase per full 30 days. |
 
 Example:
 
