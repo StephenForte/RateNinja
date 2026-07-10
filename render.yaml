@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: rate-ninja
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: AIRTABLE_PAT
+        sync: false
+      - key: RATE_NINJA_API_KEY
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true

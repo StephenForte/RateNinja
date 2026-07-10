@@ -3,7 +3,7 @@ const AIRTABLE_BASE_ID = 'appBLegnJMAienppq';
 const AIRTABLE_RATE_TABLE_ID = 'tbl5OpIdW2kyRRWLp';
 const AIRTABLE_USER_TABLE_ID = 'tblwtjp73CaWe3GKy'; // UserInfo table ID
 const AIRTABLE_COMPANY_TABLE_ID = 'CompanyReference'; // CompanyReference table ID
-const AIRTABLE_API_KEY = 'patmavgfaBmeaZt0V.31aae1face1c9ecbebb893a46eb6672104ea7aa700164c2cc7e7a952a088045f';
+const AIRTABLE_API_KEY = 'YOUR_AIRTABLE_PAT';
 const AIRTABLE_RATE_URL = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_RATE_TABLE_ID}`;
 const AIRTABLE_USER_URL = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_USER_TABLE_ID}`;
 const AIRTABLE_COMPANY_URL = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_COMPANY_TABLE_ID}`;
@@ -182,15 +182,6 @@ async function authenticateUser(username, password) {
         return null;
     } catch (error) {
         console.error('Authentication error:', error);
-        
-        // Fallback to hardcoded authentication if UserInfo table is not accessible
-        console.log('Falling back to hardcoded authentication...');
-        if (username === 'BobJ' && password === 'aabbccdd') {
-            return {
-                username: username,
-                rateOwner: 'COMP001' // Default company for testing
-            };
-        }
         
         throw error;
     }

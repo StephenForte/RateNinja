@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0b1f33">
+    <title>Atlas 3PL | Rate Ninja API Console</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <link rel="stylesheet" href="api-testbed.css">
+</head>
+<body>
+    <main class="shell">
+        <section class="hero">
+            <div class="brand">
+                <span class="brand-mark"><i class="fa-solid fa-compass"></i></span>
+                <span>ATLAS <strong>3PL</strong></span>
+            </div>
+            <div class="hero-copy">
+                <p class="eyebrow"><span></span> Developer sandbox</p>
+                <h1>Freight data,<br><em>on demand.</em></h1>
+                <p>Try the Rate Ninja demo API as a forwarder would: search rates, inspect live sailings, and see the exact request your integration would send.</p>
+            </div>
+            <div class="hero-stats" aria-label="API capabilities">
+                <div><strong>v1</strong><span>REST API</span></div>
+                <div><strong>JSON</strong><span>Responses</span></div>
+                <div><strong>60</strong><span>Req / min</span></div>
+            </div>
+        </section>
+
+        <section class="console" aria-label="Rate Ninja API test console">
+            <aside class="settings-panel">
+                <div class="panel-heading">
+                    <p class="section-label">Connection</p>
+                    <h2>Workspace setup</h2>
+                </div>
+                <label for="baseUrl">Base URL</label>
+                <div class="field-icon">
+                    <i class="fa-solid fa-link"></i>
+                    <input id="baseUrl" type="url" autocomplete="url" spellcheck="false">
+                </div>
+                <label for="apiKey">Demo API key</label>
+                <div class="field-icon key-field">
+                    <i class="fa-solid fa-key"></i>
+                    <input id="apiKey" type="password" autocomplete="off" placeholder="Paste your X-API-Key">
+                    <button id="toggleKey" type="button" aria-label="Show API key"><i class="fa-regular fa-eye"></i></button>
+                </div>
+                <p class="privacy-note"><i class="fa-solid fa-lock"></i> Your key stays in this browser tab and is never saved.</p>
+                <div class="endpoint-list" aria-label="Available endpoints">
+                    <p class="section-label">Read-only endpoints</p>
+                    <button class="endpoint active" type="button" data-tab="rates"><span>GET</span><code>/api/v1/rates</code></button>
+                    <button class="endpoint" type="button" data-tab="sailings"><span>GET</span><code>/api/v1/sailings</code></button>
+                </div>
+            </aside>
+
+            <section class="request-panel">
+                <div class="request-heading">
+                    <div>
+                        <p class="section-label">Query builder</p>
+                        <h2 id="endpointTitle">Search ocean rates</h2>
+                    </div>
+                    <span class="method-badge">GET</span>
+                </div>
+
+                <form id="ratesForm" class="query-form">
+                    <div class="form-grid">
+                        <label>Carrier<input name="carrier" placeholder="e.g. MSC"></label>
+                        <label>Origin port<input name="originPort" placeholder="e.g. Shanghai"></label>
+                        <label>Destination port<input name="destinationPort" placeholder="e.g. Los Angeles"></label>
+                        <label>Results per page
+                            <select name="pageSize">
+                                <option value="25">25</option>
+                                <option value="50" selected>50</option>
+                                <option value="100">100</option>
+                            </select>
+                        </label>
+                    </div>
+                    <button class="run-button" type="submit"><i class="fa-solid fa-play"></i> Run rate search</button>
+                </form>
+
+                <form id="sailingsForm" class="query-form" hidden>
+                    <div class="form-grid">
+                        <label>Carrier<input name="carrier" placeholder="e.g. MSC" required></label>
+                        <label>Origin port<input name="originPort" placeholder="e.g. Shanghai" required></label>
+                        <label>Departing after<input name="after" type="date" required></label>
+                    </div>
+                    <button class="run-button" type="submit"><i class="fa-solid fa-play"></i> Find sailings</button>
+                </form>
+
+                <div class="request-preview">
+                    <div class="preview-heading"><span>Request preview</span><button id="copyRequest" type="button"><i class="fa-regular fa-copy"></i> Copy</button></div>
+                    <pre id="requestCode">Configure a request to see the cURL command.</pre>
+                </div>
+            </section>
+
+            <section class="response-panel">
+                <div class="response-heading">
+                    <div><p class="section-label">Response</p><h2>Live result</h2></div>
+                    <span id="responseStatus" class="response-status idle">Waiting</span>
+                </div>
+                <div id="responseMeta" class="response-meta">Enter a demo API key and run a request.</div>
+                <pre id="responseBody" class="response-body" aria-live="polite">{
+  "ready": true,
+  "message": "Your API response will appear here."
+}</pre>
+            </section>
+        </section>
+    </main>
+    <script src="api-testbed.js"></script>
+</body>
+</html>
