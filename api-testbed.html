@@ -52,6 +52,7 @@
                     <p class="section-label">Read-only endpoints</p>
                     <button class="endpoint active" type="button" data-tab="rates"><span>GET</span><code>/api/v1/rates</code></button>
                     <button class="endpoint" type="button" data-tab="sailings"><span>GET</span><code>/api/v1/sailings</code></button>
+                    <button class="endpoint" type="button" data-tab="predictive"><span>GET</span><code>/api/v1/predictive-pricing</code></button>
                 </div>
             </aside>
 
@@ -87,6 +88,15 @@
                         <label>Departing after<input name="after" type="date" required></label>
                     </div>
                     <button class="run-button" type="submit"><i class="fa-solid fa-play"></i> Find sailings</button>
+                </form>
+
+                <form id="predictiveForm" class="query-form" hidden>
+                    <div class="form-grid">
+                        <label>Carrier<input name="carrier" placeholder="e.g. MSC" required></label>
+                        <label>Origin port<input name="originPort" placeholder="e.g. Shanghai" required></label>
+                        <label>Departing after<input name="after" type="date" required></label>
+                    </div>
+                    <button class="run-button" type="submit"><i class="fa-solid fa-play"></i> Predict rates</button>
                 </form>
 
                 <div class="request-preview">

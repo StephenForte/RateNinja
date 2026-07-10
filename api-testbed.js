@@ -5,6 +5,7 @@ const elements = {
     endpoints: [...document.querySelectorAll('.endpoint')],
     ratesForm: document.getElementById('ratesForm'),
     sailingsForm: document.getElementById('sailingsForm'),
+    predictiveForm: document.getElementById('predictiveForm'),
     endpointTitle: document.getElementById('endpointTitle'),
     requestCode: document.getElementById('requestCode'),
     copyRequest: document.getElementById('copyRequest'),
@@ -15,7 +16,8 @@ const elements = {
 
 const endpointDetails = {
     rates: { title: 'Search ocean rates', path: '/api/v1/rates', form: elements.ratesForm },
-    sailings: { title: 'Find available sailings', path: '/api/v1/sailings', form: elements.sailingsForm }
+    sailings: { title: 'Find available sailings', path: '/api/v1/sailings', form: elements.sailingsForm },
+    predictive: { title: 'Predictive pricing', path: '/api/v1/predictive-pricing', form: elements.predictiveForm }
 };
 
 let activeTab = 'rates';
@@ -25,9 +27,10 @@ elements.baseUrl.value = window.location.protocol.startsWith('http') ? window.lo
 elements.endpoints.forEach(button => button.addEventListener('click', () => setActiveTab(button.dataset.tab)));
 elements.ratesForm.addEventListener('submit', event => runRequest(event, 'rates'));
 elements.sailingsForm.addEventListener('submit', event => runRequest(event, 'sailings'));
+elements.predictiveForm.addEventListener('submit', event => runRequest(event, 'predictive'));
 elements.baseUrl.addEventListener('input', updateRequestPreview);
 elements.apiKey.addEventListener('input', updateRequestPreview);
-[...elements.ratesForm.elements, ...elements.sailingsForm.elements].forEach(input => input.addEventListener('input', updateRequestPreview));
+[...elements.ratesForm.elements, ...elements.sailingsForm.elements, ...elements.predictiveForm.elements].forEach(input => input.addEventListener('input', updateRequestPreview));
 elements.toggleKey.addEventListener('click', toggleApiKey);
 elements.copyRequest.addEventListener('click', copyRequest);
 
