@@ -25,6 +25,7 @@ const {
     normalizeValue,
     sameValue,
     mapRateRecord,
+    mapPredictiveRateRecord,
     parsePageNumber,
     matchesSearch,
     parseDateOnly,
@@ -178,6 +179,22 @@ async function handleRates(request, response, session, url) {
     const rates = records
         .filter(record => rateVisibleToView(record, session.user.rateView))
         .map(record => mapRateRecord(record, company));
+    sendJson(response, 200, { rates }, securityHeaders());
+}
+
+async function handlePredictiveRates(request, response, session, url) {
+    const after = url.searchParams.get('after') || '';
+    const departureDate = parseDateOnly(after);
+    const daysUntilDeparture = departureDate && fullDaysUntil(departureDate);
+    if (!departureDate || daysUntilDeparture <= 90) {
+        sendError(response, 400, 'Departing after must be more than 90 days in the future.');
+        return;
+    }
+    const fullThirtyDayPeriods = Math.floor(daysUntilDeparture / 30);
+    const company = companyById(getAllCompanies(), session.user.companyId);
+    const visible = getAllRates().filter(record => rateVisibleToView(record, session.user.rateView));
+    const records = latestPredictiveRateRecords(visible);
+    const rates = records.map(record => mapPredictiveRateRecord(record, company, fullThirtyDayPeriods, after));
     sendJson(response, 200, { rates }, securityHeaders());
 }
 
@@ -409,6 +426,7 @@ const server = http.createServer(async (request, response) => {
 
         const session = pathname.startsWith('/api/') ? await requireSession(request, response) : null;
         if (pathname.startsWith('/api/') && !session) return;
+        if (pathname === '/api/rates/predictive' && request.method === 'GET') return handlePredictiveRates(request, response, session, url);
         if (pathname === '/api/rates' && request.method === 'GET') return handleRates(request, response, session, url);
         if (pathname === '/api/sailings' && request.method === 'GET') return handleSailings(request, response, session, url);
         if (pathname === '/api/admin/companies' && request.method === 'GET') return handleAdminCompanies(request, response, session);
