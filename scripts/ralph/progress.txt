@@ -11,6 +11,8 @@ Started: Sun Jul 19 13:00:48 PDT 2026
 - A live `.env` with a real AIRTABLE_PAT exists at repo root; lib/config.js loads it via process.loadEnvFile('.env'). This means scripts that hit Airtable actually work end-to-end when run locally (the real base has ~1554 rates, 3 users, 3 companies, ~23310 sailings). The rates table has NO 'Arrival' field in Airtable — projecting it returns HTTP 422, so always fall back to RATE_FIELDS-only.
 - node:sqlite prepared statements: `db.prepare(sql).run(...positionalParams)`. Params must be null/number/bigint/string/Uint8Array — convert booleans to 0/1 yourself. Wrap bulk inserts in db.exec('BEGIN')/COMMIT with ROLLBACK on error.
 - Airtable user field for company id is 'CompanyID (from CompanyReference)' (a lookup field name with spaces/parens), distinct from the 'CompanyReference' link field.
+- lib/store.js (US-003) is the SQLite read/write layer returning Airtable-shaped `{ id, fields }` records. Pattern: build `fields` with an `assign(fields, name, value)` helper that OMITS null/undefined so domain.js normalizeValue fallbacks ('N/A','') apply. rates 'RateView' is SPLIT on ', ' back into an array (so rateVisibleToView's asArray().some() works); company/user 'RateView' stays a scalar string (compared via sameValue). Boolean cols convert 0/1 -> false/true (companies Admin, users AdminScreen). node:sqlite reads: `db.prepare(sql).all(...params)` (rows array) / `.get(...params)` (single row or undefined).
+- getSailings maps rows through domain.mapSailingRecord({ fields }) to produce output identical to the old fetchSailings.
 
 ## Sun Jul 19 - US-001
 - Implemented lib/db.js: opens/creates SQLite DB (node:sqlite DatabaseSync), path defaults data/rateninja.db or SQLITE_DB_PATH env; runs idempotent CREATE TABLE IF NOT EXISTS for rates/users/companies/sailings + indexes on rates(carrier,origin_port), sailings(carrier,departure_port,departure), users(username), companies(company_id).
@@ -30,4 +32,13 @@ Started: Sun Jul 19 13:00:48 PDT 2026
   - Verified end-to-end against the real Airtable base via the repo's .env: migrated 1554 rates, 3 users, 3 companies, 23310 sailings; re-run gave identical counts (idempotent).
   - Rates table has no 'Arrival' field in Airtable (422 on projection) -> the DB rates table also has no arrival column, so Arrival is fetched-attempt-only and not stored. Consistent with US-001 schema.
   - Spot-checked shapes: rate_20d stored as REAL (13943.4), admin/admin_screen as 1/0, dates as 'YYYY-MM-DD' TEXT, company_id lookup value like '1.0'.
+---
+
+## Sun Jul 19 - US-003
+- Implemented lib/store.js: SQLite data-access layer returning Airtable-shaped `{ id, fields }` records so lib/domain.js and API response shapes need no changes. Exposes getAllRates(), getAllCompanies(), getUserByUsername(username), getCompanyByRecordId(id), getSailings({carrier,originPort,after}), updateCompanyMargins(id,{marginPercent,marginNumber}).
+- Field builders map snake_case columns to exact Airtable names ('Origin Port','Destination Port/Via Port','20D Rate','40D rate','40HC Rate','Rate Effective Date','RateView','CompanyID','MarginPercent', user's 'CompanyID (from CompanyReference)', etc). NULL columns omitted via an assign() helper so normalizeValue fallbacks apply. rates RateView split back to an array; booleans (Admin/AdminScreen) converted from 0/1. getSailings runs the carrier/departure_port/departure>after query ordered by departure asc and maps through domain.mapSailingRecord. server.js NOT modified (cutover is US-004).
+- Files changed: lib/store.js (new), package.json (added lib/store.js to check), scripts/ralph/prd.json (US-003 passes:true), scripts/ralph/progress.txt.
+- **Learnings for future iterations:**
+  - Verified at runtime against a seeded temp DB: NULL commodity_type -> omitted -> mapRateRecord shows 'N/A'; rateVisibleToView matches individual views from a ', '-joined RateView; calculateRate applies company margin correctly (1000.5 @25%+5 -> 1256); getUserByUsername returns AdminScreen boolean and null for missing users; updateCompanyMargins persists.
+  - The committed data/rateninja.db is schema-only (0 rows); run `npm run migrate` to populate it before browser verification in US-004.
 ---
