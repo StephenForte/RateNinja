@@ -128,7 +128,7 @@
         "Verify in browser using dev-browser skill: run a rates pull-forward and a sailings pull-forward end-to-end, trigger one validation failure, and confirm the delete-existing confirmation dialog appears"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {

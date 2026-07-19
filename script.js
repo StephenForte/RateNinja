@@ -65,6 +65,19 @@ document.addEventListener('DOMContentLoaded', () => {
         adminErrorMessage: document.getElementById('adminErrorMessage'),
         adminTableContainer: document.getElementById('adminTableContainer'),
         adminTableBody: document.getElementById('adminTableBody'),
+        pullForwardPanel: document.getElementById('pullForwardPanel'),
+        pfType: document.getElementById('pullForwardType'),
+        pfSourceStart: document.getElementById('pfSourceStart'),
+        pfSourceEnd: document.getElementById('pfSourceEnd'),
+        pfTargetStart: document.getElementById('pfTargetStart'),
+        pfTargetEnd: document.getElementById('pfTargetEnd'),
+        pfPriceIncrease: document.getElementById('pfPriceIncrease'),
+        pfDeleteExisting: document.getElementById('pfDeleteExisting'),
+        pullForwardBtn: document.getElementById('pullForwardBtn'),
+        pullForwardError: document.getElementById('pullForwardError'),
+        pullForwardErrorMessage: document.getElementById('pullForwardErrorMessage'),
+        pullForwardSuccess: document.getElementById('pullForwardSuccess'),
+        pullForwardSuccessMessage: document.getElementById('pullForwardSuccessMessage'),
         sailingsModal: document.getElementById('sailingsModal'),
         contractModal: document.getElementById('contractModal')
     };
@@ -110,6 +123,8 @@ function bindEvents() {
     });
     elements.backToMain.addEventListener('click', showMainPage);
     elements.saveChanges.addEventListener('click', saveAdminChanges);
+    elements.pfType.addEventListener('change', syncPullForwardType);
+    elements.pullForwardBtn.addEventListener('click', runPullForward);
     document.getElementById('closeModal').addEventListener('click', closeSailingsModal);
     document.getElementById('closeContractModal').addEventListener('click', closeContractModal);
     window.addEventListener('click', event => {
@@ -480,11 +495,14 @@ async function showAdminScreen() {
     elements.adminLoading.hidden = false;
     elements.adminError.hidden = true;
     elements.adminTableContainer.hidden = true;
+    elements.pullForwardPanel.hidden = true;
+    resetPullForwardMessages();
     state.adminChanges.clear();
     try {
         const { companies } = await request('/api/admin/companies');
         renderAdminTable(companies);
         elements.adminTableContainer.hidden = false;
+        elements.pullForwardPanel.hidden = false;
     } catch (error) {
         elements.adminErrorMessage.textContent = `Failed to load companies: ${error.message}`;
         elements.adminError.hidden = false;
@@ -565,5 +583,117 @@ async function saveAdminChanges() {
     } finally {
         elements.saveChanges.disabled = false;
         elements.saveChanges.textContent = 'Save Changes';
+    }
+}
+
+// --- Pull Forward Data ---
+
+function syncPullForwardType() {
+    const isRates = elements.pfType.value === 'rates';
+    elements.pfPriceIncrease.disabled = !isRates;
+    if (!isRates) elements.pfPriceIncrease.value = '0';
+    resetPullForwardMessages();
+}
+
+function pfParseDate(value) {
+    const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return null;
+    const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+    return date.getUTCFullYear() === Number(match[1]) && date.getUTCMonth() === Number(match[2]) - 1 && date.getUTCDate() === Number(match[3])
+        ? date
+        : null;
+}
+
+function pfFullDaysUntil(date) {
+    const today = new Date();
+    const todayUtc = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+    return Math.floor((date.getTime() - todayUtc) / 86400000);
+}
+
+// Mirrors the server's validatePullForwardRange rules (plus priceIncreasePercent
+// for rates). Returns an error string, or null when the input is valid.
+function validatePullForward({ sourceStart, sourceEnd, targetStart, targetEnd, type, priceIncreasePercent }) {
+    const start = pfParseDate(sourceStart);
+    const sEnd = pfParseDate(sourceEnd);
+    const tStart = pfParseDate(targetStart);
+    const tEnd = pfParseDate(targetEnd);
+    if (!start || !sEnd || !tStart || !tEnd) {
+        return 'Source and target ranges must all be valid dates.';
+    }
+    if (start.getTime() > sEnd.getTime()) {
+        return 'Source start date must not be after source end date.';
+    }
+    if (tStart.getTime() > tEnd.getTime()) {
+        return 'Target start date must not be after target end date.';
+    }
+    if (tStart.getTime() <= sEnd.getTime()) {
+        return 'Target range must start after the source range ends.';
+    }
+    if (pfFullDaysUntil(tEnd) > 90) {
+        return 'Target range must end within 90 days of today.';
+    }
+    if (sEnd.getTime() - start.getTime() !== tEnd.getTime() - tStart.getTime()) {
+        return 'Target range length must equal source range length.';
+    }
+    if (type === 'rates' && (!Number.isFinite(priceIncreasePercent) || priceIncreasePercent < 0 || priceIncreasePercent > 100)) {
+        return 'Price increase percent must be a number between 0 and 100.';
+    }
+    return null;
+}
+
+function resetPullForwardMessages() {
+    elements.pullForwardError.hidden = true;
+    elements.pullForwardSuccess.hidden = true;
+}
+
+function showPullForwardError(message) {
+    elements.pullForwardSuccess.hidden = true;
+    elements.pullForwardErrorMessage.textContent = message;
+    elements.pullForwardError.hidden = false;
+}
+
+function showPullForwardSuccess(message) {
+    elements.pullForwardError.hidden = true;
+    elements.pullForwardSuccessMessage.textContent = message;
+    elements.pullForwardSuccess.hidden = false;
+}
+
+async function runPullForward() {
+    resetPullForwardMessages();
+    const type = elements.pfType.value;
+    const priceIncreasePercent = Number(elements.pfPriceIncrease.value);
+    const body = {
+        sourceStart: elements.pfSourceStart.value,
+        sourceEnd: elements.pfSourceEnd.value,
+        targetStart: elements.pfTargetStart.value,
+        targetEnd: elements.pfTargetEnd.value,
+        deleteExisting: elements.pfDeleteExisting.checked
+    };
+    const error = validatePullForward({ ...body, type, priceIncreasePercent });
+    if (error) {
+        showPullForwardError(error);
+        return;
+    }
+    if (body.deleteExisting) {
+        const confirmed = window.confirm(
+            `This will permanently delete all existing ${type} dated ${body.targetStart} to ${body.targetEnd} before copying the new data. This cannot be undone. Continue?`
+        );
+        if (!confirmed) return;
+    }
+    if (type === 'rates') body.priceIncreasePercent = priceIncreasePercent;
+    const originalLabel = elements.pullForwardBtn.innerHTML;
+    elements.pullForwardBtn.disabled = true;
+    elements.pullForwardBtn.textContent = 'Working…';
+    try {
+        const result = await request(`/api/admin/pull-forward/${type}`, {
+            method: 'POST',
+            body: JSON.stringify(body)
+        });
+        showPullForwardSuccess(`Copied ${result.copied} ${type}, deleted ${result.deleted}.`);
+    } catch (err) {
+        showPullForwardError(err.message);
+    } finally {
+        elements.pullForwardBtn.disabled = false;
+        elements.pullForwardBtn.innerHTML = originalLabel;
     }
 }

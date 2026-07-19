@@ -1299,6 +1299,102 @@ body {
     background-color: #fff8e1;
 }
 
+/* Pull Forward Data admin panel */
+.pull-forward-panel {
+    background: white;
+    border-radius: 16px;
+    padding: 28px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    margin-bottom: 30px;
+}
+
+.pull-forward-title {
+    font-size: 1.3rem;
+    color: #333;
+    margin-bottom: 6px;
+}
+
+.pull-forward-subtitle {
+    color: #627d98;
+    margin-bottom: 22px;
+    font-size: 0.95rem;
+}
+
+.pull-forward-form .form-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+    margin-bottom: 18px;
+}
+
+.pf-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 180px;
+}
+
+.pf-field > label {
+    font-weight: 600;
+    color: #333;
+    font-size: 0.9rem;
+}
+
+.pf-field input,
+.pf-field select {
+    padding: 10px 12px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: inherit;
+}
+
+.pf-field input:focus,
+.pf-field select:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.pf-field input:disabled {
+    background: #f0f0f0;
+    cursor: not-allowed;
+}
+
+.pf-checkbox {
+    justify-content: flex-end;
+}
+
+.pf-checkbox > label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
+    color: #333;
+    cursor: pointer;
+}
+
+.pf-checkbox input {
+    width: auto;
+}
+
+.pull-forward-actions {
+    margin-top: 4px;
+}
+
+.pull-forward-success {
+    margin-top: 16px;
+    padding: 12px 15px;
+    border-radius: 8px;
+    background: #e6f6ec;
+    color: #218838;
+    border: 1px solid #b7e4c7;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
 /* 2026 visual refresh */
 :root {
     --ink: #102a43;
