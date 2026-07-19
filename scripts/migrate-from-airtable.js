@@ -2,15 +2,100 @@
  * One-time migration: copy all Airtable records into the local SQLite database.
  *
  * Run with `npm run migrate`. This is a standalone script — the server never
- * imports or triggers it. It reuses the Airtable client (lib/airtable.js) for
- * paginated fetching and writes through lib/db.js.
+ * imports or triggers it. It talks to Airtable directly (the only remaining
+ * Airtable reference in the codebase) and writes through lib/db.js.
  *
  * Idempotent: records upsert by their Airtable id (INSERT OR REPLACE), so
  * re-running never duplicates rows.
  */
+const { URL } = require('node:url');
 const { config } = require('../lib/config');
 const { db } = require('../lib/db');
-const { fetchAllRecords, RATE_FIELDS } = require('../lib/airtable');
+
+const RATE_FIELDS = [
+    'Rate Type',
+    'Origin Port',
+    'Destination Port/Via Port',
+    'Inland Delivery Location',
+    'CommodityType',
+    'Carrier',
+    'Contract Owner',
+    '20D Rate',
+    '40D rate',
+    '40HC Rate',
+    'Rate Effective Date',
+    'Rate Expiration Date',
+    'Notes 1',
+    'RateView'
+];
+
+const MAX_RETRIES = 2;
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function applySearchParams(url, params = {}) {
+    for (const [key, value] of Object.entries(params)) {
+        if (value === undefined || value === null || value === '') continue;
+        if (key === 'fields' && Array.isArray(value)) {
+            for (const field of value) url.searchParams.append('fields[]', field);
+            continue;
+        }
+        url.searchParams.set(key, value);
+    }
+}
+
+async function airtableRequest(table, options = {}) {
+    const safeTablePath = table.split('/').map(encodeURIComponent).join('/');
+    const url = new URL(`https://api.airtable.com/v0/${config.baseId}/${safeTablePath}`);
+    applySearchParams(url, options.params);
+
+    let lastError;
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), config.timeoutMs);
+        try {
+            const response = await fetch(url, {
+                method: options.method || 'GET',
+                headers: { Authorization: `Bearer ${config.apiToken}` },
+                signal: controller.signal
+            });
+
+            if (response.status === 429 && attempt < MAX_RETRIES) {
+                const retryAfter = Number(response.headers.get('retry-after'));
+                await sleep(Number.isFinite(retryAfter) ? retryAfter * 1000 : 500 * (attempt + 1));
+                continue;
+            }
+
+            if (!response.ok) {
+                throw new Error(`Airtable request failed (${response.status}).`);
+            }
+
+            return response.json();
+        } catch (error) {
+            lastError = error;
+            const aborted = error?.name === 'AbortError';
+            if (aborted || attempt >= MAX_RETRIES) throw aborted ? new Error('Airtable request timed out.') : error;
+            await sleep(500 * (attempt + 1));
+        } finally {
+            clearTimeout(timeout);
+        }
+    }
+
+    throw lastError;
+}
+
+async function fetchAllRecords(table, params = {}) {
+    const records = [];
+    let offset;
+    do {
+        const result = await airtableRequest(table, { params: { ...params, offset } });
+        records.push(...result.records);
+        offset = result.offset;
+    } while (offset);
+    return records;
+}
 
 // Array field values (e.g. RateView, CompanyReference) are joined with ', ' to
 // match lib/domain.js normalizeValue behavior. undefined/null become NULL.

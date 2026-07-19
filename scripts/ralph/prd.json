@@ -75,7 +75,7 @@
         "Verify in browser using dev-browser skill: with a seeded or migrated DB, log in, load rates, open the sailings modal, edit a company margin in the admin screen, and confirm /api/v1/rates works with the X-API-Key header"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {

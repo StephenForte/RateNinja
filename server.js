@@ -12,18 +12,16 @@ const {
     config
 } = require('./lib/config');
 const {
-    airtableRequest,
-    fetchAllRecords,
     getAllRates,
     getAllCompanies,
-    invalidateCompaniesCache,
-    fetchCompanyByRecordId,
-    fetchSailings
-} = require('./lib/airtable');
+    getUserByUsername,
+    getCompanyByRecordId,
+    getSailings,
+    updateCompanyMargins
+} = require('./lib/store');
 const {
     normalizeValue,
     sameValue,
-    escapeFormulaString,
     mapRateRecord,
     parsePageNumber,
     matchesSearch,
@@ -92,8 +90,8 @@ async function readJson(request) {
 }
 
 function requireConfiguration(response) {
-    if (config.apiToken && config.sessionSecret) return true;
-    sendError(response, 500, 'Server configuration is incomplete. Set AIRTABLE_PAT and SESSION_SECRET.');
+    if (config.sessionSecret) return true;
+    sendError(response, 500, 'Server configuration is incomplete. Set SESSION_SECRET.');
     return false;
 }
 
@@ -128,8 +126,8 @@ function consumePublicApiRequest(response) {
 }
 
 function requirePublicApiAccess(request, response) {
-    if (!config.apiToken || !config.publicApiKey) {
-        sendError(response, 500, 'Public API configuration is incomplete. Set AIRTABLE_PAT and RATE_NINJA_API_KEY.');
+    if (!config.publicApiKey) {
+        sendError(response, 500, 'Public API configuration is incomplete. Set RATE_NINJA_API_KEY.');
         return false;
     }
     if (!publicApiKeyIsValid(request)) {
@@ -147,11 +145,8 @@ async function handleLogin(request, response) {
         return;
     }
 
-    const users = await fetchAllRecords(config.tables.users, {
-        filterByFormula: `{UserName} = "${escapeFormulaString(username.trim())}"`
-    });
-    const record = users.find(user => user.fields.Pwd === password);
-    if (!record) {
+    const record = getUserByUsername(username.trim());
+    if (!record || record.fields.Pwd !== password) {
         sendError(response, 401, 'Invalid username or password.');
         return;
     }
@@ -172,11 +167,10 @@ async function handleLogin(request, response) {
 }
 
 async function handleRates(request, response, session, url) {
-    const forceRefresh = url.searchParams.get('refresh') === '1';
-    const [companies, records] = await Promise.all([
-        getAllCompanies(),
-        getAllRates({ force: forceRefresh })
-    ]);
+    // ?refresh=1 is still accepted; the SQLite store always re-queries, so it is a no-op.
+    url.searchParams.get('refresh');
+    const companies = getAllCompanies();
+    const records = getAllRates();
     const company = companyById(companies, session.user.companyId);
     const rates = records
         .filter(record => rateVisibleToView(record, session.user.rateView))
@@ -191,7 +185,7 @@ async function handlePublicRates(request, response, url) {
     const destinationPort = url.searchParams.get('destinationPort') || '';
     const page = parsePageNumber(url.searchParams.get('page'), 1, 10_000);
     const pageSize = parsePageNumber(url.searchParams.get('pageSize'), 50, 100);
-    const records = await getAllRates();
+    const records = getAllRates();
     const rates = records
         .map(record => mapRateRecord(record, null))
         .filter(rate => matchesSearch(rate.carrier, carrier) && matchesSearch(rate.originPort, originPort) && matchesSearch(rate.destinationPort, destinationPort));
@@ -216,7 +210,7 @@ async function handlePublicSailings(request, response, url) {
         sendError(response, 400, 'Carrier, originPort, and after query parameters are required.');
         return;
     }
-    const sailings = await fetchSailings({ carrier, originPort, after });
+    const sailings = getSailings({ carrier, originPort, after });
     sendJson(response, 200, { data: sailings, meta: { total: sailings.length } }, securityHeaders());
 }
 
@@ -238,7 +232,7 @@ async function handlePredictivePricing(request, response, url) {
     }
 
     const fullThirtyDayPeriods = Math.floor(daysUntilDeparture / 30);
-    const records = latestPredictiveRateRecords(await getAllRates(), carrier, originPort);
+    const records = latestPredictiveRateRecords(getAllRates(), carrier, originPort);
     const predictions = records.map(record => {
         const fields = record.fields;
         return {
@@ -263,7 +257,7 @@ async function handleSailings(request, response, session, url) {
         sendError(response, 400, 'Carrier, origin port, and effective date are required.');
         return;
     }
-    const sailings = await fetchSailings({ carrier, originPort, after });
+    const sailings = getSailings({ carrier, originPort, after });
     sendJson(response, 200, { sailings }, securityHeaders());
 }
 
@@ -272,7 +266,7 @@ async function handleAdminCompanies(request, response, session) {
         sendError(response, 403, 'Administrator access is required.');
         return;
     }
-    const records = await getAllCompanies();
+    const records = getAllCompanies();
     const companies = records
         .filter(record => record.fields.CompanyType && sameValue(record.fields.RateView, session.user.rateView) && !sameValue(record.fields.CompanyID, session.user.companyId))
         .map(record => ({
@@ -294,16 +288,12 @@ async function handleAdminCompanyUpdate(request, response, session, recordId) {
         sendError(response, 400, 'Margins must be non-negative numbers no greater than 1,000,000.');
         return;
     }
-    const company = await fetchCompanyByRecordId(recordId);
+    const company = getCompanyByRecordId(recordId);
     if (!company || !company.fields.CompanyType || !sameValue(company.fields.RateView, session.user.rateView) || sameValue(company.fields.CompanyID, session.user.companyId)) {
         sendError(response, 404, 'Company was not found in your administration scope.');
         return;
     }
-    await airtableRequest(`${config.tables.companies}/${recordId}`, {
-        method: 'PATCH',
-        body: { fields: { MarginPercent: marginPercent, MarginNumber: marginNumber } }
-    });
-    invalidateCompaniesCache();
+    updateCompanyMargins(recordId, { marginPercent, marginNumber });
     sendJson(response, 200, { ok: true }, securityHeaders());
 }
 

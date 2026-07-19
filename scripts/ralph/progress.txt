@@ -3,8 +3,13 @@ Started: Sun Jul 19 13:00:48 PDT 2026
 ---
 
 ## Codebase Patterns
+- server.js now uses lib/store.js (SQLite) for ALL data access; lib/airtable.js is DELETED. store functions are SYNCHRONOUS (SQLite is sync) — call them without await (e.g. `const records = getAllRates();`). There is no cache layer anymore, so `?refresh=1` is accepted but is a no-op.
+- The ONLY remaining Airtable code lives in scripts/migrate-from-airtable.js, which now inlines its own airtableRequest/fetchAllRecords/RATE_FIELDS (no longer imports lib/airtable.js). Server never touches Airtable.
+- requireConfiguration only needs SESSION_SECRET (not AIRTABLE_PAT); requirePublicApiAccess only needs RATE_NINJA_API_KEY. config.apiToken/baseId/tables/timeoutMs remain only for the migrate script.
+- To browser/curl-verify server endpoints locally, seed a temp DB: set SQLITE_DB_PATH to a scratch file, insert rows via lib/db.js prepared statements, then start server with SESSION_SECRET + RATE_NINJA_API_KEY + PORT env. handleAdminCompanyUpdate uses the Airtable record id (the `id` column) as the key for updateCompanyMargins.
+
 - Plain Node.js app, no build step. Quality check is `npm run check` (a chain of `node --check` syntax checks). When adding a new lib/*.js file, ALSO add it to the `check` script in package.json.
-- Data-access layer lives in lib/. lib/airtable.js is the current Airtable client; lib/domain.js has mappers (mapSailingRecord, escapeFormulaString, normalizeValue) + rate math; lib/config.js reads env via process.loadEnvFile. lib/session.js handles sessions.
+- Data-access layer lives in lib/. lib/store.js is the SQLite data client the server uses (lib/airtable.js was deleted in US-004); lib/domain.js has mappers (mapSailingRecord, escapeFormulaString, normalizeValue) + rate math; lib/config.js reads env via process.loadEnvFile. lib/session.js handles sessions.
 - Airtable field names are exact strings like 'Origin Port', 'Destination Port/Via Port', '20D Rate', '40D rate' (lowercase r!), '40HC Rate', 'Rate Effective Date', 'RateView', 'CompanyID', 'MarginPercent', 'DeparturePort'. The SQLite store layer (US-003) must return these exact names so domain.js works unchanged.
 - SQLite via node:sqlite `DatabaseSync` needs Node >=22 and emits an ExperimentalWarning at runtime (harmless). require('./lib/db.js') exports `{ db, dbPath }`; db.exec runs multi-statement DDL. lib/db.js creates the data/ dir with fs.mkdirSync before opening. DB path defaults to data/rateninja.db, overridable via SQLITE_DB_PATH. data/*.db is gitignored.
 - RateNinja/ is a dirty git submodule pointer (mode 160000) unrelated to Ralph work; do NOT stage it in commits.
@@ -41,4 +46,16 @@ Started: Sun Jul 19 13:00:48 PDT 2026
 - **Learnings for future iterations:**
   - Verified at runtime against a seeded temp DB: NULL commodity_type -> omitted -> mapRateRecord shows 'N/A'; rateVisibleToView matches individual views from a ', '-joined RateView; calculateRate applies company margin correctly (1000.5 @25%+5 -> 1256); getUserByUsername returns AdminScreen boolean and null for missing users; updateCompanyMargins persists.
   - The committed data/rateninja.db is schema-only (0 rows); run `npm run migrate` to populate it before browser verification in US-004.
+---
+
+## Sun Jul 19 - US-004
+- Cut server.js over to lib/store.js (SQLite) for all data access and deleted lib/airtable.js.
+- handleLogin uses getUserByUsername + pwd compare; handleRates/handlePublicRates/handlePredictivePricing use getAllRates(); handleSailings/handlePublicSailings use getSailings(); handleAdminCompanies uses getAllCompanies(); handleAdminCompanyUpdate uses getCompanyByRecordId + updateCompanyMargins. All store calls are synchronous (removed awaits/Promise.all).
+- requireConfiguration no longer needs AIRTABLE_PAT (only SESSION_SECRET); requirePublicApiAccess only needs RATE_NINJA_API_KEY. Dropped escapeFormulaString import from server.js (still exported by domain.js, harmless).
+- migrate-from-airtable.js inlined airtableRequest/fetchAllRecords/RATE_FIELDS so it no longer depends on the deleted lib/airtable.js; it is the only remaining Airtable reference.
+- Removed lib/airtable.js from the npm run check chain in package.json.
+- Files changed: server.js, scripts/migrate-from-airtable.js, package.json, lib/airtable.js (deleted), scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- **Learnings for future iterations:**
+  - Verified end-to-end at runtime (no AIRTABLE_PAT set) with a seeded temp DB: bad login rejected, good login returns {username:'Admin User',isAdmin:true}, /api/rates + ?refresh=1 return the seeded rate, /api/sailings returns the sailing, /api/admin/companies lists the client company, PATCH margin update returns {ok:true} and the next GET reflects 25/5 -> 30/10, /api/v1/rates works with X-API-Key and rejects a bad key.
+  - server.js still imports { config } (used by publicApiKeyIsValid + requireConfiguration) — do NOT remove the config import.
 ---
