@@ -12,23 +12,25 @@ const {
     config
 } = require('./lib/config');
 const {
-    airtableRequest,
-    fetchAllRecords,
     getAllRates,
     getAllCompanies,
-    invalidateCompaniesCache,
-    fetchCompanyByRecordId,
-    fetchSailings
-} = require('./lib/airtable');
+    getUserByUsername,
+    getCompanyByRecordId,
+    getSailings,
+    updateCompanyMargins,
+    pullForwardRates,
+    pullForwardSailings
+} = require('./lib/store');
 const {
     normalizeValue,
     sameValue,
-    escapeFormulaString,
     mapRateRecord,
+    mapPredictiveRateRecord,
     parsePageNumber,
     matchesSearch,
     parseDateOnly,
     fullDaysUntil,
+    validatePullForwardRange,
     calculatePredictiveRate,
     latestPredictiveRateRecords,
     companyById,
@@ -92,8 +94,8 @@ async function readJson(request) {
 }
 
 function requireConfiguration(response) {
-    if (config.apiToken && config.sessionSecret) return true;
-    sendError(response, 500, 'Server configuration is incomplete. Set AIRTABLE_PAT and SESSION_SECRET.');
+    if (config.sessionSecret) return true;
+    sendError(response, 500, 'Server configuration is incomplete. Set SESSION_SECRET.');
     return false;
 }
 
@@ -128,8 +130,8 @@ function consumePublicApiRequest(response) {
 }
 
 function requirePublicApiAccess(request, response) {
-    if (!config.apiToken || !config.publicApiKey) {
-        sendError(response, 500, 'Public API configuration is incomplete. Set AIRTABLE_PAT and RATE_NINJA_API_KEY.');
+    if (!config.publicApiKey) {
+        sendError(response, 500, 'Public API configuration is incomplete. Set RATE_NINJA_API_KEY.');
         return false;
     }
     if (!publicApiKeyIsValid(request)) {
@@ -147,11 +149,8 @@ async function handleLogin(request, response) {
         return;
     }
 
-    const users = await fetchAllRecords(config.tables.users, {
-        filterByFormula: `{UserName} = "${escapeFormulaString(username.trim())}"`
-    });
-    const record = users.find(user => user.fields.Pwd === password);
-    if (!record) {
+    const record = getUserByUsername(username.trim());
+    if (!record || record.fields.Pwd !== password) {
         sendError(response, 401, 'Invalid username or password.');
         return;
     }
@@ -172,15 +171,30 @@ async function handleLogin(request, response) {
 }
 
 async function handleRates(request, response, session, url) {
-    const forceRefresh = url.searchParams.get('refresh') === '1';
-    const [companies, records] = await Promise.all([
-        getAllCompanies(),
-        getAllRates({ force: forceRefresh })
-    ]);
+    // ?refresh=1 is still accepted; the SQLite store always re-queries, so it is a no-op.
+    url.searchParams.get('refresh');
+    const companies = getAllCompanies();
+    const records = getAllRates();
     const company = companyById(companies, session.user.companyId);
     const rates = records
         .filter(record => rateVisibleToView(record, session.user.rateView))
         .map(record => mapRateRecord(record, company));
+    sendJson(response, 200, { rates }, securityHeaders());
+}
+
+async function handlePredictiveRates(request, response, session, url) {
+    const after = url.searchParams.get('after') || '';
+    const departureDate = parseDateOnly(after);
+    const daysUntilDeparture = departureDate && fullDaysUntil(departureDate);
+    if (!departureDate || daysUntilDeparture <= 90) {
+        sendError(response, 400, 'Departing after must be more than 90 days in the future.');
+        return;
+    }
+    const fullThirtyDayPeriods = Math.floor(daysUntilDeparture / 30);
+    const company = companyById(getAllCompanies(), session.user.companyId);
+    const visible = getAllRates().filter(record => rateVisibleToView(record, session.user.rateView));
+    const records = latestPredictiveRateRecords(visible);
+    const rates = records.map(record => mapPredictiveRateRecord(record, company, fullThirtyDayPeriods, after));
     sendJson(response, 200, { rates }, securityHeaders());
 }
 
@@ -191,7 +205,7 @@ async function handlePublicRates(request, response, url) {
     const destinationPort = url.searchParams.get('destinationPort') || '';
     const page = parsePageNumber(url.searchParams.get('page'), 1, 10_000);
     const pageSize = parsePageNumber(url.searchParams.get('pageSize'), 50, 100);
-    const records = await getAllRates();
+    const records = getAllRates();
     const rates = records
         .map(record => mapRateRecord(record, null))
         .filter(rate => matchesSearch(rate.carrier, carrier) && matchesSearch(rate.originPort, originPort) && matchesSearch(rate.destinationPort, destinationPort));
@@ -216,7 +230,7 @@ async function handlePublicSailings(request, response, url) {
         sendError(response, 400, 'Carrier, originPort, and after query parameters are required.');
         return;
     }
-    const sailings = await fetchSailings({ carrier, originPort, after });
+    const sailings = getSailings({ carrier, originPort, after });
     sendJson(response, 200, { data: sailings, meta: { total: sailings.length } }, securityHeaders());
 }
 
@@ -238,7 +252,7 @@ async function handlePredictivePricing(request, response, url) {
     }
 
     const fullThirtyDayPeriods = Math.floor(daysUntilDeparture / 30);
-    const records = latestPredictiveRateRecords(await getAllRates(), carrier, originPort);
+    const records = latestPredictiveRateRecords(getAllRates(), carrier, originPort);
     const predictions = records.map(record => {
         const fields = record.fields;
         return {
@@ -263,7 +277,7 @@ async function handleSailings(request, response, session, url) {
         sendError(response, 400, 'Carrier, origin port, and effective date are required.');
         return;
     }
-    const sailings = await fetchSailings({ carrier, originPort, after });
+    const sailings = getSailings({ carrier, originPort, after });
     sendJson(response, 200, { sailings }, securityHeaders());
 }
 
@@ -272,7 +286,7 @@ async function handleAdminCompanies(request, response, session) {
         sendError(response, 403, 'Administrator access is required.');
         return;
     }
-    const records = await getAllCompanies();
+    const records = getAllCompanies();
     const companies = records
         .filter(record => record.fields.CompanyType && sameValue(record.fields.RateView, session.user.rateView) && !sameValue(record.fields.CompanyID, session.user.companyId))
         .map(record => ({
@@ -294,17 +308,63 @@ async function handleAdminCompanyUpdate(request, response, session, recordId) {
         sendError(response, 400, 'Margins must be non-negative numbers no greater than 1,000,000.');
         return;
     }
-    const company = await fetchCompanyByRecordId(recordId);
+    const company = getCompanyByRecordId(recordId);
     if (!company || !company.fields.CompanyType || !sameValue(company.fields.RateView, session.user.rateView) || sameValue(company.fields.CompanyID, session.user.companyId)) {
         sendError(response, 404, 'Company was not found in your administration scope.');
         return;
     }
-    await airtableRequest(`${config.tables.companies}/${recordId}`, {
-        method: 'PATCH',
-        body: { fields: { MarginPercent: marginPercent, MarginNumber: marginNumber } }
-    });
-    invalidateCompaniesCache();
+    updateCompanyMargins(recordId, { marginPercent, marginNumber });
     sendJson(response, 200, { ok: true }, securityHeaders());
+}
+
+async function handlePullForwardRates(request, response, session) {
+    if (!session.user.isAdmin) {
+        sendError(response, 403, 'Administrator access is required.');
+        return;
+    }
+    const body = await readJson(request);
+    const validation = validatePullForwardRange(body);
+    if (validation.error) {
+        sendError(response, 400, validation.error);
+        return;
+    }
+    const { priceIncreasePercent } = body;
+    if (typeof priceIncreasePercent !== 'number' || !Number.isFinite(priceIncreasePercent) || priceIncreasePercent < 0 || priceIncreasePercent > 100) {
+        sendError(response, 400, 'Price increase percent must be a number between 0 and 100.');
+        return;
+    }
+    const result = pullForwardRates({
+        sourceStart: body.sourceStart,
+        sourceEnd: body.sourceEnd,
+        targetStart: body.targetStart,
+        targetEnd: body.targetEnd,
+        offsetDays: validation.offsetDays,
+        priceIncreasePercent,
+        deleteExisting: body.deleteExisting === true
+    });
+    sendJson(response, 200, { ok: true, copied: result.copied, deleted: result.deleted }, securityHeaders());
+}
+
+async function handlePullForwardSailings(request, response, session) {
+    if (!session.user.isAdmin) {
+        sendError(response, 403, 'Administrator access is required.');
+        return;
+    }
+    const body = await readJson(request);
+    const validation = validatePullForwardRange(body);
+    if (validation.error) {
+        sendError(response, 400, validation.error);
+        return;
+    }
+    const result = pullForwardSailings({
+        sourceStart: body.sourceStart,
+        sourceEnd: body.sourceEnd,
+        targetStart: body.targetStart,
+        targetEnd: body.targetEnd,
+        offsetDays: validation.offsetDays,
+        deleteExisting: body.deleteExisting === true
+    });
+    sendJson(response, 200, { ok: true, copied: result.copied, deleted: result.deleted }, securityHeaders());
 }
 
 function hasDotSegment(pathname) {
@@ -366,9 +426,12 @@ const server = http.createServer(async (request, response) => {
 
         const session = pathname.startsWith('/api/') ? await requireSession(request, response) : null;
         if (pathname.startsWith('/api/') && !session) return;
+        if (pathname === '/api/rates/predictive' && request.method === 'GET') return handlePredictiveRates(request, response, session, url);
         if (pathname === '/api/rates' && request.method === 'GET') return handleRates(request, response, session, url);
         if (pathname === '/api/sailings' && request.method === 'GET') return handleSailings(request, response, session, url);
         if (pathname === '/api/admin/companies' && request.method === 'GET') return handleAdminCompanies(request, response, session);
+        if (pathname === '/api/admin/pull-forward/rates' && request.method === 'POST') return handlePullForwardRates(request, response, session);
+        if (pathname === '/api/admin/pull-forward/sailings' && request.method === 'POST') return handlePullForwardSailings(request, response, session);
         const companyMatch = pathname.match(/^\/api\/admin\/companies\/([\w-]+)$/);
         if (companyMatch && request.method === 'PATCH') return handleAdminCompanyUpdate(request, response, session, companyMatch[1]);
         if (pathname.startsWith('/api/')) return sendError(response, 404, 'API route not found.');

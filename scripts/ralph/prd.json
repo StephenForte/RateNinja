@@ -1,0 +1,171 @@
+{
+  "project": "Rate Ninja",
+  "branchName": "ralph/sqlite-migration-pull-forward-predictive",
+  "description": "SQLite Migration, Pull-Forward Admin Tool, and Predictive Rates View - Replace Airtable with a local SQLite backend (node:sqlite), add an admin pull-forward feature for rates and sailings, and add a read-only predictive rates mode to the main screen. Full spec: tasks/prd-sqlite-migration-pull-forward-predictive.md in the ocean-freight-rates repo.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Create SQLite schema and database module",
+      "description": "As a developer, I need a SQLite database with tables mirroring the Airtable schema so the app has a local data store.",
+      "acceptanceCriteria": [
+        "New module lib/db.js opens or creates the database with node:sqlite DatabaseSync; path defaults to data/rateninja.db, overridable via SQLITE_DB_PATH env var",
+        "On load, lib/db.js runs idempotent CREATE TABLE IF NOT EXISTS DDL for tables: rates, users, companies, sailings",
+        "rates columns: id TEXT PRIMARY KEY, rate_type, origin_port, destination_port, inland_delivery_location, commodity_type, carrier, contract_owner, rate_20d REAL, rate_40d REAL, rate_40hc REAL, rate_effective_date TEXT (YYYY-MM-DD), rate_expiration_date TEXT, notes_1, rate_view TEXT",
+        "users columns: id TEXT PRIMARY KEY, username, pwd, display_name, rate_view, company_id, company_reference, admin_screen INTEGER (0/1)",
+        "companies columns: id TEXT PRIMARY KEY, company_id, company_name, company_type, rate_view, admin INTEGER (0/1), margin_percent REAL, margin_number REAL",
+        "sailings columns: id TEXT PRIMARY KEY, departure TEXT, arrival TEXT, transit_time, vessel, voyage, service, carrier, departure_port",
+        "Indexes exist on rates(carrier, origin_port), sailings(carrier, departure_port, departure), users(username), companies(company_id)",
+        "data/*.db is gitignored",
+        "package.json engines.node bumped to >=22 (node:sqlite requires it)",
+        "lib/db.js added to the npm run check script",
+        "Typecheck passes (npm run check)"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "One-time Airtable-to-SQLite migration script",
+      "description": "As a developer, I want a script that copies all existing Airtable records into SQLite so production data survives the migration.",
+      "acceptanceCriteria": [
+        "New standalone script scripts/migrate-from-airtable.js runnable via npm run migrate; the server never imports or triggers it",
+        "Reads existing env vars (AIRTABLE_PAT, AIRTABLE_BASE_ID, table id vars from lib/config.js) and fetches ALL records from all four tables with offset pagination, reusing or copying the fetchAllRecords logic from lib/airtable.js",
+        "Fetches all fields for users/companies/sailings; for rates fetches at least RATE_FIELDS plus Arrival if that field exists in Airtable (skip gracefully if the field projection is rejected)",
+        "Inserts into SQLite via lib/db.js preserving Airtable record id as id; array field values (e.g. RateView) are joined with ', ' to match normalizeValue behavior",
+        "Idempotent: re-running upserts by id (INSERT OR REPLACE) without duplicating rows",
+        "Prints a per-table migrated-count summary and exits with non-zero code on failure",
+        "node --check scripts/migrate-from-airtable.js passes",
+        "Typecheck passes (npm run check)"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Create SQLite store layer returning Airtable-shaped records",
+      "description": "As a developer, I want a lib/store.js data-access layer over SQLite that returns records shaped exactly like Airtable records so lib/domain.js and the API response shapes need no changes.",
+      "acceptanceCriteria": [
+        "New module lib/store.js exposes: getAllRates(), getAllCompanies(), getUserByUsername(username), getCompanyByRecordId(id), getSailings({carrier, originPort, after}), updateCompanyMargins(id, {marginPercent, marginNumber})",
+        "Every read function returns objects shaped { id, fields: { ... } } using the exact Airtable field names ('Origin Port', 'Destination Port/Via Port', '20D Rate', '40D rate', '40HC Rate', 'Rate Effective Date', 'RateView', 'CompanyID', 'MarginPercent', 'DeparturePort', etc.) so lib/domain.js mappers work unchanged; NULL columns are omitted from fields so normalizeValue fallbacks ('N/A', '') still apply",
+        "getUserByUsername returns fields matching what handleLogin reads today: UserName, Pwd, DisplayName, RateView, 'CompanyID (from CompanyReference)', CompanyReference, AdminScreen (boolean)",
+        "getSailings filters carrier = ?, departure_port = ?, departure > ? and orders by departure ascending, returning mapped sailing objects identical to the current fetchSailings output",
+        "updateCompanyMargins runs an SQL UPDATE on companies and subsequent reads reflect the change",
+        "server.js is NOT modified in this story (cutover is US-004)",
+        "lib/store.js added to the npm run check script",
+        "Typecheck passes (npm run check)"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Cut server over to SQLite and delete the Airtable client",
+      "description": "As a developer, I want all server endpoints to use lib/store.js so Airtable can be fully retired.",
+      "acceptanceCriteria": [
+        "server.js uses lib/store.js for all data access: handleLogin (lookup by username, compare pwd, same case-sensitivity as today), handleRates, handlePublicRates, handlePublicSailings, handlePredictivePricing, handleSailings, handleAdminCompanies, handleAdminCompanyUpdate",
+        "All endpoints return the same JSON shapes as before (same keys, 'N/A' fallbacks, margin math, rounding)",
+        "The ?refresh=1 param on /api/rates remains accepted (it just re-queries; the Airtable cache layer is gone)",
+        "lib/airtable.js is deleted; no file in lib/ or server.js references api.airtable.com (scripts/migrate-from-airtable.js is the only remaining Airtable reference)",
+        "lib/config.js and requireConfiguration no longer require AIRTABLE_PAT for the server to start; SESSION_SECRET is still required",
+        "npm run check file list updated (airtable.js removed)",
+        "Typecheck passes (npm run check)",
+        "Verify in browser using dev-browser skill: with a seeded or migrated DB, log in, load rates, open the sailings modal, edit a company margin in the admin screen, and confirm /api/v1/rates works with the X-API-Key header"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Pull-forward API endpoint for rates",
+      "description": "As an admin, I want to copy rates from a past date range into a future date range so next quarter's data exists without manual entry.",
+      "acceptanceCriteria": [
+        "New endpoint POST /api/admin/pull-forward/rates; non-admin sessions get 403",
+        "Body: { sourceStart, sourceEnd, targetStart, targetEnd, priceIncreasePercent, deleteExisting } with YYYY-MM-DD dates",
+        "400 with a specific message when: any date fails parseDateOnly; sourceStart > sourceEnd; targetStart > targetEnd; targetStart <= sourceEnd; targetEnd is more than 90 days after today (fullDaysUntil > 90); target range length != source range length; priceIncreasePercent not a number in 0-100",
+        "Source rows are rates with rate_effective_date within [sourceStart, sourceEnd]",
+        "Copied rows: new crypto.randomUUID() id; rate_effective_date and rate_expiration_date shifted by the day offset (targetStart - sourceStart) using UTC day arithmetic; rate_20d/rate_40d/rate_40hc multiplied by (1 + priceIncreasePercent/100) and rounded to whole numbers; all other columns copied verbatim",
+        "deleteExisting true deletes rates with rate_effective_date in [targetStart, targetEnd] first; delete + inserts run in one SQLite transaction (BEGIN/COMMIT/ROLLBACK) so failure leaves the DB unchanged",
+        "Response { ok: true, copied: n, deleted: n }; zero source rows is not an error (copied: 0)",
+        "Typecheck passes (npm run check)"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Pull-forward API endpoint for sailings",
+      "description": "As an admin, I want the same pull-forward capability for sailings so future schedules mirror past ones.",
+      "acceptanceCriteria": [
+        "New endpoint POST /api/admin/pull-forward/sailings, admin-only (403 otherwise), same body minus priceIncreasePercent (ignored if sent)",
+        "Same date validation rules as the rates pull-forward endpoint, sharing the validation helper",
+        "Source rows are sailings whose departure date part falls within [sourceStart, sourceEnd]",
+        "Copied rows: new crypto.randomUUID() id; departure and arrival shifted by the day offset preserving any time-of-day component; transit_time, vessel, voyage, service, carrier, departure_port copied verbatim",
+        "deleteExisting true deletes sailings with departure in the target range first, in the same transaction as the inserts",
+        "Response { ok: true, copied: n, deleted: n }",
+        "Typecheck passes (npm run check)"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Pull-forward admin UI panel",
+      "description": "As an admin, I want a form in the admin section to run pull-forward for rates or sailings so I don't need API tools.",
+      "acceptanceCriteria": [
+        "Admin screen (#adminScreen in index.html) gains a 'Pull Forward Data' panel below the existing margin table, styled with existing admin classes from styles.css",
+        "Panel has: Rates/Sailings selector, source range (two date inputs), target range (two date inputs), price increase % number input (enabled only when Rates selected, default 0), 'Delete existing data in target range' checkbox (default off), and a Pull Forward button",
+        "Client-side validation mirrors the server rules with inline error messages (e.g. 'Target range must end within 90 days of today'); button disabled while the request is in flight",
+        "When delete-existing is checked, clicking Pull Forward shows a confirmation dialog describing what will be deleted before submitting",
+        "Success shows a summary like 'Copied 132 rates, deleted 0'; failure shows the server's error message",
+        "After a successful rates pull-forward, the main rates list shows the new rows on next load/refresh",
+        "Typecheck passes (npm run check)",
+        "Verify in browser using dev-browser skill: run a rates pull-forward and a sailings pull-forward end-to-end, trigger one validation failure, and confirm the delete-existing confirmation dialog appears"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Predictive rates endpoint for signed-in users",
+      "description": "As a signed-in user, I want an endpoint that returns predictive rates for a future date so the main screen can display them.",
+      "acceptanceCriteria": [
+        "New endpoint GET /api/rates/predictive?after=YYYY-MM-DD requiring a session (any signed-in user, not admin-only)",
+        "400 'Departing after must be more than 90 days in the future.' unless after passes parseDateOnly and fullDaysUntil(after) > 90",
+        "Rates are filtered to the session user's rateView (rateVisibleToView), then deduped to the latest rate per route using latestPredictiveRateRecords logic generalized to run across ALL carriers and origin ports (not filtered to one carrier/port)",
+        "Per container size: predictive base = calculatePredictiveRate(baseRate, floor(daysUntilDeparture/30)), then the user's company margin applied via the existing calculateRate logic; admin-flagged companies get no margin",
+        "Response shape matches /api/rates ({ rates: [...] }) with the same per-rate keys so the existing table renderer works unchanged; rateEffectiveDate is the requested after date, rateExpirationDate is 'N/A', and each rate includes predictive: true",
+        "Endpoint performs no database writes (SELECT only)",
+        "Typecheck passes (npm run check)"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Predictive rates mode on the main screen",
+      "description": "As a signed-in user, I want to toggle 'Predictive rates' and pick a future date so I can see projected pricing in the familiar rates table.",
+      "acceptanceCriteria": [
+        "Main screen controls gain a 'Predictive rates' toggle with a 'Departing after' date input enabled only when the toggle is on",
+        "Date input min attribute is today + 91 days; an earlier date shows an inline error and does not fetch",
+        "Toggle on with a valid date fetches /api/rates/predictive?after=... and replaces the table contents; toggle off restores the normal /api/rates view",
+        "Search, column filters, sorting, and pagination work on predictive results exactly as on normal results",
+        "A visible banner above the table reads like 'Showing predictive rates for departures after {date} - not saved data' while predictive mode is active",
+        "Changing the date while the toggle is on re-fetches predictive data; the Refresh button in predictive mode re-fetches predictive data, not normal rates",
+        "Sailings modal links in predictive mode either open using the predictive after date as the effective date or are disabled - one behavior, applied consistently",
+        "Typecheck passes (npm run check)",
+        "Verify in browser using dev-browser skill: toggle on with a valid date and confirm rates change and the banner appears; pick an invalid date and confirm the inline error; toggle off and confirm normal rates return"
+      ],
+      "priority": 9,
+      "passes": true,
+      "notes": ""
+    }
+  ]
+}

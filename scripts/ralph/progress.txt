@@ -1,0 +1,124 @@
+# Ralph Progress Log
+Started: Sun Jul 19 13:00:48 PDT 2026
+---
+
+## Codebase Patterns
+- server.js now uses lib/store.js (SQLite) for ALL data access; lib/airtable.js is DELETED. store functions are SYNCHRONOUS (SQLite is sync) — call them without await (e.g. `const records = getAllRates();`). There is no cache layer anymore, so `?refresh=1` is accepted but is a no-op.
+- The ONLY remaining Airtable code lives in scripts/migrate-from-airtable.js, which now inlines its own airtableRequest/fetchAllRecords/RATE_FIELDS (no longer imports lib/airtable.js). Server never touches Airtable.
+- requireConfiguration only needs SESSION_SECRET (not AIRTABLE_PAT); requirePublicApiAccess only needs RATE_NINJA_API_KEY. config.apiToken/baseId/tables/timeoutMs remain only for the migrate script.
+- To browser/curl-verify server endpoints locally, seed a temp DB: set SQLITE_DB_PATH to a scratch file, insert rows via lib/db.js prepared statements, then start server with SESSION_SECRET + RATE_NINJA_API_KEY + PORT env. handleAdminCompanyUpdate uses the Airtable record id (the `id` column) as the key for updateCompanyMargins.
+
+- Plain Node.js app, no build step. Quality check is `npm run check` (a chain of `node --check` syntax checks). When adding a new lib/*.js file, ALSO add it to the `check` script in package.json.
+- Data-access layer lives in lib/. lib/store.js is the SQLite data client the server uses (lib/airtable.js was deleted in US-004); lib/domain.js has mappers (mapSailingRecord, escapeFormulaString, normalizeValue) + rate math; lib/config.js reads env via process.loadEnvFile. lib/session.js handles sessions.
+- Airtable field names are exact strings like 'Origin Port', 'Destination Port/Via Port', '20D Rate', '40D rate' (lowercase r!), '40HC Rate', 'Rate Effective Date', 'RateView', 'CompanyID', 'MarginPercent', 'DeparturePort'. The SQLite store layer (US-003) must return these exact names so domain.js works unchanged.
+- SQLite via node:sqlite `DatabaseSync` needs Node >=22 and emits an ExperimentalWarning at runtime (harmless). require('./lib/db.js') exports `{ db, dbPath }`; db.exec runs multi-statement DDL. lib/db.js creates the data/ dir with fs.mkdirSync before opening. DB path defaults to data/rateninja.db, overridable via SQLITE_DB_PATH. data/*.db is gitignored.
+- RateNinja/ is a dirty git submodule pointer (mode 160000) unrelated to Ralph work; do NOT stage it in commits.
+- A live `.env` with a real AIRTABLE_PAT exists at repo root; lib/config.js loads it via process.loadEnvFile('.env'). This means scripts that hit Airtable actually work end-to-end when run locally (the real base has ~1554 rates, 3 users, 3 companies, ~23310 sailings). The rates table has NO 'Arrival' field in Airtable — projecting it returns HTTP 422, so always fall back to RATE_FIELDS-only.
+- node:sqlite prepared statements: `db.prepare(sql).run(...positionalParams)`. Params must be null/number/bigint/string/Uint8Array — convert booleans to 0/1 yourself. Wrap bulk inserts in db.exec('BEGIN')/COMMIT with ROLLBACK on error.
+- Airtable user field for company id is 'CompanyID (from CompanyReference)' (a lookup field name with spaces/parens), distinct from the 'CompanyReference' link field.
+- lib/store.js (US-003) is the SQLite read/write layer returning Airtable-shaped `{ id, fields }` records. Pattern: build `fields` with an `assign(fields, name, value)` helper that OMITS null/undefined so domain.js normalizeValue fallbacks ('N/A','') apply. rates 'RateView' is SPLIT on ', ' back into an array (so rateVisibleToView's asArray().some() works); company/user 'RateView' stays a scalar string (compared via sameValue). Boolean cols convert 0/1 -> false/true (companies Admin, users AdminScreen). node:sqlite reads: `db.prepare(sql).all(...params)` (rows array) / `.get(...params)` (single row or undefined).
+- getSailings maps rows through domain.mapSailingRecord({ fields }) to produce output identical to the old fetchSailings.
+- Admin pull-forward (US-005/US-006): validatePullForwardRange in lib/domain.js is the SHARED date validator (returns {error} or {offsetDays}); reuse it for both rates and sailings. Multi-row store writes use a manual transaction: db.exec('BEGIN'); try { prepared .run() loop; db.exec('COMMIT') } catch { db.exec('ROLLBACK'); throw }. A .run() result's .changes is a bigint (wrap in Number()). shiftDateOnly is date-only; sailings use shiftDateTime (time-of-day preserving). Sailings date-part range filter in SQL: `substr(departure, 1, 10) >= ? AND <= ?`.
+
+## Sun Jul 19 - US-008
+- Implemented GET /api/rates/predictive?after=YYYY-MM-DD (any signed-in user; session already enforced by the /api/ router before the route). Returns 400 "Departing after must be more than 90 days in the future." unless `after` passes parseDateOnly AND fullDaysUntil(after) > 90 (same guard as handlePredictivePricing, `daysUntilDeparture <= 90`). SELECT only, no writes.
+- Filters getAllRates() to the session user's rateView (rateVisibleToView), dedupes to the latest rate per route via latestPredictiveRateRecords(visible) (now generalized), then maps each surviving record with mapPredictiveRateRecord(record, company, fullThirtyDayPeriods, after). fullThirtyDayPeriods = Math.floor(daysUntilDeparture/30). Company margin looked up via companyById(getAllCompanies(), session.user.companyId).
+- Generalized latestPredictiveRateRecords(records, carrier, originPort): carrier/originPort are now OPTIONAL filters — when undefined the dedupe runs across ALL carriers/origin ports (predictive main-screen need); the public /api/v1/predictive-pricing endpoint still passes both, so its behavior is unchanged (routeKey already includes Carrier+Origin Port).
+- Added mapPredictiveRateRecord to lib/domain.js: same keys as mapRateRecord (so the existing table renderer works unchanged) but each container price = calculateRate(calculatePredictiveRate(baseRate, fullThirtyDayPeriods), company) — predictive escalation first, THEN company margin (admin companies get no margin via calculateRate). rateEffectiveDate = the requested after date, rateExpirationDate = 'N/A', predictive: true.
+- Files changed: lib/domain.js (mapPredictiveRateRecord + export, latestPredictiveRateRecords optional filters), server.js (handlePredictiveRates + route + mapPredictiveRateRecord import), scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- **Learnings for future iterations:**
+  - Verified end-to-end against a seeded temp DB + running server (after=2026-12-01, ~135 days from today 2026-07-19 => 4 thirty-day periods => x1.2, then 25%+5 margin): route with two rates (r1 exp 2026-06-30, r2 exp 2026-12-31) correctly kept only r2 (latest expiration); a View B rate was excluded for the View A user; r2 20D 1100->1320->1655, 40D 2200->2640->3305, 40HC 2300->2760->3455. after=2026-08-01 (<=90d) and after=notadate both => 400; no cookie => 401.
+  - The route MUST be registered BEFORE `/api/rates` in the router chain (both are GET under /api/); a literal `=== '/api/rates/predictive'` check placed first avoids `/api/rates` ever matching it.
+  - calculatePredictiveRate and calculateRate BOTH round, so predictive rows round twice (escalation, then margin) — matches the PRD ("predictive base = calculatePredictiveRate(...), then margin via calculateRate").
+  - US-009 (predictive main-screen toggle) consumes this endpoint; the response is `{ rates: [...] }` with the SAME per-rate keys as /api/rates plus `predictive: true`, so the existing script.js table/search/sort/paginate code should work on it unchanged.
+---
+
+## Sun Jul 19 - US-007
+- Added the "Pull Forward Data" admin panel to #adminScreen (index.html), below the margin table, inside .admin-content. Selector (Rates/Sailings), source range (two date inputs), target range (two date inputs), price increase % number input (disabled when Sailings selected, default 0), delete-existing checkbox (default off), and a Pull Forward button. Uses existing .save-btn / .error-message classes plus new .pull-forward-* / .pf-* styles in styles.css.
+- Client-side validation (validatePullForward in script.js) mirrors the SERVER's validatePullForwardRange rules exactly (valid dates; source/target ordering; targetStart > sourceEnd; targetEnd within 90 days via pfFullDaysUntil; equal range lengths; priceIncreasePercent 0-100 for rates only) with inline error messages. Button disabled + label "Working…" while the POST is in flight.
+- When delete-existing is checked, clicking Pull Forward shows a window.confirm() dialog naming the type + target range before submitting. Success shows "Copied N rates/sailings, deleted N."; failure shows the server's error message. Panel is revealed only after companies load in showAdminScreen (hidden during loading/error), and messages reset each time the admin screen opens and on data-type change.
+- Files changed: index.html (panel markup), styles.css (panel styles), script.js (element refs, bindings, syncPullForwardType, validation + submit handlers), scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- **Learnings for future iterations:**
+  - No browser MCP/dev-browser tooling is configured in this environment, so UI stories can't be driven in a real browser. Verified instead end-to-end via curl against a seeded temp DB + running server: admin login OK; POST /api/admin/pull-forward/rates (+10%) -> {copied:1,deleted:0}; /sailings -> {copied:1,deleted:0}; a target >90 days out -> 400 "Target range must end within 90 days of today."; and the served index.html/script.js/styles.css all contain the new panel/JS/CSS. Manual browser click-through of the visual layer is still recommended.
+  - script.js IS in the `npm run check` chain (node --check), so client JS syntax is validated; no package.json change needed for edits to existing files.
+  - Static assets (index.html, script.js, styles.css) are served directly by server.js serveStatic from repo root — no build step, so edits are live on server restart.
+  - `[hidden] { display: none !important; }` exists in styles.css, so the `hidden` attribute reliably hides elements even when a class sets display:flex (e.g. .error-message).
+  - The main rates list is NOT auto-reloaded after a rates pull-forward (state left intact); the criteria "shows new rows on next load/refresh" is met by the existing Refresh button, which calls loadRates({refresh:true}).
+---
+
+## Sun Jul 19 - US-006
+- Implemented POST /api/admin/pull-forward/sailings (admin-only, 403 otherwise). Copies sailings whose departure DATE PART falls within [sourceStart,sourceEnd] into the target range, shifting departure + arrival by the UTC day offset while PRESERVING time-of-day, and giving each copy a fresh crypto.randomUUID() id. transit_time/vessel/voyage/service/carrier/departure_port copied verbatim. deleteExisting removes sailings whose departure date part is in [targetStart,targetEnd] first, in the SAME db.exec('BEGIN')/COMMIT (ROLLBACK) transaction as the inserts. Response { ok, copied, deleted }.
+- Reuses the SHARED validatePullForwardRange from lib/domain.js (identical date rules to rates); no priceIncreasePercent (ignored if sent — not read).
+- Added shiftDateTime(value, offsetDays) to lib/domain.js: shifts only the leading YYYY-MM-DD prefix (via shiftDateOnly) and re-appends everything after char 10 verbatim, so 'T08:30:00Z' / ' 06:00' time components and timezone are preserved exactly, and null/non-date values pass through unchanged.
+- Files changed: lib/domain.js (shiftDateTime + export), lib/store.js (pullForwardSailings + shiftDateTime import), server.js (handlePullForwardSailings + route + import), scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- **Learnings for future iterations:**
+  - Verified against a seeded temp DB: offset 120 shifted departure '2026-01-10T08:30:00Z'->'2026-05-10T08:30:00Z' (time kept) and space-format '2026-01-20 06:00'->'2026-05-20 06:00'; null arrival preserved; source row before sourceStart (2026-01-05) excluded; pre-existing target row deleted; source rows untouched; ids are UUIDs. copied:2, deleted:1.
+  - Sailings departure/arrival are date-or-datetime TEXT. Filter by DATE PART in SQL using `substr(departure, 1, 10) >= ? AND substr(departure, 1, 10) <= ?` (NOT a raw `departure >=`/`<=`, which would mis-bound rows with a time suffix at the range edges).
+  - No new files, so package.json check script did NOT need updating.
+---
+
+## Sun Jul 19 - US-005
+- Implemented POST /api/admin/pull-forward/rates (admin-only, 403 otherwise). Copies rates whose rate_effective_date is within [sourceStart,sourceEnd] into the target range, shifting rate_effective_date + rate_expiration_date by the UTC day offset (targetStart-sourceStart), scaling rate_20d/40d/40hc by (1+priceIncreasePercent/100) rounded, and giving each copy a fresh crypto.randomUUID() id. deleteExisting removes rates in [targetStart,targetEnd] first; delete+inserts run in ONE db.exec('BEGIN')/COMMIT (ROLLBACK on error) transaction. Response { ok, copied, deleted }; zero source rows => copied:0 (not an error).
+- Added a SHARED validatePullForwardRange({sourceStart,sourceEnd,targetStart,targetEnd}) to lib/domain.js returning { error } or { offsetDays } — US-006 (sailings) will reuse it. priceIncreasePercent (number 0-100) is validated in the server handler, not the shared helper. Also added shiftDateOnly(value, offsetDays) to domain.js (returns value unchanged when not a parseable YYYY-MM-DD, so null expiration dates pass through).
+- Files changed: lib/domain.js (validatePullForwardRange, shiftDateOnly, MS_PER_DAY, exports), lib/store.js (pullForwardRates + node:crypto import), server.js (handlePullForwardRates + route + imports).
+- **Learnings for future iterations:**
+  - Verified against a seeded temp DB: offset 120 days shifted eff 2026-01-10->2026-05-10 and exp ->2026-07-29; rates x1.1 rounded (2100.4->2310); null rate/expiration preserved as null; deleteExisting removed the pre-existing target row; source rows untouched; ids are UUIDs. All four validation branches return the expected messages.
+  - No new files, so package.json check script did NOT need updating (domain.js/store.js/server.js already listed).
+  - Date columns are compared as YYYY-MM-DD strings (lexicographic == chronological), so the source/target range filters use plain SQL >= / <= with the raw body date strings.
+  - Store transaction pattern for multi-row writes: db.exec('BEGIN') then try { ...prepared inserts... db.exec('COMMIT') } catch { db.exec('ROLLBACK'); throw }. result.changes from a .run() is a bigint — wrap in Number().
+  - US-006 (sailings pull-forward) should reuse validatePullForwardRange but needs a TIME-preserving shift (departure/arrival have a time component), NOT shiftDateOnly which is date-only.
+---
+
+## Sun Jul 19 - US-001
+- Implemented lib/db.js: opens/creates SQLite DB (node:sqlite DatabaseSync), path defaults data/rateninja.db or SQLITE_DB_PATH env; runs idempotent CREATE TABLE IF NOT EXISTS for rates/users/companies/sailings + indexes on rates(carrier,origin_port), sailings(carrier,departure_port,departure), users(username), companies(company_id).
+- Files changed: lib/db.js (new), package.json (engines.node >=22, added lib/db.js to check), .gitignore (data/*.db).
+- **Learnings for future iterations:**
+  - Verified at runtime: all 4 tables + 4 indexes create cleanly; `git check-ignore data/rateninja.db` confirms the db file is ignored.
+  - node:sqlite emits an ExperimentalWarning on stderr — expected, not a failure.
+  - Column naming maps snake_case columns to Airtable field names later in US-003; keep the mapping in the store layer, not the schema.
+---
+
+## Sun Jul 19 - US-002
+- Implemented scripts/migrate-from-airtable.js: standalone one-time Airtable->SQLite migration, runnable via `npm run migrate`. Server never imports it.
+- Reuses fetchAllRecords + RATE_FIELDS from lib/airtable.js for offset pagination; writes via lib/db.js. Requires AIRTABLE_PAT (throws early if missing). Rates fetch requests RATE_FIELDS + Arrival, gracefully retries without Arrival on projection rejection (422). users/companies/sailings fetch all fields (no projection).
+- Preserves Airtable record id as SQLite id via INSERT OR REPLACE (idempotent). Array fields joined with ', ' (joinValue), checkboxes -> 0/1 (boolValue), numeric cols coerced or NULL (numValue). Each table's inserts wrapped in a BEGIN/COMMIT transaction with ROLLBACK on error. Prints per-table counts; sets process.exitCode=1 on failure.
+- Files changed: scripts/migrate-from-airtable.js (new), package.json (added `migrate` script + migrate-from-airtable.js to `check`).
+- **Learnings for future iterations:**
+  - Verified end-to-end against the real Airtable base via the repo's .env: migrated 1554 rates, 3 users, 3 companies, 23310 sailings; re-run gave identical counts (idempotent).
+  - Rates table has no 'Arrival' field in Airtable (422 on projection) -> the DB rates table also has no arrival column, so Arrival is fetched-attempt-only and not stored. Consistent with US-001 schema.
+  - Spot-checked shapes: rate_20d stored as REAL (13943.4), admin/admin_screen as 1/0, dates as 'YYYY-MM-DD' TEXT, company_id lookup value like '1.0'.
+---
+
+## Sun Jul 19 - US-003
+- Implemented lib/store.js: SQLite data-access layer returning Airtable-shaped `{ id, fields }` records so lib/domain.js and API response shapes need no changes. Exposes getAllRates(), getAllCompanies(), getUserByUsername(username), getCompanyByRecordId(id), getSailings({carrier,originPort,after}), updateCompanyMargins(id,{marginPercent,marginNumber}).
+- Field builders map snake_case columns to exact Airtable names ('Origin Port','Destination Port/Via Port','20D Rate','40D rate','40HC Rate','Rate Effective Date','RateView','CompanyID','MarginPercent', user's 'CompanyID (from CompanyReference)', etc). NULL columns omitted via an assign() helper so normalizeValue fallbacks apply. rates RateView split back to an array; booleans (Admin/AdminScreen) converted from 0/1. getSailings runs the carrier/departure_port/departure>after query ordered by departure asc and maps through domain.mapSailingRecord. server.js NOT modified (cutover is US-004).
+- Files changed: lib/store.js (new), package.json (added lib/store.js to check), scripts/ralph/prd.json (US-003 passes:true), scripts/ralph/progress.txt.
+- **Learnings for future iterations:**
+  - Verified at runtime against a seeded temp DB: NULL commodity_type -> omitted -> mapRateRecord shows 'N/A'; rateVisibleToView matches individual views from a ', '-joined RateView; calculateRate applies company margin correctly (1000.5 @25%+5 -> 1256); getUserByUsername returns AdminScreen boolean and null for missing users; updateCompanyMargins persists.
+  - The committed data/rateninja.db is schema-only (0 rows); run `npm run migrate` to populate it before browser verification in US-004.
+---
+
+## Sun Jul 19 - US-004
+- Cut server.js over to lib/store.js (SQLite) for all data access and deleted lib/airtable.js.
+- handleLogin uses getUserByUsername + pwd compare; handleRates/handlePublicRates/handlePredictivePricing use getAllRates(); handleSailings/handlePublicSailings use getSailings(); handleAdminCompanies uses getAllCompanies(); handleAdminCompanyUpdate uses getCompanyByRecordId + updateCompanyMargins. All store calls are synchronous (removed awaits/Promise.all).
+- requireConfiguration no longer needs AIRTABLE_PAT (only SESSION_SECRET); requirePublicApiAccess only needs RATE_NINJA_API_KEY. Dropped escapeFormulaString import from server.js (still exported by domain.js, harmless).
+- migrate-from-airtable.js inlined airtableRequest/fetchAllRecords/RATE_FIELDS so it no longer depends on the deleted lib/airtable.js; it is the only remaining Airtable reference.
+- Removed lib/airtable.js from the npm run check chain in package.json.
+- Files changed: server.js, scripts/migrate-from-airtable.js, package.json, lib/airtable.js (deleted), scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- **Learnings for future iterations:**
+  - Verified end-to-end at runtime (no AIRTABLE_PAT set) with a seeded temp DB: bad login rejected, good login returns {username:'Admin User',isAdmin:true}, /api/rates + ?refresh=1 return the seeded rate, /api/sailings returns the sailing, /api/admin/companies lists the client company, PATCH margin update returns {ok:true} and the next GET reflects 25/5 -> 30/10, /api/v1/rates works with X-API-Key and rejects a bad key.
+  - server.js still imports { config } (used by publicApiKeyIsValid + requireConfiguration) — do NOT remove the config import.
+---
+
+## Sun Jul 19 - US-009
+- Added a "Predictive rates" mode to the main screen. New controls in `.controls` (index.html): a `#predictiveToggle` checkbox + `#predictiveDate` date input (disabled unless toggle on) + `#predictiveDateError` inline error span; and a `#predictiveBanner` (with `#predictiveBannerText`) placed above `.table-container`.
+- script.js: state gains `predictive`/`predictiveAfter`. loadRates() now delegates to loadPredictiveRates() when state.predictive is true (so the existing Refresh button re-fetches predictive data, NOT normal rates) and hides the banner otherwise. onPredictiveToggle() enables the date input, prefills it with predictiveMinDate() (today+91d) if empty, and loads; toggling off restores /api/rates. Changing the date while on re-fetches. Predictive rows flow through the SAME state.rates/populateFilters/resetAndApplyFilters path, so search, filters, sort, and pagination work unchanged.
+- Date input `min` = today+91 days (predictiveMinDate); validatePredictiveDate() mirrors the server rule (valid date AND pfFullDaysUntil>90) and shows an inline error without fetching when invalid. Banner text: "Showing predictive rates for departures after {date} - not saved data".
+- Sailings modal in predictive mode: NO code change needed — the predictive endpoint sets each rate's rateEffectiveDate to the requested `after` date, and loadSailings already queries `after: rate.rateEffectiveDate`, so the carrier link consistently opens sailings using the predictive after date as the effective date (satisfies the "one behavior applied consistently" criterion).
+- styles.css: added .predictive-container / .predictive-toggle / .predictive-date-error / .predictive-banner (orange gradient) styles using existing visual language.
+- Files changed: index.html, script.js, styles.css, scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- **Learnings for future iterations:**
+  - Verified end-to-end via curl against a seeded temp DB + running server: login as a View A user, GET /api/rates/predictive?after=2026-12-01 returned {rates:[{...rateEffectiveDate:"2026-12-01",rateExpirationDate:"N/A",predictive:true, escalated+margined prices}]}; after=2026-08-01 => 400 "Departing after must be more than 90 days in the future."; served index.html/script.js/styles.css all contain the new controls/JS/CSS. No browser MCP tooling is configured, so a manual click-through of the visual toggle/banner is still recommended.
+  - Because predictive rate records reuse mapRateRecord's exact keys (plus predictive:true) and set rateEffectiveDate = the after date, the entire existing table/search/sort/paginate/sailings-modal client code works on them with ZERO renderer changes — the only new client logic is fetch routing + the toggle/date/banner UI.
+  - loadRates({refresh}) is the single entry point the Refresh button uses; branching on state.predictive at its top is the clean way to make Refresh mode-aware without touching the button binding.
+---

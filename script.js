@@ -6,7 +6,9 @@ const state = {
     perPage: 20,
     sortColumn: '',
     sortDirection: 'asc',
-    adminChanges: new Map()
+    adminChanges: new Map(),
+    predictive: false,
+    predictiveAfter: ''
 };
 
 const filterDefinitions = [
@@ -52,6 +54,11 @@ document.addEventListener('DOMContentLoaded', () => {
         tableBody: document.getElementById('ratesTableBody'),
         search: document.getElementById('searchInput'),
         refresh: document.getElementById('refreshBtn'),
+        predictiveToggle: document.getElementById('predictiveToggle'),
+        predictiveDate: document.getElementById('predictiveDate'),
+        predictiveDateError: document.getElementById('predictiveDateError'),
+        predictiveBanner: document.getElementById('predictiveBanner'),
+        predictiveBannerText: document.getElementById('predictiveBannerText'),
         previous: document.getElementById('prevBtn'),
         next: document.getElementById('nextBtn'),
         pageInfo: document.getElementById('pageInfo'),
@@ -65,9 +72,23 @@ document.addEventListener('DOMContentLoaded', () => {
         adminErrorMessage: document.getElementById('adminErrorMessage'),
         adminTableContainer: document.getElementById('adminTableContainer'),
         adminTableBody: document.getElementById('adminTableBody'),
+        pullForwardPanel: document.getElementById('pullForwardPanel'),
+        pfType: document.getElementById('pullForwardType'),
+        pfSourceStart: document.getElementById('pfSourceStart'),
+        pfSourceEnd: document.getElementById('pfSourceEnd'),
+        pfTargetStart: document.getElementById('pfTargetStart'),
+        pfTargetEnd: document.getElementById('pfTargetEnd'),
+        pfPriceIncrease: document.getElementById('pfPriceIncrease'),
+        pfDeleteExisting: document.getElementById('pfDeleteExisting'),
+        pullForwardBtn: document.getElementById('pullForwardBtn'),
+        pullForwardError: document.getElementById('pullForwardError'),
+        pullForwardErrorMessage: document.getElementById('pullForwardErrorMessage'),
+        pullForwardSuccess: document.getElementById('pullForwardSuccess'),
+        pullForwardSuccessMessage: document.getElementById('pullForwardSuccessMessage'),
         sailingsModal: document.getElementById('sailingsModal'),
         contractModal: document.getElementById('contractModal')
     };
+    elements.predictiveDate.min = predictiveMinDate();
     bindEvents();
     restoreSession();
 });
@@ -95,6 +116,10 @@ function bindEvents() {
     elements.search.addEventListener('input', debounce(resetAndApplyFilters, 250));
     filterDefinitions.forEach(([id]) => document.getElementById(id).addEventListener('change', resetAndApplyFilters));
     elements.refresh.addEventListener('click', () => loadRates({ refresh: true }));
+    elements.predictiveToggle.addEventListener('change', onPredictiveToggle);
+    elements.predictiveDate.addEventListener('change', () => {
+        if (state.predictive) loadPredictiveRates();
+    });
     elements.previous.addEventListener('click', () => changePage(-1));
     elements.next.addEventListener('click', () => changePage(1));
     document.querySelectorAll('#ratesTable .sortable').forEach(header => {
@@ -110,6 +135,8 @@ function bindEvents() {
     });
     elements.backToMain.addEventListener('click', showMainPage);
     elements.saveChanges.addEventListener('click', saveAdminChanges);
+    elements.pfType.addEventListener('change', syncPullForwardType);
+    elements.pullForwardBtn.addEventListener('click', runPullForward);
     document.getElementById('closeModal').addEventListener('click', closeSailingsModal);
     document.getElementById('closeContractModal').addEventListener('click', closeContractModal);
     window.addEventListener('click', event => {
@@ -159,7 +186,18 @@ async function logout() {
     state.user = null;
     state.rates = [];
     state.filteredRates = [];
+    resetPredictiveMode();
     showLoginPage();
+}
+
+function resetPredictiveMode() {
+    state.predictive = false;
+    state.predictiveAfter = '';
+    elements.predictiveToggle.checked = false;
+    elements.predictiveDate.value = '';
+    elements.predictiveDate.disabled = true;
+    hidePredictiveBanner();
+    hidePredictiveDateError();
 }
 
 function showLoginPage() {
@@ -190,6 +228,11 @@ function hideLoginError() {
 }
 
 async function loadRates({ refresh = false } = {}) {
+    if (state.predictive) {
+        await loadPredictiveRates();
+        return;
+    }
+    hidePredictiveBanner();
     showLoading();
     try {
         const path = refresh ? '/api/rates?refresh=1' : '/api/rates';
@@ -203,6 +246,83 @@ async function loadRates({ refresh = false } = {}) {
     } finally {
         hideLoading();
     }
+}
+
+// --- Predictive rates ---
+
+function predictiveMinDate() {
+    const today = new Date();
+    const min = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() + 91));
+    return min.toISOString().slice(0, 10);
+}
+
+// Mirrors the server rule: after must be a valid date more than 90 days out.
+function validatePredictiveDate(value) {
+    const date = pfParseDate(value);
+    if (!date) return 'Please choose a valid departure date.';
+    if (pfFullDaysUntil(date) <= 90) return 'Departing after must be more than 90 days in the future.';
+    return null;
+}
+
+function onPredictiveToggle() {
+    const on = elements.predictiveToggle.checked;
+    elements.predictiveDate.disabled = !on;
+    hidePredictiveDateError();
+    if (on) {
+        state.predictive = true;
+        if (!elements.predictiveDate.value) elements.predictiveDate.value = predictiveMinDate();
+        loadPredictiveRates();
+    } else {
+        state.predictive = false;
+        state.predictiveAfter = '';
+        hidePredictiveBanner();
+        loadRates();
+    }
+}
+
+async function loadPredictiveRates() {
+    const after = elements.predictiveDate.value;
+    const validationError = validatePredictiveDate(after);
+    if (validationError) {
+        showPredictiveDateError(validationError);
+        hidePredictiveBanner();
+        elements.tableBody.replaceChildren();
+        return;
+    }
+    hidePredictiveDateError();
+    showLoading();
+    try {
+        const { rates } = await request(`/api/rates/predictive?after=${encodeURIComponent(after)}`);
+        state.rates = rates;
+        state.predictiveAfter = after;
+        populateFilters();
+        resetAndApplyFilters();
+        showPredictiveBanner(after);
+    } catch (error) {
+        hidePredictiveBanner();
+        showError(`Failed to load predictive rates: ${error.message}`);
+        elements.tableBody.replaceChildren();
+    } finally {
+        hideLoading();
+    }
+}
+
+function showPredictiveBanner(after) {
+    elements.predictiveBannerText.textContent = `Showing predictive rates for departures after ${formatDate(after)} - not saved data`;
+    elements.predictiveBanner.hidden = false;
+}
+
+function hidePredictiveBanner() {
+    elements.predictiveBanner.hidden = true;
+}
+
+function showPredictiveDateError(message) {
+    elements.predictiveDateError.textContent = message;
+    elements.predictiveDateError.hidden = false;
+}
+
+function hidePredictiveDateError() {
+    elements.predictiveDateError.hidden = true;
 }
 
 function showLoading() {
@@ -480,11 +600,14 @@ async function showAdminScreen() {
     elements.adminLoading.hidden = false;
     elements.adminError.hidden = true;
     elements.adminTableContainer.hidden = true;
+    elements.pullForwardPanel.hidden = true;
+    resetPullForwardMessages();
     state.adminChanges.clear();
     try {
         const { companies } = await request('/api/admin/companies');
         renderAdminTable(companies);
         elements.adminTableContainer.hidden = false;
+        elements.pullForwardPanel.hidden = false;
     } catch (error) {
         elements.adminErrorMessage.textContent = `Failed to load companies: ${error.message}`;
         elements.adminError.hidden = false;
@@ -565,5 +688,117 @@ async function saveAdminChanges() {
     } finally {
         elements.saveChanges.disabled = false;
         elements.saveChanges.textContent = 'Save Changes';
+    }
+}
+
+// --- Pull Forward Data ---
+
+function syncPullForwardType() {
+    const isRates = elements.pfType.value === 'rates';
+    elements.pfPriceIncrease.disabled = !isRates;
+    if (!isRates) elements.pfPriceIncrease.value = '0';
+    resetPullForwardMessages();
+}
+
+function pfParseDate(value) {
+    const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return null;
+    const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+    return date.getUTCFullYear() === Number(match[1]) && date.getUTCMonth() === Number(match[2]) - 1 && date.getUTCDate() === Number(match[3])
+        ? date
+        : null;
+}
+
+function pfFullDaysUntil(date) {
+    const today = new Date();
+    const todayUtc = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+    return Math.floor((date.getTime() - todayUtc) / 86400000);
+}
+
+// Mirrors the server's validatePullForwardRange rules (plus priceIncreasePercent
+// for rates). Returns an error string, or null when the input is valid.
+function validatePullForward({ sourceStart, sourceEnd, targetStart, targetEnd, type, priceIncreasePercent }) {
+    const start = pfParseDate(sourceStart);
+    const sEnd = pfParseDate(sourceEnd);
+    const tStart = pfParseDate(targetStart);
+    const tEnd = pfParseDate(targetEnd);
+    if (!start || !sEnd || !tStart || !tEnd) {
+        return 'Source and target ranges must all be valid dates.';
+    }
+    if (start.getTime() > sEnd.getTime()) {
+        return 'Source start date must not be after source end date.';
+    }
+    if (tStart.getTime() > tEnd.getTime()) {
+        return 'Target start date must not be after target end date.';
+    }
+    if (tStart.getTime() <= sEnd.getTime()) {
+        return 'Target range must start after the source range ends.';
+    }
+    if (pfFullDaysUntil(tEnd) > 90) {
+        return 'Target range must end within 90 days of today.';
+    }
+    if (sEnd.getTime() - start.getTime() !== tEnd.getTime() - tStart.getTime()) {
+        return 'Target range length must equal source range length.';
+    }
+    if (type === 'rates' && (!Number.isFinite(priceIncreasePercent) || priceIncreasePercent < 0 || priceIncreasePercent > 100)) {
+        return 'Price increase percent must be a number between 0 and 100.';
+    }
+    return null;
+}
+
+function resetPullForwardMessages() {
+    elements.pullForwardError.hidden = true;
+    elements.pullForwardSuccess.hidden = true;
+}
+
+function showPullForwardError(message) {
+    elements.pullForwardSuccess.hidden = true;
+    elements.pullForwardErrorMessage.textContent = message;
+    elements.pullForwardError.hidden = false;
+}
+
+function showPullForwardSuccess(message) {
+    elements.pullForwardError.hidden = true;
+    elements.pullForwardSuccessMessage.textContent = message;
+    elements.pullForwardSuccess.hidden = false;
+}
+
+async function runPullForward() {
+    resetPullForwardMessages();
+    const type = elements.pfType.value;
+    const priceIncreasePercent = Number(elements.pfPriceIncrease.value);
+    const body = {
+        sourceStart: elements.pfSourceStart.value,
+        sourceEnd: elements.pfSourceEnd.value,
+        targetStart: elements.pfTargetStart.value,
+        targetEnd: elements.pfTargetEnd.value,
+        deleteExisting: elements.pfDeleteExisting.checked
+    };
+    const error = validatePullForward({ ...body, type, priceIncreasePercent });
+    if (error) {
+        showPullForwardError(error);
+        return;
+    }
+    if (body.deleteExisting) {
+        const confirmed = window.confirm(
+            `This will permanently delete all existing ${type} dated ${body.targetStart} to ${body.targetEnd} before copying the new data. This cannot be undone. Continue?`
+        );
+        if (!confirmed) return;
+    }
+    if (type === 'rates') body.priceIncreasePercent = priceIncreasePercent;
+    const originalLabel = elements.pullForwardBtn.innerHTML;
+    elements.pullForwardBtn.disabled = true;
+    elements.pullForwardBtn.textContent = 'Working…';
+    try {
+        const result = await request(`/api/admin/pull-forward/${type}`, {
+            method: 'POST',
+            body: JSON.stringify(body)
+        });
+        showPullForwardSuccess(`Copied ${result.copied} ${type}, deleted ${result.deleted}.`);
+    } catch (err) {
+        showPullForwardError(err.message);
+    } finally {
+        elements.pullForwardBtn.disabled = false;
+        elements.pullForwardBtn.innerHTML = originalLabel;
     }
 }

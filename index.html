@@ -105,9 +105,21 @@
             <button id="refreshBtn" class="refresh-btn">
                 <i class="fas fa-sync-alt"></i> Refresh
             </button>
+
+            <div class="predictive-container">
+                <label class="predictive-toggle">
+                    <input type="checkbox" id="predictiveToggle">
+                    <span>Predictive rates</span>
+                </label>
+                <input type="date" id="predictiveDate" aria-label="Departing after" disabled>
+                <span id="predictiveDateError" class="predictive-date-error" hidden></span>
+            </div>
         </div>
 
-
+        <div id="predictiveBanner" class="predictive-banner" hidden>
+            <i class="fas fa-flask"></i>
+            <span id="predictiveBannerText"></span>
+        </div>
 
         <div class="table-container">
             <div class="loading" id="loading">
@@ -222,6 +234,64 @@
                     <tbody id="adminTableBody">
                     </tbody>
                 </table>
+            </div>
+
+            <div class="pull-forward-panel" id="pullForwardPanel" hidden>
+                <h2 class="pull-forward-title"><i class="fas fa-forward"></i> Pull Forward Data</h2>
+                <p class="pull-forward-subtitle">Copy a past range of rates or sailings into a future range.</p>
+                <div class="pull-forward-form">
+                    <div class="form-row">
+                        <div class="pf-field">
+                            <label for="pullForwardType">Data type</label>
+                            <select id="pullForwardType">
+                                <option value="rates">Rates</option>
+                                <option value="sailings">Sailings</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="pf-field">
+                            <label for="pfSourceStart">Source start</label>
+                            <input type="date" id="pfSourceStart">
+                        </div>
+                        <div class="pf-field">
+                            <label for="pfSourceEnd">Source end</label>
+                            <input type="date" id="pfSourceEnd">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="pf-field">
+                            <label for="pfTargetStart">Target start</label>
+                            <input type="date" id="pfTargetStart">
+                        </div>
+                        <div class="pf-field">
+                            <label for="pfTargetEnd">Target end</label>
+                            <input type="date" id="pfTargetEnd">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="pf-field">
+                            <label for="pfPriceIncrease">Price increase (%)</label>
+                            <input type="number" id="pfPriceIncrease" min="0" max="100" step="0.01" value="0">
+                        </div>
+                        <div class="pf-field pf-checkbox">
+                            <label for="pfDeleteExisting"><input type="checkbox" id="pfDeleteExisting"> Delete existing data in target range</label>
+                        </div>
+                    </div>
+                    <div class="pull-forward-actions">
+                        <button type="button" id="pullForwardBtn" class="save-btn">
+                            <i class="fas fa-forward"></i> Pull Forward
+                        </button>
+                    </div>
+                    <div id="pullForwardError" class="error-message" hidden>
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <span id="pullForwardErrorMessage"></span>
+                    </div>
+                    <div id="pullForwardSuccess" class="pull-forward-success" hidden>
+                        <i class="fas fa-check-circle"></i>
+                        <span id="pullForwardSuccessMessage"></span>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
