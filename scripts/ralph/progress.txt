@@ -1,0 +1,19 @@
+# Ralph Progress Log
+Started: Sun Jul 19 13:00:48 PDT 2026
+---
+
+## Codebase Patterns
+- Plain Node.js app, no build step. Quality check is `npm run check` (a chain of `node --check` syntax checks). When adding a new lib/*.js file, ALSO add it to the `check` script in package.json.
+- Data-access layer lives in lib/. lib/airtable.js is the current Airtable client; lib/domain.js has mappers (mapSailingRecord, escapeFormulaString, normalizeValue) + rate math; lib/config.js reads env via process.loadEnvFile. lib/session.js handles sessions.
+- Airtable field names are exact strings like 'Origin Port', 'Destination Port/Via Port', '20D Rate', '40D rate' (lowercase r!), '40HC Rate', 'Rate Effective Date', 'RateView', 'CompanyID', 'MarginPercent', 'DeparturePort'. The SQLite store layer (US-003) must return these exact names so domain.js works unchanged.
+- SQLite via node:sqlite `DatabaseSync` needs Node >=22 and emits an ExperimentalWarning at runtime (harmless). require('./lib/db.js') exports `{ db, dbPath }`; db.exec runs multi-statement DDL. lib/db.js creates the data/ dir with fs.mkdirSync before opening. DB path defaults to data/rateninja.db, overridable via SQLITE_DB_PATH. data/*.db is gitignored.
+- RateNinja/ is a dirty git submodule pointer (mode 160000) unrelated to Ralph work; do NOT stage it in commits.
+
+## Sun Jul 19 - US-001
+- Implemented lib/db.js: opens/creates SQLite DB (node:sqlite DatabaseSync), path defaults data/rateninja.db or SQLITE_DB_PATH env; runs idempotent CREATE TABLE IF NOT EXISTS for rates/users/companies/sailings + indexes on rates(carrier,origin_port), sailings(carrier,departure_port,departure), users(username), companies(company_id).
+- Files changed: lib/db.js (new), package.json (engines.node >=22, added lib/db.js to check), .gitignore (data/*.db).
+- **Learnings for future iterations:**
+  - Verified at runtime: all 4 tables + 4 indexes create cleanly; `git check-ignore data/rateninja.db` confirms the db file is ignored.
+  - node:sqlite emits an ExperimentalWarning on stderr — expected, not a failure.
+  - Column naming maps snake_case columns to Airtable field names later in US-003; keep the mapping in the store layer, not the schema.
+---
