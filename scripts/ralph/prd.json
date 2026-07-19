@@ -93,7 +93,7 @@
         "Typecheck passes (npm run check)"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
