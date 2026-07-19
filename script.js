@@ -16,6 +16,19 @@ const filterDefinitions = [
     ['contractOwnerFilter', 'contractOwner', 'All Contract Owners']
 ];
 
+const searchFields = [
+    'rateType',
+    'originPort',
+    'destinationPort',
+    'inlandDeliveryLocation',
+    'commodityType',
+    'carrier',
+    'contractOwner',
+    'notes1'
+];
+
+const ADMIN_SAVE_CONCURRENCY = 3;
+
 let elements;
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -222,7 +235,7 @@ function applyFilters() {
     const searchTerm = elements.search.value.trim().toLowerCase();
     const selected = Object.fromEntries(filterDefinitions.map(([id, field]) => [field, document.getElementById(id).value]));
     state.filteredRates = state.rates.filter(rate => {
-        const matchesSearch = !searchTerm || Object.values(rate).some(value => String(value).toLowerCase().includes(searchTerm));
+        const matchesSearch = !searchTerm || searchFields.some(field => String(rate[field] ?? '').toLowerCase().includes(searchTerm));
         const matchesFilters = Object.entries(selected).every(([field, value]) => !value || rate[field] === value);
         return matchesSearch && matchesFilters;
     });
@@ -496,15 +509,29 @@ function createMarginInput(company, field, value) {
     return cell;
 }
 
+async function mapPool(items, concurrency, worker) {
+    const results = [];
+    let index = 0;
+    async function run() {
+        while (index < items.length) {
+            const current = index;
+            index += 1;
+            results[current] = await worker(items[current], current);
+        }
+    }
+    await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => run()));
+    return results;
+}
+
 async function saveAdminChanges() {
     if (!state.adminChanges.size) return;
     elements.saveChanges.disabled = true;
     elements.saveChanges.textContent = 'Saving…';
     try {
-        await Promise.all([...state.adminChanges].map(([id, changes]) => request(`/api/admin/companies/${id}`, {
+        await mapPool([...state.adminChanges], ADMIN_SAVE_CONCURRENCY, ([id, changes]) => request(`/api/admin/companies/${id}`, {
             method: 'PATCH',
             body: JSON.stringify(changes)
-        })));
+        }));
         state.adminChanges.clear();
         await showAdminScreen();
     } catch (error) {

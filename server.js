@@ -4,31 +4,45 @@ const http = require('node:http');
 const path = require('node:path');
 const { URL } = require('node:url');
 
-try {
-    process.loadEnvFile('.env');
-} catch {
-    // .env is optional; deployment platforms normally provide environment variables.
-}
+const {
+    PORT,
+    ROOT,
+    PUBLIC_API_RATE_LIMIT,
+    PUBLIC_API_WINDOW_MS,
+    config
+} = require('./lib/config');
+const {
+    airtableRequest,
+    fetchAllRecords,
+    getAllRates,
+    getAllCompanies,
+    invalidateCompaniesCache,
+    fetchCompanyByRecordId,
+    fetchSailings
+} = require('./lib/airtable');
+const {
+    normalizeValue,
+    sameValue,
+    escapeFormulaString,
+    mapRateRecord,
+    parsePageNumber,
+    matchesSearch,
+    parseDateOnly,
+    fullDaysUntil,
+    calculatePredictiveRate,
+    latestPredictiveRateRecords,
+    companyById,
+    rateVisibleToView
+} = require('./lib/domain');
+const {
+    getSession,
+    createSession,
+    destroySession,
+    sessionCookie,
+    startSessionSweep
+} = require('./lib/session');
 
-const PORT = Number(process.env.PORT) || 3000;
-const ROOT = __dirname;
-const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
-const PUBLIC_API_RATE_LIMIT = 60;
-const PUBLIC_API_WINDOW_MS = 60 * 1000;
-const sessions = new Map();
 let publicApiWindow = { startedAt: Date.now(), requests: 0 };
-const config = {
-    apiToken: process.env.AIRTABLE_PAT,
-    sessionSecret: process.env.SESSION_SECRET,
-    publicApiKey: process.env.RATE_NINJA_API_KEY,
-    baseId: process.env.AIRTABLE_BASE_ID || 'appBLegnJMAienppq',
-    tables: {
-        rates: process.env.AIRTABLE_RATE_TABLE_ID || 'tbl5OpIdW2kyRRWLp',
-        users: process.env.AIRTABLE_USER_TABLE_ID || 'tblwtjp73CaWe3GKy',
-        companies: process.env.AIRTABLE_COMPANY_TABLE_ID || 'CompanyReference',
-        sailings: process.env.AIRTABLE_SAILINGS_TABLE_ID || 'Sailings'
-    }
-};
 
 const contentTypes = {
     '.css': 'text/css; charset=utf-8',
@@ -64,36 +78,6 @@ function securityHeaders() {
     };
 }
 
-function getCookies(request) {
-    return Object.fromEntries((request.headers.cookie || '').split(';').map(value => {
-        const separator = value.indexOf('=');
-        return separator === -1 ? [] : [value.slice(0, separator).trim(), decodeURIComponent(value.slice(separator + 1))];
-    }).filter(entry => entry.length));
-}
-
-function getSession(request) {
-    const token = getCookies(request).rate_ninja_session;
-    const session = token && sessions.get(token);
-    if (!session || session.expiresAt < Date.now()) {
-        if (token) sessions.delete(token);
-        return null;
-    }
-    return { token, ...session };
-}
-
-function createSession(user) {
-    const nonce = crypto.randomBytes(32).toString('base64url');
-    const signature = crypto.createHmac('sha256', config.sessionSecret).update(nonce).digest('base64url');
-    const token = `${nonce}.${signature}`;
-    sessions.set(token, { user, expiresAt: Date.now() + SESSION_TTL_MS });
-    return token;
-}
-
-function sessionCookie(token, maxAge = SESSION_TTL_MS / 1000) {
-    const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
-    return `rate_ninja_session=${encodeURIComponent(token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}${secure}`;
-}
-
 async function readJson(request) {
     let body = '';
     for await (const chunk of request) {
@@ -111,83 +95,6 @@ function requireConfiguration(response) {
     if (config.apiToken && config.sessionSecret) return true;
     sendError(response, 500, 'Server configuration is incomplete. Set AIRTABLE_PAT and SESSION_SECRET.');
     return false;
-}
-
-function normalizeValue(value, fallback = 'N/A') {
-    if (Array.isArray(value)) return value.join(', ') || fallback;
-    return value ?? fallback;
-}
-
-function sameValue(left, right) {
-    return String(left ?? '') === String(right ?? '');
-}
-
-function asArray(value) {
-    return Array.isArray(value) ? value : [value];
-}
-
-function calculateRate(value, company) {
-    const baseRate = Number(value) || 0;
-    if (!company || company.fields.Admin) return Math.round(baseRate);
-    const rawPercent = Number(company.fields.MarginPercent) || 0;
-    const marginPercent = rawPercent > 1 ? rawPercent / 100 : rawPercent;
-    const marginNumber = Number(company.fields.MarginNumber) || 0;
-    return Math.round(baseRate * (1 + marginPercent) + marginNumber);
-}
-
-function mapRateRecord(record, company) {
-    const fields = record.fields;
-    return {
-        id: record.id,
-        rateType: normalizeValue(fields['Rate Type']),
-        originPort: normalizeValue(fields['Origin Port']),
-        destinationPort: normalizeValue(fields['Destination Port/Via Port']),
-        inlandDeliveryLocation: normalizeValue(fields['Inland Delivery Location']),
-        commodityType: normalizeValue(fields.CommodityType),
-        carrier: normalizeValue(fields.Carrier),
-        contractOwner: normalizeValue(fields['Contract Owner']),
-        rate20D: calculateRate(fields['20D Rate'], company),
-        rate40D: calculateRate(fields['40D rate'], company),
-        rate40HC: calculateRate(fields['40HC Rate'], company),
-        rateEffectiveDate: normalizeValue(fields['Rate Effective Date']),
-        rateExpirationDate: normalizeValue(fields['Rate Expiration Date']),
-        notes1: normalizeValue(fields['Notes 1'], '')
-    };
-}
-
-function escapeFormulaString(value) {
-    return String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-}
-
-async function airtableRequest(table, options = {}) {
-    const safeTablePath = table.split('/').map(encodeURIComponent).join('/');
-    const url = new URL(`https://api.airtable.com/v0/${config.baseId}/${safeTablePath}`);
-    for (const [key, value] of Object.entries(options.params || {})) {
-        if (value !== undefined && value !== null && value !== '') url.searchParams.set(key, value);
-    }
-    const response = await fetch(url, {
-        method: options.method || 'GET',
-        headers: {
-            Authorization: `Bearer ${config.apiToken}`,
-            ...(options.body ? { 'Content-Type': 'application/json' } : {})
-        },
-        body: options.body ? JSON.stringify(options.body) : undefined
-    });
-    if (!response.ok) {
-        throw new Error(`Airtable request failed (${response.status}).`);
-    }
-    return response.json();
-}
-
-async function fetchAllRecords(table, params = {}) {
-    const records = [];
-    let offset;
-    do {
-        const result = await airtableRequest(table, { params: { ...params, offset } });
-        records.push(...result.records);
-        offset = result.offset;
-    } while (offset);
-    return records;
 }
 
 async function requireSession(request, response) {
@@ -265,65 +172,12 @@ async function handleLogin(request, response) {
 }
 
 async function handleRates(request, response, session) {
-    const [companies, records] = await Promise.all([
-        fetchAllRecords(config.tables.companies),
-        fetchAllRecords(config.tables.rates)
-    ]);
-    const company = companies.find(record => sameValue(record.fields.CompanyID, session.user.companyId));
+    const [companies, records] = await Promise.all([getAllCompanies(), getAllRates()]);
+    const company = companyById(companies, session.user.companyId);
     const rates = records
-        .filter(record => asArray(record.fields.RateView).some(value => sameValue(value, session.user.rateView)))
+        .filter(record => rateVisibleToView(record, session.user.rateView))
         .map(record => mapRateRecord(record, company));
     sendJson(response, 200, { rates }, securityHeaders());
-}
-
-function parsePageNumber(value, fallback, maximum) {
-    const number = Number(value);
-    return Number.isInteger(number) && number > 0 ? Math.min(number, maximum) : fallback;
-}
-
-function matchesSearch(value, query) {
-    return !query || String(value).toLowerCase().includes(query.toLowerCase());
-}
-
-function parseDateOnly(value) {
-    const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (!match) return null;
-    const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
-    return date.getUTCFullYear() === Number(match[1]) && date.getUTCMonth() === Number(match[2]) - 1 && date.getUTCDate() === Number(match[3])
-        ? date
-        : null;
-}
-
-function fullDaysUntil(date) {
-    const today = new Date();
-    const todayUtc = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
-    return Math.floor((date.getTime() - todayUtc) / (24 * 60 * 60 * 1000));
-}
-
-function expirationTimestamp(value) {
-    const timestamp = Date.parse(value);
-    return Number.isNaN(timestamp) ? Number.NEGATIVE_INFINITY : timestamp;
-}
-
-function calculatePredictiveRate(value, fullThirtyDayPeriods) {
-    const baseRate = Number(value) || 0;
-    return Math.round(baseRate * (1 + (fullThirtyDayPeriods * 0.05)));
-}
-
-function latestPredictiveRateRecords(records, carrier, originPort) {
-    const latestByRoute = new Map();
-    for (const record of records) {
-        const fields = record.fields;
-        if (!sameValue(fields.Carrier, carrier) || !sameValue(fields['Origin Port'], originPort)) continue;
-        const destinationPort = normalizeValue(fields['Destination Port/Via Port']);
-        const arrival = normalizeValue(fields.Arrival, '');
-        const routeKey = [fields.Carrier, fields['Origin Port'], destinationPort, arrival].join('\u0000');
-        const latest = latestByRoute.get(routeKey);
-        if (!latest || expirationTimestamp(fields['Rate Expiration Date']) > expirationTimestamp(latest.fields['Rate Expiration Date'])) {
-            latestByRoute.set(routeKey, record);
-        }
-    }
-    return [...latestByRoute.values()];
 }
 
 async function handlePublicRates(request, response, url) {
@@ -333,7 +187,7 @@ async function handlePublicRates(request, response, url) {
     const destinationPort = url.searchParams.get('destinationPort') || '';
     const page = parsePageNumber(url.searchParams.get('page'), 1, 10_000);
     const pageSize = parsePageNumber(url.searchParams.get('pageSize'), 50, 100);
-    const records = await fetchAllRecords(config.tables.rates);
+    const records = await getAllRates();
     const rates = records
         .map(record => mapRateRecord(record, null))
         .filter(rate => matchesSearch(rate.carrier, carrier) && matchesSearch(rate.originPort, originPort) && matchesSearch(rate.destinationPort, destinationPort));
@@ -358,20 +212,7 @@ async function handlePublicSailings(request, response, url) {
         sendError(response, 400, 'Carrier, originPort, and after query parameters are required.');
         return;
     }
-    const formula = `AND({Carrier} = "${escapeFormulaString(carrier)}", {DeparturePort} = "${escapeFormulaString(originPort)}", {Departure} > "${escapeFormulaString(after)}")`;
-    const records = await fetchAllRecords(config.tables.sailings, {
-        filterByFormula: formula,
-        'sort[0][field]': 'Departure',
-        'sort[0][direction]': 'asc'
-    });
-    const sailings = records.map(record => ({
-        departure: normalizeValue(record.fields.Departure),
-        arrival: normalizeValue(record.fields.Arrival),
-        transitTime: normalizeValue(record.fields.TransitTime),
-        vessel: normalizeValue(record.fields.Vessel),
-        voyage: normalizeValue(record.fields.Voyage),
-        service: normalizeValue(record.fields.Service)
-    }));
+    const sailings = await fetchSailings({ carrier, originPort, after });
     sendJson(response, 200, { data: sailings, meta: { total: sailings.length } }, securityHeaders());
 }
 
@@ -393,7 +234,7 @@ async function handlePredictivePricing(request, response, url) {
     }
 
     const fullThirtyDayPeriods = Math.floor(daysUntilDeparture / 30);
-    const records = latestPredictiveRateRecords(await fetchAllRecords(config.tables.rates), carrier, originPort);
+    const records = latestPredictiveRateRecords(await getAllRates(), carrier, originPort);
     const predictions = records.map(record => {
         const fields = record.fields;
         return {
@@ -418,20 +259,7 @@ async function handleSailings(request, response, session, url) {
         sendError(response, 400, 'Carrier, origin port, and effective date are required.');
         return;
     }
-    const formula = `AND({Carrier} = "${escapeFormulaString(carrier)}", {DeparturePort} = "${escapeFormulaString(originPort)}", {Departure} > "${escapeFormulaString(after)}")`;
-    const records = await fetchAllRecords(config.tables.sailings, {
-        filterByFormula: formula,
-        'sort[0][field]': 'Departure',
-        'sort[0][direction]': 'asc'
-    });
-    const sailings = records.map(record => ({
-        departure: normalizeValue(record.fields.Departure),
-        arrival: normalizeValue(record.fields.Arrival),
-        transitTime: normalizeValue(record.fields.TransitTime),
-        vessel: normalizeValue(record.fields.Vessel),
-        voyage: normalizeValue(record.fields.Voyage),
-        service: normalizeValue(record.fields.Service)
-    }));
+    const sailings = await fetchSailings({ carrier, originPort, after });
     sendJson(response, 200, { sailings }, securityHeaders());
 }
 
@@ -440,7 +268,7 @@ async function handleAdminCompanies(request, response, session) {
         sendError(response, 403, 'Administrator access is required.');
         return;
     }
-    const records = await fetchAllRecords(config.tables.companies);
+    const records = await getAllCompanies();
     const companies = records
         .filter(record => record.fields.CompanyType && sameValue(record.fields.RateView, session.user.rateView) && !sameValue(record.fields.CompanyID, session.user.companyId))
         .map(record => ({
@@ -462,8 +290,7 @@ async function handleAdminCompanyUpdate(request, response, session, recordId) {
         sendError(response, 400, 'Margins must be non-negative numbers no greater than 1,000,000.');
         return;
     }
-    const records = await fetchAllRecords(config.tables.companies, { filterByFormula: `RECORD_ID() = "${escapeFormulaString(recordId)}"` });
-    const company = records[0];
+    const company = await fetchCompanyByRecordId(recordId);
     if (!company || !company.fields.CompanyType || !sameValue(company.fields.RateView, session.user.rateView) || sameValue(company.fields.CompanyID, session.user.companyId)) {
         sendError(response, 404, 'Company was not found in your administration scope.');
         return;
@@ -472,13 +299,22 @@ async function handleAdminCompanyUpdate(request, response, session, recordId) {
         method: 'PATCH',
         body: { fields: { MarginPercent: marginPercent, MarginNumber: marginNumber } }
     });
+    invalidateCompaniesCache();
     sendJson(response, 200, { ok: true }, securityHeaders());
+}
+
+function hasDotSegment(pathname) {
+    return pathname.split('/').some(segment => segment.startsWith('.'));
 }
 
 async function serveStatic(request, response, pathname) {
     const requestedPath = pathname === '/' ? '/index.html' : pathname;
+    if (hasDotSegment(requestedPath)) {
+        sendError(response, 403, 'Forbidden.');
+        return;
+    }
     const filePath = path.resolve(ROOT, `.${requestedPath}`);
-    if (!filePath.startsWith(`${ROOT}${path.sep}`) || path.basename(filePath).startsWith('.')) {
+    if (!filePath.startsWith(`${ROOT}${path.sep}`)) {
         sendError(response, 403, 'Forbidden.');
         return;
     }
@@ -501,7 +337,7 @@ const server = http.createServer(async (request, response) => {
         if (pathname === '/api/auth/login' && request.method === 'POST') return handleLogin(request, response);
         if (pathname === '/api/auth/logout' && request.method === 'POST') {
             const session = getSession(request);
-            if (session) sessions.delete(session.token);
+            if (session) destroySession(session.token);
             sendJson(response, 204, null, { 'Set-Cookie': sessionCookie('', 0), ...securityHeaders() });
             return;
         }
@@ -539,6 +375,7 @@ const server = http.createServer(async (request, response) => {
     }
 });
 
+startSessionSweep();
 server.listen(PORT, () => {
     console.log(`Rate Ninja is running at http://localhost:${PORT}`);
 });
