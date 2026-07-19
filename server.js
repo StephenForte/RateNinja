@@ -18,7 +18,8 @@ const {
     getCompanyByRecordId,
     getSailings,
     updateCompanyMargins,
-    pullForwardRates
+    pullForwardRates,
+    pullForwardSailings
 } = require('./lib/store');
 const {
     normalizeValue,
@@ -327,6 +328,28 @@ async function handlePullForwardRates(request, response, session) {
     sendJson(response, 200, { ok: true, copied: result.copied, deleted: result.deleted }, securityHeaders());
 }
 
+async function handlePullForwardSailings(request, response, session) {
+    if (!session.user.isAdmin) {
+        sendError(response, 403, 'Administrator access is required.');
+        return;
+    }
+    const body = await readJson(request);
+    const validation = validatePullForwardRange(body);
+    if (validation.error) {
+        sendError(response, 400, validation.error);
+        return;
+    }
+    const result = pullForwardSailings({
+        sourceStart: body.sourceStart,
+        sourceEnd: body.sourceEnd,
+        targetStart: body.targetStart,
+        targetEnd: body.targetEnd,
+        offsetDays: validation.offsetDays,
+        deleteExisting: body.deleteExisting === true
+    });
+    sendJson(response, 200, { ok: true, copied: result.copied, deleted: result.deleted }, securityHeaders());
+}
+
 function hasDotSegment(pathname) {
     return pathname.split('/').some(segment => segment.startsWith('.'));
 }
@@ -390,6 +413,7 @@ const server = http.createServer(async (request, response) => {
         if (pathname === '/api/sailings' && request.method === 'GET') return handleSailings(request, response, session, url);
         if (pathname === '/api/admin/companies' && request.method === 'GET') return handleAdminCompanies(request, response, session);
         if (pathname === '/api/admin/pull-forward/rates' && request.method === 'POST') return handlePullForwardRates(request, response, session);
+        if (pathname === '/api/admin/pull-forward/sailings' && request.method === 'POST') return handlePullForwardSailings(request, response, session);
         const companyMatch = pathname.match(/^\/api\/admin\/companies\/([\w-]+)$/);
         if (companyMatch && request.method === 'PATCH') return handleAdminCompanyUpdate(request, response, session, companyMatch[1]);
         if (pathname.startsWith('/api/')) return sendError(response, 404, 'API route not found.');
