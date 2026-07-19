@@ -105,9 +105,21 @@
             <button id="refreshBtn" class="refresh-btn">
                 <i class="fas fa-sync-alt"></i> Refresh
             </button>
+
+            <div class="predictive-container">
+                <label class="predictive-toggle">
+                    <input type="checkbox" id="predictiveToggle">
+                    <span>Predictive rates</span>
+                </label>
+                <input type="date" id="predictiveDate" aria-label="Departing after" disabled>
+                <span id="predictiveDateError" class="predictive-date-error" hidden></span>
+            </div>
         </div>
 
-
+        <div id="predictiveBanner" class="predictive-banner" hidden>
+            <i class="fas fa-flask"></i>
+            <span id="predictiveBannerText"></span>
+        </div>
 
         <div class="table-container">
             <div class="loading" id="loading">

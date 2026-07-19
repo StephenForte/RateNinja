@@ -164,7 +164,7 @@
         "Verify in browser using dev-browser skill: toggle on with a valid date and confirm rates change and the banner appears; pick an invalid date and confirm the inline error; toggle off and confirm normal rates return"
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "notes": ""
     }
   ]

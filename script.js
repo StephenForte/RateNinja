@@ -6,7 +6,9 @@ const state = {
     perPage: 20,
     sortColumn: '',
     sortDirection: 'asc',
-    adminChanges: new Map()
+    adminChanges: new Map(),
+    predictive: false,
+    predictiveAfter: ''
 };
 
 const filterDefinitions = [
@@ -52,6 +54,11 @@ document.addEventListener('DOMContentLoaded', () => {
         tableBody: document.getElementById('ratesTableBody'),
         search: document.getElementById('searchInput'),
         refresh: document.getElementById('refreshBtn'),
+        predictiveToggle: document.getElementById('predictiveToggle'),
+        predictiveDate: document.getElementById('predictiveDate'),
+        predictiveDateError: document.getElementById('predictiveDateError'),
+        predictiveBanner: document.getElementById('predictiveBanner'),
+        predictiveBannerText: document.getElementById('predictiveBannerText'),
         previous: document.getElementById('prevBtn'),
         next: document.getElementById('nextBtn'),
         pageInfo: document.getElementById('pageInfo'),
@@ -81,6 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
         sailingsModal: document.getElementById('sailingsModal'),
         contractModal: document.getElementById('contractModal')
     };
+    elements.predictiveDate.min = predictiveMinDate();
     bindEvents();
     restoreSession();
 });
@@ -108,6 +116,10 @@ function bindEvents() {
     elements.search.addEventListener('input', debounce(resetAndApplyFilters, 250));
     filterDefinitions.forEach(([id]) => document.getElementById(id).addEventListener('change', resetAndApplyFilters));
     elements.refresh.addEventListener('click', () => loadRates({ refresh: true }));
+    elements.predictiveToggle.addEventListener('change', onPredictiveToggle);
+    elements.predictiveDate.addEventListener('change', () => {
+        if (state.predictive) loadPredictiveRates();
+    });
     elements.previous.addEventListener('click', () => changePage(-1));
     elements.next.addEventListener('click', () => changePage(1));
     document.querySelectorAll('#ratesTable .sortable').forEach(header => {
@@ -174,7 +186,18 @@ async function logout() {
     state.user = null;
     state.rates = [];
     state.filteredRates = [];
+    resetPredictiveMode();
     showLoginPage();
+}
+
+function resetPredictiveMode() {
+    state.predictive = false;
+    state.predictiveAfter = '';
+    elements.predictiveToggle.checked = false;
+    elements.predictiveDate.value = '';
+    elements.predictiveDate.disabled = true;
+    hidePredictiveBanner();
+    hidePredictiveDateError();
 }
 
 function showLoginPage() {
@@ -205,6 +228,11 @@ function hideLoginError() {
 }
 
 async function loadRates({ refresh = false } = {}) {
+    if (state.predictive) {
+        await loadPredictiveRates();
+        return;
+    }
+    hidePredictiveBanner();
     showLoading();
     try {
         const path = refresh ? '/api/rates?refresh=1' : '/api/rates';
@@ -218,6 +246,83 @@ async function loadRates({ refresh = false } = {}) {
     } finally {
         hideLoading();
     }
+}
+
+// --- Predictive rates ---
+
+function predictiveMinDate() {
+    const today = new Date();
+    const min = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() + 91));
+    return min.toISOString().slice(0, 10);
+}
+
+// Mirrors the server rule: after must be a valid date more than 90 days out.
+function validatePredictiveDate(value) {
+    const date = pfParseDate(value);
+    if (!date) return 'Please choose a valid departure date.';
+    if (pfFullDaysUntil(date) <= 90) return 'Departing after must be more than 90 days in the future.';
+    return null;
+}
+
+function onPredictiveToggle() {
+    const on = elements.predictiveToggle.checked;
+    elements.predictiveDate.disabled = !on;
+    hidePredictiveDateError();
+    if (on) {
+        state.predictive = true;
+        if (!elements.predictiveDate.value) elements.predictiveDate.value = predictiveMinDate();
+        loadPredictiveRates();
+    } else {
+        state.predictive = false;
+        state.predictiveAfter = '';
+        hidePredictiveBanner();
+        loadRates();
+    }
+}
+
+async function loadPredictiveRates() {
+    const after = elements.predictiveDate.value;
+    const validationError = validatePredictiveDate(after);
+    if (validationError) {
+        showPredictiveDateError(validationError);
+        hidePredictiveBanner();
+        elements.tableBody.replaceChildren();
+        return;
+    }
+    hidePredictiveDateError();
+    showLoading();
+    try {
+        const { rates } = await request(`/api/rates/predictive?after=${encodeURIComponent(after)}`);
+        state.rates = rates;
+        state.predictiveAfter = after;
+        populateFilters();
+        resetAndApplyFilters();
+        showPredictiveBanner(after);
+    } catch (error) {
+        hidePredictiveBanner();
+        showError(`Failed to load predictive rates: ${error.message}`);
+        elements.tableBody.replaceChildren();
+    } finally {
+        hideLoading();
+    }
+}
+
+function showPredictiveBanner(after) {
+    elements.predictiveBannerText.textContent = `Showing predictive rates for departures after ${formatDate(after)} - not saved data`;
+    elements.predictiveBanner.hidden = false;
+}
+
+function hidePredictiveBanner() {
+    elements.predictiveBanner.hidden = true;
+}
+
+function showPredictiveDateError(message) {
+    elements.predictiveDateError.textContent = message;
+    elements.predictiveDateError.hidden = false;
+}
+
+function hidePredictiveDateError() {
+    elements.predictiveDateError.hidden = true;
 }
 
 function showLoading() {
