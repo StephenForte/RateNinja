@@ -8,6 +8,9 @@ Started: Sun Jul 19 13:00:48 PDT 2026
 - Airtable field names are exact strings like 'Origin Port', 'Destination Port/Via Port', '20D Rate', '40D rate' (lowercase r!), '40HC Rate', 'Rate Effective Date', 'RateView', 'CompanyID', 'MarginPercent', 'DeparturePort'. The SQLite store layer (US-003) must return these exact names so domain.js works unchanged.
 - SQLite via node:sqlite `DatabaseSync` needs Node >=22 and emits an ExperimentalWarning at runtime (harmless). require('./lib/db.js') exports `{ db, dbPath }`; db.exec runs multi-statement DDL. lib/db.js creates the data/ dir with fs.mkdirSync before opening. DB path defaults to data/rateninja.db, overridable via SQLITE_DB_PATH. data/*.db is gitignored.
 - RateNinja/ is a dirty git submodule pointer (mode 160000) unrelated to Ralph work; do NOT stage it in commits.
+- A live `.env` with a real AIRTABLE_PAT exists at repo root; lib/config.js loads it via process.loadEnvFile('.env'). This means scripts that hit Airtable actually work end-to-end when run locally (the real base has ~1554 rates, 3 users, 3 companies, ~23310 sailings). The rates table has NO 'Arrival' field in Airtable — projecting it returns HTTP 422, so always fall back to RATE_FIELDS-only.
+- node:sqlite prepared statements: `db.prepare(sql).run(...positionalParams)`. Params must be null/number/bigint/string/Uint8Array — convert booleans to 0/1 yourself. Wrap bulk inserts in db.exec('BEGIN')/COMMIT with ROLLBACK on error.
+- Airtable user field for company id is 'CompanyID (from CompanyReference)' (a lookup field name with spaces/parens), distinct from the 'CompanyReference' link field.
 
 ## Sun Jul 19 - US-001
 - Implemented lib/db.js: opens/creates SQLite DB (node:sqlite DatabaseSync), path defaults data/rateninja.db or SQLITE_DB_PATH env; runs idempotent CREATE TABLE IF NOT EXISTS for rates/users/companies/sailings + indexes on rates(carrier,origin_port), sailings(carrier,departure_port,departure), users(username), companies(company_id).
@@ -16,4 +19,15 @@ Started: Sun Jul 19 13:00:48 PDT 2026
   - Verified at runtime: all 4 tables + 4 indexes create cleanly; `git check-ignore data/rateninja.db` confirms the db file is ignored.
   - node:sqlite emits an ExperimentalWarning on stderr — expected, not a failure.
   - Column naming maps snake_case columns to Airtable field names later in US-003; keep the mapping in the store layer, not the schema.
+---
+
+## Sun Jul 19 - US-002
+- Implemented scripts/migrate-from-airtable.js: standalone one-time Airtable->SQLite migration, runnable via `npm run migrate`. Server never imports it.
+- Reuses fetchAllRecords + RATE_FIELDS from lib/airtable.js for offset pagination; writes via lib/db.js. Requires AIRTABLE_PAT (throws early if missing). Rates fetch requests RATE_FIELDS + Arrival, gracefully retries without Arrival on projection rejection (422). users/companies/sailings fetch all fields (no projection).
+- Preserves Airtable record id as SQLite id via INSERT OR REPLACE (idempotent). Array fields joined with ', ' (joinValue), checkboxes -> 0/1 (boolValue), numeric cols coerced or NULL (numValue). Each table's inserts wrapped in a BEGIN/COMMIT transaction with ROLLBACK on error. Prints per-table counts; sets process.exitCode=1 on failure.
+- Files changed: scripts/migrate-from-airtable.js (new), package.json (added `migrate` script + migrate-from-airtable.js to `check`).
+- **Learnings for future iterations:**
+  - Verified end-to-end against the real Airtable base via the repo's .env: migrated 1554 rates, 3 users, 3 companies, 23310 sailings; re-run gave identical counts (idempotent).
+  - Rates table has no 'Arrival' field in Airtable (422 on projection) -> the DB rates table also has no arrival column, so Arrival is fetched-attempt-only and not stored. Consistent with US-001 schema.
+  - Spot-checked shapes: rate_20d stored as REAL (13943.4), admin/admin_screen as 1/0, dates as 'YYYY-MM-DD' TEXT, company_id lookup value like '1.0'.
 ---
