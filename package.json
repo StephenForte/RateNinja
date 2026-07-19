@@ -5,7 +5,7 @@
   "description": "Ocean freight rate lookup application",
   "scripts": {
     "start": "node server.js",
-    "check": "node --check server.js && node --check script.js"
+    "check": "node --check server.js && node --check script.js && node --check lib/config.js && node --check lib/airtable.js && node --check lib/domain.js && node --check lib/session.js"
   },
   "engines": {
     "node": ">=20"
