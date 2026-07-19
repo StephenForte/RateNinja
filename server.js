@@ -17,6 +17,7 @@ const {
     getAllRates,
     getAllCompanies,
     invalidateCompaniesCache,
+    fetchCompanyByRecordId,
     fetchSailings
 } = require('./lib/airtable');
 const {
@@ -289,8 +290,7 @@ async function handleAdminCompanyUpdate(request, response, session, recordId) {
         sendError(response, 400, 'Margins must be non-negative numbers no greater than 1,000,000.');
         return;
     }
-    const companies = await getAllCompanies();
-    const company = companies.find(record => record.id === recordId);
+    const company = await fetchCompanyByRecordId(recordId);
     if (!company || !company.fields.CompanyType || !sameValue(company.fields.RateView, session.user.rateView) || sameValue(company.fields.CompanyID, session.user.companyId)) {
         sendError(response, 404, 'Company was not found in your administration scope.');
         return;
