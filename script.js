@@ -24,6 +24,11 @@ const searchFields = [
     'commodityType',
     'carrier',
     'contractOwner',
+    'rate20D',
+    'rate40D',
+    'rate40HC',
+    'rateEffectiveDate',
+    'rateExpirationDate',
     'notes1'
 ];
 
@@ -89,7 +94,7 @@ function bindEvents() {
     elements.logoutBtn.addEventListener('click', logout);
     elements.search.addEventListener('input', debounce(resetAndApplyFilters, 250));
     filterDefinitions.forEach(([id]) => document.getElementById(id).addEventListener('change', resetAndApplyFilters));
-    elements.refresh.addEventListener('click', loadRates);
+    elements.refresh.addEventListener('click', () => loadRates({ refresh: true }));
     elements.previous.addEventListener('click', () => changePage(-1));
     elements.next.addEventListener('click', () => changePage(1));
     document.querySelectorAll('#ratesTable .sortable').forEach(header => {
@@ -184,10 +189,11 @@ function hideLoginError() {
     elements.loginError.hidden = true;
 }
 
-async function loadRates() {
+async function loadRates({ refresh = false } = {}) {
     showLoading();
     try {
-        const { rates } = await request('/api/rates');
+        const path = refresh ? '/api/rates?refresh=1' : '/api/rates';
+        const { rates } = await request(path);
         state.rates = rates;
         populateFilters();
         resetAndApplyFilters();
@@ -231,11 +237,30 @@ function resetAndApplyFilters() {
     applyFilters();
 }
 
+function rateMatchesSearch(rate, searchTerm) {
+    if (!searchTerm) return true;
+    if (searchFields.some(field => String(rate[field] ?? '').toLowerCase().includes(searchTerm))) {
+        return true;
+    }
+    // Also match values as shown in the table (formatted money / dates).
+    const displayValues = [
+        `$${formatNumber(rate.rate20D)}`,
+        `$${formatNumber(rate.rate40D)}`,
+        `$${formatNumber(rate.rate40HC)}`,
+        formatNumber(rate.rate20D),
+        formatNumber(rate.rate40D),
+        formatNumber(rate.rate40HC),
+        formatDate(rate.rateEffectiveDate),
+        formatDate(rate.rateExpirationDate)
+    ];
+    return displayValues.some(value => String(value).toLowerCase().includes(searchTerm));
+}
+
 function applyFilters() {
     const searchTerm = elements.search.value.trim().toLowerCase();
     const selected = Object.fromEntries(filterDefinitions.map(([id, field]) => [field, document.getElementById(id).value]));
     state.filteredRates = state.rates.filter(rate => {
-        const matchesSearch = !searchTerm || searchFields.some(field => String(rate[field] ?? '').toLowerCase().includes(searchTerm));
+        const matchesSearch = rateMatchesSearch(rate, searchTerm);
         const matchesFilters = Object.entries(selected).every(([field, value]) => !value || rate[field] === value);
         return matchesSearch && matchesFilters;
     });

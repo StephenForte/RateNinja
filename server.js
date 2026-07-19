@@ -171,8 +171,12 @@ async function handleLogin(request, response) {
     });
 }
 
-async function handleRates(request, response, session) {
-    const [companies, records] = await Promise.all([getAllCompanies(), getAllRates()]);
+async function handleRates(request, response, session, url) {
+    const forceRefresh = url.searchParams.get('refresh') === '1';
+    const [companies, records] = await Promise.all([
+        getAllCompanies(),
+        getAllRates({ force: forceRefresh })
+    ]);
     const company = companyById(companies, session.user.companyId);
     const rates = records
         .filter(record => rateVisibleToView(record, session.user.rateView))
@@ -362,7 +366,7 @@ const server = http.createServer(async (request, response) => {
 
         const session = pathname.startsWith('/api/') ? await requireSession(request, response) : null;
         if (pathname.startsWith('/api/') && !session) return;
-        if (pathname === '/api/rates' && request.method === 'GET') return handleRates(request, response, session);
+        if (pathname === '/api/rates' && request.method === 'GET') return handleRates(request, response, session, url);
         if (pathname === '/api/sailings' && request.method === 'GET') return handleSailings(request, response, session, url);
         if (pathname === '/api/admin/companies' && request.method === 'GET') return handleAdminCompanies(request, response, session);
         const companyMatch = pathname.match(/^\/api\/admin\/companies\/([\w-]+)$/);
