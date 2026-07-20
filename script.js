@@ -115,7 +115,7 @@ function bindEvents() {
     elements.logoutBtn.addEventListener('click', logout);
     elements.search.addEventListener('input', debounce(resetAndApplyFilters, 250));
     filterDefinitions.forEach(([id]) => document.getElementById(id).addEventListener('change', resetAndApplyFilters));
-    elements.refresh.addEventListener('click', () => loadRates({ refresh: true }));
+    elements.refresh.addEventListener('click', () => loadRates());
     elements.predictiveToggle.addEventListener('change', onPredictiveToggle);
     elements.predictiveDate.addEventListener('change', () => {
         if (state.predictive) loadPredictiveRates();
@@ -227,7 +227,7 @@ function hideLoginError() {
     elements.loginError.hidden = true;
 }
 
-async function loadRates({ refresh = false } = {}) {
+async function loadRates() {
     if (state.predictive) {
         await loadPredictiveRates();
         return;
@@ -235,8 +235,7 @@ async function loadRates({ refresh = false } = {}) {
     hidePredictiveBanner();
     showLoading();
     try {
-        const path = refresh ? '/api/rates?refresh=1' : '/api/rates';
-        const { rates } = await request(path);
+        const { rates } = await request('/api/rates');
         state.rates = rates;
         populateFilters();
         resetAndApplyFilters();

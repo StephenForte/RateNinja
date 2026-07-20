@@ -9,8 +9,26 @@
  * re-running never duplicates rows.
  */
 const { URL } = require('node:url');
-const { config } = require('../lib/config');
 const { db } = require('../lib/db');
+
+try {
+    process.loadEnvFile('.env');
+} catch {
+    // .env is optional when the host already injects environment variables.
+}
+
+// Migration-only Airtable settings. The live server no longer reads these.
+const config = {
+    apiToken: process.env.AIRTABLE_PAT,
+    baseId: process.env.AIRTABLE_BASE_ID || 'appBLegnJMAienppq',
+    timeoutMs: Number(process.env.AIRTABLE_TIMEOUT_MS) || 15_000,
+    tables: {
+        rates: process.env.AIRTABLE_RATE_TABLE_ID || 'tbl5OpIdW2kyRRWLp',
+        users: process.env.AIRTABLE_USER_TABLE_ID || 'tblwtjp73CaWe3GKy',
+        companies: process.env.AIRTABLE_COMPANY_TABLE_ID || 'CompanyReference',
+        sailings: process.env.AIRTABLE_SAILINGS_TABLE_ID || 'Sailings'
+    }
+};
 
 const RATE_FIELDS = [
     'Rate Type',

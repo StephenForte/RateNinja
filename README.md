@@ -1,32 +1,42 @@
 # Rate Ninja
 
-Rate Ninja is a small web application for browsing ocean freight rates, sailing schedules, and company-specific margins stored in Airtable.
-
-## What changed
-
-The application now runs through a local Node server. Airtable is no longer called from browser code, so its personal access token and the administrator write capability stay on the server. Browser sessions are stored in an HTTP-only cookie, and the server enforces the user's rate view and administrator scope.
+Rate Ninja is a small web application for browsing ocean freight rates, sailing schedules, and company-specific margins. Data lives in a local SQLite database; the Node server never exposes database credentials to the browser.
 
 ## Run locally
 
-1. Use Node.js 20 or later.
-2. Copy `.env.example` to `.env` and fill in a newly created Airtable personal access token and a long random session secret. Do not reuse the token that was previously committed to this repository.
-3. Start the app:
+1. Use Node.js 22 or later.
+2. Copy `.env.example` to `.env` and set `SESSION_SECRET` (and `RATE_NINJA_API_KEY` if you want the public demo API).
+3. Ensure a SQLite database exists at `data/rateninja.db` (or set `SQLITE_DB_PATH`). To import from Airtable once, set the Airtable variables in `.env` and run `npm run migrate`.
+4. Start the app:
 
    ```bash
    npm start
    ```
 
-4. Open [http://localhost:3000](http://localhost:3000).
+5. Open [http://localhost:3000](http://localhost:3000).
 
 The app uses only Node's built-in modules, so `npm install` is not required.
 
 ## Configuration
 
-`AIRTABLE_PAT` and `SESSION_SECRET` are required. The Airtable base and table identifiers have sensible defaults and can also be changed in `.env`.
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `SESSION_SECRET` | Yes | Signs HTTP-only session cookies |
+| `RATE_NINJA_API_KEY` | For `/api/v1/*` | Public demo API key (`X-API-Key`) |
+| `SQLITE_DB_PATH` | No | Defaults to `data/rateninja.db` |
+
+Airtable env vars are only needed for the one-time `npm run migrate` importer.
+
+## Features
+
+- Signed-in rate browsing with company margin math and RateView isolation
+- Predictive rates mode (signed-in) and public predictive-pricing stub
+- Admin margin editing and pull-forward tools for rates/sailings
+- Read-only public demo API at `/api/v1/*`
 
 ## Security note
 
-The Airtable token that was embedded in the old client-side application should be revoked in Airtable immediately, because it was committed to Git history. The current user table also appears to store passwords as plain text. This refactor keeps them out of the browser, but moving authentication to a provider that stores password hashes is the recommended next step.
+User passwords in SQLite are still stored as plain text. Moving authentication to a provider that stores password hashes is the recommended next step.
 
 ## Checks
 
@@ -34,8 +44,6 @@ The Airtable token that was embedded in the old client-side application should b
 npm run check
 ```
 
-## Render demo deployment
+## Render deployment
 
-The included `render.yaml` creates a free Render web service. In Render, choose **New → Blueprint**, select this repository, and supply a newly rotated `AIRTABLE_PAT` and a separate `RATE_NINJA_API_KEY` when prompted. Render generates `SESSION_SECRET` automatically and publishes the app at an `onrender.com` URL.
-
-Free services sleep after 15 minutes of inactivity, so the first request afterward can take about a minute to respond.
+The included `render.yaml` creates a Render web service with a persistent disk at `/var/data` and `SQLITE_DB_PATH=/var/data/rateninja.db`. Supply `RATE_NINJA_API_KEY` when prompted; Render generates `SESSION_SECRET`. Copy or migrate the SQLite file onto the disk after the first deploy so the service has data.

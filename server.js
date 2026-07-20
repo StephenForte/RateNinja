@@ -12,12 +12,15 @@ const {
     config
 } = require('./lib/config');
 const {
-    getAllRates,
+    getRatesForView,
+    getRatesByCarrierOrigin,
     getAllCompanies,
     getUserByUsername,
     getCompanyByRecordId,
+    getCompanyByCompanyId,
     getSailings,
     updateCompanyMargins,
+    queryPublicRates,
     pullForwardRates,
     pullForwardSailings
 } = require('./lib/store');
@@ -27,14 +30,11 @@ const {
     mapRateRecord,
     mapPredictiveRateRecord,
     parsePageNumber,
-    matchesSearch,
     parseDateOnly,
     fullDaysUntil,
     validatePullForwardRange,
     calculatePredictiveRate,
-    latestPredictiveRateRecords,
-    companyById,
-    rateVisibleToView
+    latestPredictiveRateRecords
 } = require('./lib/domain');
 const {
     getSession,
@@ -170,15 +170,9 @@ async function handleLogin(request, response) {
     });
 }
 
-async function handleRates(request, response, session, url) {
-    // ?refresh=1 is still accepted; the SQLite store always re-queries, so it is a no-op.
-    url.searchParams.get('refresh');
-    const companies = getAllCompanies();
-    const records = getAllRates();
-    const company = companyById(companies, session.user.companyId);
-    const rates = records
-        .filter(record => rateVisibleToView(record, session.user.rateView))
-        .map(record => mapRateRecord(record, company));
+async function handleRates(request, response, session) {
+    const company = getCompanyByCompanyId(session.user.companyId);
+    const rates = getRatesForView(session.user.rateView).map(record => mapRateRecord(record, company));
     sendJson(response, 200, { rates }, securityHeaders());
 }
 
@@ -191,9 +185,8 @@ async function handlePredictiveRates(request, response, session, url) {
         return;
     }
     const fullThirtyDayPeriods = Math.floor(daysUntilDeparture / 30);
-    const company = companyById(getAllCompanies(), session.user.companyId);
-    const visible = getAllRates().filter(record => rateVisibleToView(record, session.user.rateView));
-    const records = latestPredictiveRateRecords(visible);
+    const company = getCompanyByCompanyId(session.user.companyId);
+    const records = latestPredictiveRateRecords(getRatesForView(session.user.rateView));
     const rates = records.map(record => mapPredictiveRateRecord(record, company, fullThirtyDayPeriods, after));
     sendJson(response, 200, { rates }, securityHeaders());
 }
@@ -205,18 +198,15 @@ async function handlePublicRates(request, response, url) {
     const destinationPort = url.searchParams.get('destinationPort') || '';
     const page = parsePageNumber(url.searchParams.get('page'), 1, 10_000);
     const pageSize = parsePageNumber(url.searchParams.get('pageSize'), 50, 100);
-    const records = getAllRates();
-    const rates = records
-        .map(record => mapRateRecord(record, null))
-        .filter(rate => matchesSearch(rate.carrier, carrier) && matchesSearch(rate.originPort, originPort) && matchesSearch(rate.destinationPort, destinationPort));
-    const start = (page - 1) * pageSize;
+    const { rates: records, total } = queryPublicRates({ carrier, originPort, destinationPort, page, pageSize });
+    const rates = records.map(record => mapRateRecord(record, null));
     sendJson(response, 200, {
-        data: rates.slice(start, start + pageSize),
+        data: rates,
         meta: {
-            total: rates.length,
+            total,
             page,
             pageSize,
-            returned: Math.min(pageSize, Math.max(rates.length - start, 0))
+            returned: rates.length
         }
     }, securityHeaders());
 }
@@ -252,7 +242,7 @@ async function handlePredictivePricing(request, response, url) {
     }
 
     const fullThirtyDayPeriods = Math.floor(daysUntilDeparture / 30);
-    const records = latestPredictiveRateRecords(getAllRates(), carrier, originPort);
+    const records = latestPredictiveRateRecords(getRatesByCarrierOrigin(carrier, originPort));
     const predictions = records.map(record => {
         const fields = record.fields;
         return {
@@ -427,7 +417,7 @@ const server = http.createServer(async (request, response) => {
         const session = pathname.startsWith('/api/') ? await requireSession(request, response) : null;
         if (pathname.startsWith('/api/') && !session) return;
         if (pathname === '/api/rates/predictive' && request.method === 'GET') return handlePredictiveRates(request, response, session, url);
-        if (pathname === '/api/rates' && request.method === 'GET') return handleRates(request, response, session, url);
+        if (pathname === '/api/rates' && request.method === 'GET') return handleRates(request, response, session);
         if (pathname === '/api/sailings' && request.method === 'GET') return handleSailings(request, response, session, url);
         if (pathname === '/api/admin/companies' && request.method === 'GET') return handleAdminCompanies(request, response, session);
         if (pathname === '/api/admin/pull-forward/rates' && request.method === 'POST') return handlePullForwardRates(request, response, session);
