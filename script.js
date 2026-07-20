@@ -4,8 +4,8 @@ const state = {
     filteredRates: [],
     currentPage: 1,
     perPage: 20,
-    sortColumn: '',
-    sortDirection: 'asc',
+    sortColumn: 'rateEffectiveDate',
+    sortDirection: 'desc',
     adminChanges: new Map(),
     predictive: false,
     predictiveAfter: ''
@@ -125,6 +125,7 @@ function bindEvents() {
     document.querySelectorAll('#ratesTable .sortable').forEach(header => {
         header.addEventListener('click', () => setSort(header.dataset.column));
     });
+    syncSortHeaders();
     elements.hamburger.addEventListener('click', event => {
         event.stopPropagation();
         elements.hamburgerMenu.hidden = !elements.hamburgerMenu.hidden;
@@ -387,6 +388,15 @@ function applyFilters() {
     renderTable();
 }
 
+function syncSortHeaders() {
+    document.querySelectorAll('#ratesTable .sortable').forEach(header => {
+        const active = header.dataset.column === state.sortColumn;
+        header.classList.toggle('active', active);
+        header.classList.toggle('asc', active && state.sortDirection === 'asc');
+        header.classList.toggle('desc', active && state.sortDirection === 'desc');
+    });
+}
+
 function setSort(column) {
     if (state.sortColumn === column) {
         state.sortDirection = state.sortDirection === 'asc' ? 'desc' : 'asc';
@@ -394,11 +404,7 @@ function setSort(column) {
         state.sortColumn = column;
         state.sortDirection = 'asc';
     }
-    document.querySelectorAll('#ratesTable .sortable').forEach(header => {
-        header.classList.toggle('active', header.dataset.column === column);
-        header.classList.toggle('asc', header.dataset.column === column && state.sortDirection === 'asc');
-        header.classList.toggle('desc', header.dataset.column === column && state.sortDirection === 'desc');
-    });
+    syncSortHeaders();
     resetAndApplyFilters();
 }
 
