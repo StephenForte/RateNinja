@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "migrate": "node scripts/migrate-from-airtable.js",
-    "check": "node --check server.js && node --check script.js && node --check lib/config.js && node --check lib/domain.js && node --check lib/session.js && node --check lib/db.js && node --check lib/store.js && node --check scripts/migrate-from-airtable.js"
+    "check": "node --check server.js && node --check script.js && node --check lib/config.js && node --check lib/domain.js && node --check lib/session.js && node --check lib/db.js && node --check lib/store.js && node --check scripts/migrate-from-airtable.js",
+    "test": "node --test --test-isolation=process test/**/*.test.js"
   },
   "engines": {
     "node": ">=22"

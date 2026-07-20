@@ -42,7 +42,10 @@ User passwords in SQLite are still stored as plain text. Moving authentication t
 
 ```bash
 npm run check
+npm test
 ```
+
+Tests use Node's built-in test runner (`node:test`) with no extra dependencies. Store tests run against a temporary SQLite file, not `data/rateninja.db`.
 
 ## Render deployment
 
