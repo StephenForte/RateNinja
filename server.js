@@ -50,7 +50,15 @@ const {
     startSessionSweep
 } = require('./lib/session');
 const { verifyPasswordOrDummy } = require('./lib/passwords');
-const { isLimited, recordFailure, clearFailures } = require('./lib/throttle');
+const {
+    isLimited,
+    recordFailure,
+    clearFailures,
+    mfaLimited,
+    recordMfaFailure,
+    clearMfaFailures,
+    clearMfaUserFailures
+} = require('./lib/throttle');
 const { csrfMatches } = require('./lib/csrf');
 const { recordAudit } = require('./lib/audit');
 const { setPasswordById, setEmailById, setDisabled } = require('./lib/accounts');
@@ -63,6 +71,7 @@ const {
     verifySecondFactor,
     disableOwnMfa,
     clearMfa,
+    hasOpenLoginChallenge,
     createLoginChallenge,
     readLoginChallenge,
     consumeLoginChallenge
@@ -357,13 +366,15 @@ async function handleLogin(request, response) {
         sendError(response, 401, 'Invalid username or password.');
         return;
     }
-    clearFailures(loginName, source);
     if (record.totpEnabled) {
+        if (!hasOpenLoginChallenge(record.id)) clearMfaUserFailures(loginName);
+        clearFailures(loginName, source);
         const challenge = createLoginChallenge(record.id);
         recordAudit('login_mfa_required', { actorUserId: record.id, detail: { username: loginName } });
         sendJson(response, 200, { mfaRequired: true, challenge }, securityHeaders());
         return;
     }
+    clearFailures(loginName, source);
     finishLogin(response, record, loginName);
 }
 
@@ -388,13 +399,13 @@ async function handleMfaLogin(request, response) {
     const record = pending ? getUserById(pending.user_id) : null;
     const loginName = record?.username || '';
     const source = clientIp(request);
-    if (loginName && isLimited(loginName, source)) {
+    if (loginName && mfaLimited(loginName, source)) {
         recordAudit('login_throttled', { detail: { username: loginName, source: sourceFingerprint(source) } });
         sendError(response, 429, 'Too many attempts. Try again later.');
         return;
     }
     if (!record || record.disabled || !verifySecondFactor(record.id, code.trim())) {
-        if (loginName) recordFailure(loginName, source);
+        if (loginName) recordMfaFailure(loginName, source);
         recordAudit('login_failure', { actorUserId: record?.id, detail: { username: loginName, source: sourceFingerprint(source) } });
         sendError(response, 401, 'Invalid authentication code.');
         return;
@@ -403,6 +414,7 @@ async function handleMfaLogin(request, response) {
         sendError(response, 401, 'Invalid authentication code.');
         return;
     }
+    clearMfaFailures(loginName, source);
     clearFailures(loginName, source);
     finishLogin(response, record, loginName);
 }
@@ -416,7 +428,7 @@ async function handleForgotPassword(request, response) {
         return;
     }
     if (loginName) recordFailure(`reset:${loginName}`, source);
-    const result = await requestPasswordReset({ username: loginName, origin: externalOrigin(request) });
+    const result = await requestPasswordReset({ username: loginName });
     sendJson(response, 200, result, securityHeaders());
 }
 

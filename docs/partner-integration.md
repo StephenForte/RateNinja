@@ -30,7 +30,7 @@ node scripts/set-password.js SteveF 'a-long-password'
 
 The sign-in page is `/login` on this same service. It collects username and password, then an authenticator or recovery code only when that user has enrolled two-factor authentication. Enrollment is optional. SteveF can clear two-factor for a user from the admin screen.
 
-Forgot-password emails are sent with the Resend API. Set `RESEND_API_KEY` and `RESEND_FROM` in the environment. Do not commit either value. If they are missing, the reset request still returns success and does not say whether the account exists. The server logs that mail was not sent, without the reset token or the API key. Reset links expire after 30 minutes, work once, and only a hash of the token is stored. The account needs an email address, which an administrator saves on the user row.
+Forgot-password emails are sent with the Resend API. Set `RESEND_API_KEY` and `RESEND_FROM` in the environment. Do not commit either value. If they are missing, the reset request still returns success and does not say whether the account exists. The server logs that mail was not sent, without the reset token or the API key. Reset links expire after 30 minutes, work once, and only a hash of the token is stored. The link origin is `PUBLIC_ORIGIN` (default `https://rate-ninja.onrender.com`). The request `Host` and `X-Forwarded-Host` headers are not used. The account needs an email address, which an administrator saves on the user row. Changing a password invalidates outstanding authenticator login challenges.
 
 ## Existing database
 

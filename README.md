@@ -28,6 +28,7 @@ Install dependencies once (`npm install`). Password hashing uses `@node-rs/argon
 | `SQLITE_DB_PATH` | No | Defaults to `data/rateninja.db` |
 | `RESEND_API_KEY` | For password reset mail | Resend API key. Never commit it |
 | `RESEND_FROM` | For password reset mail | From address Resend is allowed to send as |
+| `PUBLIC_ORIGIN` | No | Origin written into reset links. Defaults to `https://rate-ninja.onrender.com`. Request host headers are ignored |
 
 Airtable env vars are only needed for the one-time `npm run migrate` importer.
 

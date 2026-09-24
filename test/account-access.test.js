@@ -230,5 +230,126 @@ describe('password reset and optional two-factor', () => {
         const afterClear = await login('SteveF', NEXT_PASSWORD);
         assert.equal(afterClear.body.mfaRequired, undefined);
         assert.ok(afterClear.cookie.includes('rate_ninja_session='));
+        steve = { cookie: afterClear.cookie, csrf: afterClear.body.csrfToken };
+    });
+
+    it('builds reset links from the configured origin', async () => {
+        process.env.PUBLIC_ORIGIN = 'https://rate-ninja.onrender.com';
+        process.env.RESEND_FROM = 'Rate Ninja <reset@example.com>';
+        const sent = [];
+        setMailDelivery(async message => {
+            sent.push(message);
+            return { sent: true };
+        });
+        const requested = await fetch(`${baseUrl}/api/auth/forgot-password`, {
+            method: 'POST',
+            headers: {
+                'content-type': 'application/json',
+                host: 'evil.example',
+                'x-forwarded-host': 'evil.example',
+                'x-forwarded-proto': 'https'
+            },
+            body: JSON.stringify({ username: 'SteveF' })
+        });
+        assert.equal(requested.status, 200);
+        assert.equal(sent.length, 1);
+        const link = sent[0].text.match(/https?:\/\/\S+/)[0];
+        assert.equal(link.startsWith('https://rate-ninja.onrender.com/login?reset='), true);
+        assert.equal(link.includes('evil.example'), false);
+    });
+
+    it('keeps the MFA failure counter until success or challenge expiry', async () => {
+        const steveId = db.prepare(`SELECT id FROM users WHERE username = 'SteveF'`).get().id;
+        const started = await fetch(`${baseUrl}/api/account/2fa/start`, {
+            method: 'POST',
+            headers: { cookie: steve.cookie, 'content-type': 'application/json', 'x-csrf-token': steve.csrf },
+            body: JSON.stringify({})
+        });
+        const startedBody = await started.json();
+        assert.equal(started.status, 200, JSON.stringify(startedBody));
+        const confirmed = await fetch(`${baseUrl}/api/account/2fa/confirm`, {
+            method: 'POST',
+            headers: { cookie: steve.cookie, 'content-type': 'application/json', 'x-csrf-token': steve.csrf },
+            body: JSON.stringify({ code: hotp(startedBody.secret, currentStep()) })
+        });
+        assert.equal(confirmed.status, 200, JSON.stringify(await confirmed.clone().json()));
+
+        const first = await login('SteveF', NEXT_PASSWORD);
+        assert.equal(first.body.mfaRequired, true);
+        for (let attempt = 0; attempt < 5; attempt += 1) {
+            const failed = await fetch(`${baseUrl}/api/auth/login/mfa`, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ challenge: first.body.challenge, code: '000000' })
+            });
+            assert.equal(failed.status, 401);
+        }
+        const blocked = await fetch(`${baseUrl}/api/auth/login/mfa`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ challenge: first.body.challenge, code: '000000' })
+        });
+        assert.equal(blocked.status, 429);
+
+        const retried = await login('SteveF', NEXT_PASSWORD);
+        assert.equal(retried.response.status, 200, JSON.stringify(retried.body));
+        assert.equal(retried.body.mfaRequired, true);
+        const stillBlocked = await fetch(`${baseUrl}/api/auth/login/mfa`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ challenge: retried.body.challenge, code: '000000' })
+        });
+        assert.equal(stillBlocked.status, 429);
+
+        db.prepare('UPDATE login_challenges SET expires_at = 1 WHERE user_id = ?').run(steveId);
+        const fresh = await login('SteveF', NEXT_PASSWORD);
+        assert.equal(fresh.body.mfaRequired, true);
+        const afterExpiry = await fetch(`${baseUrl}/api/auth/login/mfa`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ challenge: fresh.body.challenge, code: '000000' })
+        });
+        assert.equal(afterExpiry.status, 401);
+    });
+
+    it('invalidates login challenges when the password changes', async () => {
+        const pending = await login('SteveF', NEXT_PASSWORD);
+        assert.equal(pending.body.mfaRequired, true);
+        const replacement = 'pier-lantern-99';
+        assert.equal(setPasswordByUsername('SteveF', replacement).ok, true);
+        const rejected = await fetch(`${baseUrl}/api/auth/login/mfa`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ challenge: pending.body.challenge, code: '123456' })
+        });
+        assert.equal(rejected.status, 401);
+
+        const enrolled = await login('SteveF', replacement);
+        assert.equal(enrolled.body.mfaRequired, true);
+        process.env.RESEND_FROM = 'Rate Ninja <reset@example.com>';
+        const sent = [];
+        setMailDelivery(async message => {
+            sent.push(message);
+            return { sent: true };
+        });
+        const requested = await fetch(`${baseUrl}/api/auth/forgot-password`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ username: 'SteveF' })
+        });
+        assert.equal(requested.status, 200);
+        const token = decodeURIComponent(sent.at(-1).text.match(/reset=([^&\s]+)/)[1]);
+        const reset = await fetch(`${baseUrl}/api/auth/reset-password`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ token, password: 'quay-lantern-44' })
+        });
+        assert.equal(reset.status, 200, JSON.stringify(await reset.clone().json()));
+        const afterReset = await fetch(`${baseUrl}/api/auth/login/mfa`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ challenge: enrolled.body.challenge, code: '123456' })
+        });
+        assert.equal(afterReset.status, 401);
     });
 });

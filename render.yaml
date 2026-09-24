@@ -35,3 +35,6 @@ services:
         sync: false
       - key: RESEND_FROM
         sync: false
+      # Reset links use this origin. They do not trust the request Host header.
+      - key: PUBLIC_ORIGIN
+        value: https://rate-ninja.onrender.com
