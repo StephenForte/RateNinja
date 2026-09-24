@@ -70,6 +70,10 @@ legacy.prepare(`
     INSERT INTO companies (id, company_id, company_name, company_type, margin_percent)
     VALUES ('kings-live', 'kings-live', 'Kings Group', 'Contract Owner', 0.1)
 `).run();
+legacy.prepare(`
+    INSERT INTO sailings (id, departure, carrier, departure_port)
+    VALUES ('keep-sailing', '2026-05-01T00:00:00.000Z', 'MSC', 'SHA')
+`).run();
 legacy.close();
 
 const { describe, it, after } = require('node:test');
@@ -112,6 +116,20 @@ describe('existing sqlite file migration', () => {
             assert.ok(tables.includes(name), name);
         }
 
+        const indexes = db.prepare(`SELECT name, sql FROM sqlite_master WHERE type = 'index'`).all();
+        const indexNames = indexes.map(row => row.name);
+        assert.ok(indexNames.includes('idx_rates_owner'));
+        assert.ok(indexNames.includes('idx_sailings_owner'));
+        const ownerIndex = indexes.find(row => row.name === 'idx_rates_owner');
+        const sailingIndex = indexes.find(row => row.name === 'idx_sailings_owner');
+        assert.match(ownerIndex.sql, /owner_company_id/);
+        assert.match(sailingIndex.sql, /owner_company_id/);
+
+        assert.equal(db.prepare('SELECT COUNT(*) AS count FROM rates').get().count, 1);
+        assert.equal(db.prepare('SELECT COUNT(*) AS count FROM users').get().count, 1);
+        assert.equal(db.prepare('SELECT COUNT(*) AS count FROM companies').get().count, 1);
+        assert.equal(db.prepare('SELECT COUNT(*) AS count FROM sailings').get().count, 1);
+
         const kept = db.prepare('SELECT id, carrier, rate_20d, owner_company_id FROM rates WHERE id = ?').get('keep-me');
         assert.equal(kept.carrier, 'MSC');
         assert.equal(kept.rate_20d, 1500);
@@ -119,11 +137,15 @@ describe('existing sqlite file migration', () => {
         const legacyUser = db.prepare('SELECT username, pwd FROM users WHERE id = ?').get('legacy-user');
         assert.equal(legacyUser.username, 'Legacy');
         assert.equal(legacyUser.pwd, 'old-secret');
+        assert.equal(db.prepare('SELECT id, carrier FROM sailings WHERE id = ?').get('keep-sailing').carrier, 'MSC');
         assert.deepEqual(getRatesByOwner('nobody'), []);
 
         ensureFoundation();
-        assert.equal(db.prepare('SELECT id FROM rates WHERE id = ?').get('keep-me').id, 'keep-me');
+        assert.equal(db.prepare('SELECT id, rate_20d FROM rates WHERE id = ?').get('keep-me').rate_20d, 1500);
         assert.equal(db.prepare('SELECT id FROM users WHERE id = ?').get('legacy-user').id, 'legacy-user');
+        assert.equal(db.prepare('SELECT id, company_name FROM companies WHERE id = ?').get('kings-live').company_name, 'Kings Group');
+        assert.equal(db.prepare('SELECT id FROM sailings WHERE id = ?').get('keep-sailing').id, 'keep-sailing');
         assert.equal(db.prepare('SELECT COUNT(*) AS count FROM rates').get().count >= 1, true);
+        assert.equal(db.prepare('SELECT COUNT(*) AS count FROM sailings').get().count >= 1, true);
     });
 });

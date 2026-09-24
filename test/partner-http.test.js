@@ -92,6 +92,18 @@ async function authorizeAndToken(session, secret, redirectUri, clientId = client
     return { token, code, proof };
 }
 
+function authorizeParams({ clientId, redirectUri, scope, proof }) {
+    return new URLSearchParams({
+        response_type: 'code',
+        client_id: clientId,
+        redirect_uri: redirectUri,
+        scope,
+        state: proof.state,
+        code_challenge: proof.challenge,
+        code_challenge_method: 'S256'
+    });
+}
+
 describe('partner http', () => {
     before(async () => {
         ensureFoundation();
@@ -391,5 +403,219 @@ describe('partner http', () => {
         assert.equal(throttled.status, 429);
         const leaked = db.prepare(`SELECT detail FROM audit_events WHERE event_type = 'login_failure'`).all().map(row => row.detail).join('\n');
         assert.equal(leaked.includes(password), false);
+    });
+
+    it('denies consent without issuing a code or a new grant', async () => {
+        const redirectUri = 'http://127.0.0.1:9/callback';
+        const steveId = db.prepare(`SELECT id FROM users WHERE username = 'SteveF'`).get().id;
+        const before = db.prepare('SELECT COUNT(*) AS count FROM oauth_grants WHERE user_id = ? AND client_id = ?').get(steveId, client.id).count;
+        const proof = pkce();
+        const params = authorizeParams({
+            clientId: client.id,
+            redirectUri,
+            scope: 'profile:read rates:read',
+            proof
+        });
+        const denied = await fetch(`${baseUrl}/oauth/authorize`, {
+            method: 'POST',
+            headers: { cookie: steve.cookie, 'content-type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ ...Object.fromEntries(params), decision: 'deny', csrf_token: steve.csrf }),
+            redirect: 'manual'
+        });
+        assert.equal(denied.status, 302);
+        const location = new URL(denied.headers.get('location'));
+        assert.equal(location.searchParams.get('error'), 'access_denied');
+        assert.equal(location.searchParams.get('code'), null);
+        assert.equal(location.searchParams.get('state'), proof.state);
+        const after = db.prepare('SELECT COUNT(*) AS count FROM oauth_grants WHERE user_id = ? AND client_id = ?').get(steveId, client.id).count;
+        assert.equal(after, before);
+    });
+
+    it('rejects an unregistered redirect without sending the browser there', async () => {
+        const proof = pkce();
+        const params = authorizeParams({
+            clientId: client.id,
+            redirectUri: 'https://evil.example/callback',
+            scope: 'profile:read',
+            proof
+        });
+        const rejected = await fetch(`${baseUrl}/oauth/authorize?${params}`, {
+            headers: { cookie: steve.cookie },
+            redirect: 'manual'
+        });
+        const html = await rejected.text();
+        assert.equal(rejected.status, 400);
+        assert.equal(rejected.headers.get('location'), null);
+        assert.match(html, /not registered/);
+        assert.equal(html.includes('evil.example'), false);
+    });
+
+    it('exchanges a public-client code without a secret and rejects a secret', async () => {
+        const redirectUri = 'http://127.0.0.1:9/public-callback';
+        const created = await fetch(`${baseUrl}/api/admin/oauth-clients`, {
+            method: 'POST',
+            headers: { cookie: steve.cookie, 'content-type': 'application/json', 'x-csrf-token': steve.csrf },
+            body: JSON.stringify({
+                displayName: 'Public Partner',
+                clientType: 'public',
+                redirectUris: [redirectUri],
+                allowedScopes: ['profile:read', 'rates:read', 'sailings:read']
+            })
+        });
+        const createdBody = await created.json();
+        assert.equal(created.status, 201, JSON.stringify(createdBody));
+        assert.equal(createdBody.clientSecret, null);
+        const proof = pkce();
+        const params = authorizeParams({
+            clientId: createdBody.client.id,
+            redirectUri,
+            scope: 'profile:read rates:read',
+            proof
+        });
+        const approved = await fetch(`${baseUrl}/oauth/authorize`, {
+            method: 'POST',
+            headers: { cookie: steve.cookie, 'content-type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ ...Object.fromEntries(params), decision: 'approve', csrf_token: steve.csrf }),
+            redirect: 'manual'
+        });
+        assert.equal(approved.status, 302);
+        const code = new URL(approved.headers.get('location')).searchParams.get('code');
+        const tokenResponse = await fetch(`${baseUrl}/oauth/token`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+                grant_type: 'authorization_code',
+                code,
+                redirect_uri: redirectUri,
+                client_id: createdBody.client.id,
+                code_verifier: proof.verifier
+            })
+        });
+        const token = await tokenResponse.json();
+        assert.equal(tokenResponse.status, 200, JSON.stringify(token));
+        assert.equal(token.token_type, 'Bearer');
+
+        const second = pkce();
+        const secondParams = authorizeParams({
+            clientId: createdBody.client.id,
+            redirectUri,
+            scope: 'profile:read',
+            proof: second
+        });
+        const secondApproval = await fetch(`${baseUrl}/oauth/authorize`, {
+            method: 'POST',
+            headers: { cookie: steve.cookie, 'content-type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ ...Object.fromEntries(secondParams), decision: 'approve', csrf_token: steve.csrf }),
+            redirect: 'manual'
+        });
+        const secondCode = new URL(secondApproval.headers.get('location')).searchParams.get('code');
+        const withSecret = await fetch(`${baseUrl}/oauth/token`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+                grant_type: 'authorization_code',
+                code: secondCode,
+                redirect_uri: redirectUri,
+                client_id: createdBody.client.id,
+                client_secret: 'not-a-public-client-secret',
+                code_verifier: second.verifier
+            })
+        });
+        const withSecretBody = await withSecret.json();
+        assert.equal(withSecret.status, 401, JSON.stringify(withSecretBody));
+        assert.equal(withSecretBody.error, 'invalid_client');
+    });
+
+    it('stops partner reads after the user revokes the grant', async () => {
+        const redirectUri = 'http://127.0.0.1:9/callback';
+        const { token } = await authorizeAndToken(steve, client.secret, redirectUri);
+        const before = await fetch(`${baseUrl}/api/partner/v1/me/rates`, {
+            headers: { authorization: `Bearer ${token.access_token}` }
+        });
+        assert.equal(before.status, 200);
+        const revoked = await fetch(`${baseUrl}/oauth/consents/${client.id}`, {
+            method: 'DELETE',
+            headers: { cookie: steve.cookie, 'x-csrf-token': steve.csrf }
+        });
+        assert.equal(revoked.status, 200, JSON.stringify(await revoked.clone().json()));
+        const after = await fetch(`${baseUrl}/api/partner/v1/me/rates`, {
+            headers: { authorization: `Bearer ${token.access_token}` }
+        });
+        const afterBody = await after.json();
+        assert.equal(after.status, 401, JSON.stringify(afterBody));
+        assert.equal(afterBody.error, 'invalid_token');
+    });
+
+    it('refuses rate reads when the token only has profile:read', async () => {
+        const redirectUri = 'http://127.0.0.1:9/callback';
+        const proof = pkce();
+        const params = authorizeParams({
+            clientId: client.id,
+            redirectUri,
+            scope: 'profile:read',
+            proof
+        });
+        const approved = await fetch(`${baseUrl}/oauth/authorize`, {
+            method: 'POST',
+            headers: { cookie: steve.cookie, 'content-type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ ...Object.fromEntries(params), decision: 'approve', csrf_token: steve.csrf }),
+            redirect: 'manual'
+        });
+        const code = new URL(approved.headers.get('location')).searchParams.get('code');
+        const tokenResponse = await fetch(`${baseUrl}/oauth/token`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+                grant_type: 'authorization_code',
+                code,
+                redirect_uri: redirectUri,
+                client_id: client.id,
+                client_secret: client.secret,
+                code_verifier: proof.verifier
+            })
+        });
+        const token = await tokenResponse.json();
+        assert.equal(tokenResponse.status, 200, JSON.stringify(token));
+        assert.equal(token.scope, 'profile:read');
+        const profile = await fetch(`${baseUrl}/oauth/userinfo`, {
+            headers: { authorization: `Bearer ${token.access_token}` }
+        });
+        assert.equal(profile.status, 200);
+        const rates = await fetch(`${baseUrl}/api/partner/v1/me/rates`, {
+            headers: { authorization: `Bearer ${token.access_token}` }
+        });
+        const ratesBody = await rates.json();
+        assert.equal(rates.status, 403, JSON.stringify(ratesBody));
+        assert.equal(ratesBody.error, 'insufficient_scope');
+    });
+
+    it('refuses authorization for a disabled client', async () => {
+        const disabled = await fetch(`${baseUrl}/api/admin/oauth-clients/${client.id}`, {
+            method: 'PATCH',
+            headers: { cookie: steve.cookie, 'content-type': 'application/json', 'x-csrf-token': steve.csrf },
+            body: JSON.stringify({ status: 'disabled' })
+        });
+        assert.equal(disabled.status, 200, JSON.stringify(await disabled.clone().json()));
+        const proof = pkce();
+        const params = authorizeParams({
+            clientId: client.id,
+            redirectUri: 'http://127.0.0.1:9/callback',
+            scope: 'profile:read',
+            proof
+        });
+        const rejected = await fetch(`${baseUrl}/oauth/authorize?${params}`, {
+            headers: { cookie: steve.cookie },
+            redirect: 'manual'
+        });
+        const html = await rejected.text();
+        assert.equal(rejected.status, 400);
+        assert.equal(rejected.headers.get('location'), null);
+        assert.match(html, /not registered/);
+        const restored = await fetch(`${baseUrl}/api/admin/oauth-clients/${client.id}`, {
+            method: 'PATCH',
+            headers: { cookie: steve.cookie, 'content-type': 'application/json', 'x-csrf-token': steve.csrf },
+            body: JSON.stringify({ status: 'active' })
+        });
+        assert.equal(restored.status, 200, JSON.stringify(await restored.clone().json()));
     });
 });
