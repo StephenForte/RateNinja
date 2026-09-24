@@ -4,19 +4,21 @@ The browser talks only to the same-origin endpoints below. Rate and sailing data
 
 ## Authentication
 
-`POST /api/auth/login` accepts a JSON body with `username` and `password`. A successful response creates an HTTP-only `rate_ninja_session` cookie.
+`POST /api/auth/login` accepts a JSON body with `username` and `password`. A successful response creates an HTTP-only `rate_ninja_session` cookie and returns a CSRF token. Send that token as `X-CSRF-Token` on later state-changing requests.
 
-`POST /api/auth/logout` clears that cookie. `GET /api/session` returns the signed-in user's display name and administrator status.
+`POST /api/auth/logout` clears that cookie. `GET /api/session` returns the signed-in user's display name, administrator status, contract-owner status, and a fresh CSRF token for the current session.
+
+Passwords are Argon2id hashes. Accounts without a hash cannot sign in until an administrator sets one.
 
 ## Data endpoints
 
 | Endpoint | Access | Purpose |
 | --- | --- | --- |
-| `GET /api/rates` | Signed-in user | Returns every rate available to the session's RateView, with the server-calculated margin applied. |
+| `GET /api/rates` | Signed-in user | Contract owners see their own base rates. Customers see each linked contract owner's rates with that owner's margin. |
 | `GET /api/rates/predictive?after=` | Signed-in user | Latest rate per route with a linear 5% increase per full 30 days; `after` must be more than 90 days out. |
 | `GET /api/sailings` | Signed-in user | Returns sailings for `carrier`, `originPort`, and `after` query parameters. |
-| `GET /api/admin/companies` | Administrator | Returns editable companies in the administrator's RateView, excluding their own company. |
-| `PATCH /api/admin/companies/:recordId` | Administrator | Updates `marginPercent` and `marginNumber` for a company in that same scope. |
+| `GET /api/admin/companies` | Contract-owner administrator | Customer companies and this owner's margin for each. |
+| `PATCH /api/admin/companies/:recordId` | Contract-owner administrator | Sets this owner's margin for that customer company. Requires `X-CSRF-Token`. |
 | `POST /api/admin/pull-forward/rates` | Administrator | Copies a source date range of rates into a future target range (optional delete of existing target rows). |
 | `POST /api/admin/pull-forward/sailings` | Administrator | Same pull-forward behavior for sailings. |
 
@@ -46,6 +48,10 @@ The rate response uses `{ "data": [...], "meta": { ... } }`, where `meta` includ
 
 For a friendly local demo, open [`/api-testbed.html`](api-testbed.html) while the Rate Ninja server is running. It provides a small 3PL-styled console for these v1 endpoints without saving the API key.
 
+## Partner API and MCP
+
+Contract owners authorize a registered OAuth client with PKCE. The partner API and `POST /mcp` then return that owner's base rates and sailings. Customer accounts cannot authorize a partner. The demo `X-API-Key` is rejected on these routes. See `docs/partner-integration.md`.
+
 ## Data store
 
-SQLite tables (`rates`, `users`, `companies`, `sailings`) are created on server start if missing. Default path is `data/rateninja.db`, overridable with `SQLITE_DB_PATH`. Use `npm run migrate` once to import from Airtable when bootstrapping a new environment.
+SQLite tables are created on server start if missing. Company type is a lookup (`Contract Owner`, `Freight Forwarder/Customer`). A user belongs to one company. Margins are stored per contract-owner and customer company, not as one margin on the customer. Default path is `data/rateninja.db`, overridable with `SQLITE_DB_PATH`. `npm run migrate` imports Airtable rows and does not copy passwords.

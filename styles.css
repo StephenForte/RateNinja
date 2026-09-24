@@ -1292,6 +1292,37 @@ body {
     margin-top: 30px;
 }
 
+.admin-section {
+    margin-top: 28px;
+}
+
+.admin-section h2 {
+    margin: 0 0 8px;
+}
+
+.admin-form {
+    display: grid;
+    gap: 12px;
+    max-width: 40rem;
+    margin: 12px 0 20px;
+}
+
+.admin-form input,
+.admin-form select,
+.admin-form textarea {
+    width: 100%;
+    margin-top: 4px;
+}
+
+.secret-notice {
+    background: #fff8e6;
+    border: 1px solid #e6c200;
+    padding: 12px;
+    border-radius: 8px;
+    margin: 12px 0;
+    word-break: break-all;
+}
+
 .admin-table-container {
     background: white;
     border-radius: 16px;

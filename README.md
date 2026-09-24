@@ -15,14 +15,16 @@ Rate Ninja is a small web application for browsing ocean freight rates, sailing 
 
 5. Open [http://localhost:3000](http://localhost:3000).
 
-The app uses only Node's built-in modules, so `npm install` is not required.
+Install dependencies once (`npm install`). Password hashing uses `@node-rs/argon2`.
 
 ## Configuration
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
 | `SESSION_SECRET` | Yes | Signs HTTP-only session cookies |
-| `RATE_NINJA_API_KEY` | For `/api/v1/*` | Public demo API key (`X-API-Key`) |
+| `OAUTH_SIGNING_SECRET` | No | Signs partner access tokens. Falls back to `SESSION_SECRET` |
+| `PARTNER_OAUTH_ENABLED` | No | `false` on Render until security gates are opened. See `docs/partner-integration.md` |
+| `RATE_NINJA_API_KEY` | For `/api/v1/*` | Public demo API key (`X-API-Key`). Does not grant partner access |
 | `SQLITE_DB_PATH` | No | Defaults to `data/rateninja.db` |
 
 Airtable env vars are only needed for the one-time `npm run migrate` importer.
@@ -36,7 +38,9 @@ Airtable env vars are only needed for the one-time `npm run migrate` importer.
 
 ## Security note
 
-User passwords in SQLite are still stored as plain text. Moving authentication to a provider that stores password hashes is the recommended next step.
+Passwords are stored as Argon2id hashes. Existing plaintext passwords are not migrated; an administrator sets a new password (`node scripts/set-password.js SteveF 'a-long-password'`) or uses the admin screen. Email reset and a new login page are not in this pass.
+
+Partner OAuth, the partner API, and MCP are documented in `docs/partner-integration.md`. Leave `PARTNER_OAUTH_ENABLED` false in production until that document's gates are accepted. The host stays this Render service. `rateninja.co` can be attached later.
 
 ## Checks
 

@@ -23,3 +23,10 @@ services:
         sync: false
       - key: SESSION_SECRET
         generateValue: true
+      - key: OAUTH_SIGNING_SECRET
+        generateValue: true
+      # Partner OAuth stays off on this service until the PRD security gates
+      # are accepted. rateninja.co attaches to this same service later and is
+      # not required for deploy.
+      - key: PARTNER_OAUTH_ENABLED
+        value: "false"

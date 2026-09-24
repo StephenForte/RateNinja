@@ -75,6 +75,9 @@
                 <a href="#" id="rateAdjustmentLink" class="menu-item">
                     <i class="fas fa-cog"></i> Rate Adjustment
                 </a>
+                <a href="#" id="connectedAppsLink" class="menu-item" hidden>
+                    <i class="fas fa-link"></i> Connected apps
+                </a>
             </div>
         </header>
 
@@ -201,7 +204,7 @@
                         <i class="fas fa-arrow-left"></i>
                     </button>
                     <h1><i class="fas fa-cog"></i> Rate Adjustment</h1>
-                    <p class="subtitle">Manage Company Margins</p>
+                    <p class="subtitle">Margins, passwords, and partner clients</p>
                 </div>
                 <div class="header-right">
                     <button id="saveChangesBtn" class="save-btn">
@@ -226,9 +229,10 @@
                 <table class="admin-table" id="adminTable">
                     <thead>
                         <tr>
-                            <th>Company Name</th>
+                            <th>Customer company</th>
                             <th>Margin Percent (%)</th>
                             <th>Margin Number ($)</th>
+                            <th>Linked</th>
                         </tr>
                     </thead>
                     <tbody id="adminTableBody">
@@ -292,6 +296,85 @@
                         <span id="pullForwardSuccessMessage"></span>
                     </div>
                 </div>
+            </div>
+
+            <div class="admin-section" id="usersPanel">
+                <h2><i class="fas fa-user-lock"></i> User passwords</h2>
+                <p class="pull-forward-subtitle">Set a new password of at least 12 characters. This signs that user out. Email reset is not available yet.</p>
+                <div class="admin-table-container">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>User</th>
+                                <th>Company</th>
+                                <th>Password</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="admin-section" id="oauthPanel">
+                <h2><i class="fas fa-key"></i> OAuth clients</h2>
+                <p class="pull-forward-subtitle">Register partner and desktop clients. The first client is Capacity Exchange. A new secret is shown once.</p>
+                <div id="oauthSecretNotice" class="secret-notice" hidden></div>
+                <form id="oauthClientForm" class="admin-form">
+                    <label>Display name <input id="oauthDisplayName" required maxlength="80"></label>
+                    <label>Type
+                        <select id="oauthClientType">
+                            <option value="confidential">Confidential (partner backend)</option>
+                            <option value="public">Public (Cursor or Claude PKCE)</option>
+                        </select>
+                    </label>
+                    <label>Redirect URIs, one per line
+                        <textarea id="oauthRedirects" rows="3" placeholder="https://partner.example/callback"></textarea>
+                    </label>
+                    <fieldset>
+                        <legend>Scopes</legend>
+                        <label><input type="checkbox" name="oauthScope" value="profile:read" checked> profile:read</label>
+                        <label><input type="checkbox" name="oauthScope" value="rates:read" checked> rates:read</label>
+                        <label><input type="checkbox" name="oauthScope" value="sailings:read" checked> sailings:read</label>
+                    </fieldset>
+                    <button type="submit" class="save-btn">Register client</button>
+                </form>
+                <div class="admin-table-container">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Client id</th>
+                                <th>Type</th>
+                                <th>Status</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="oauthClientsBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="connectedAppsScreen" class="container" hidden>
+        <header class="header">
+            <div class="header-content">
+                <div class="header-left">
+                    <button id="connectedAppsBack" class="back-btn" type="button">
+                        <i class="fas fa-arrow-left"></i>
+                    </button>
+                    <h1><i class="fas fa-link"></i> Connected apps</h1>
+                    <p class="subtitle">Partner grants for this contract owner</p>
+                </div>
+            </div>
+        </header>
+        <div class="admin-content">
+            <div id="connectedAppsEmpty" hidden>No applications are connected.</div>
+            <div class="admin-table-container">
+                <table class="admin-table">
+                    <tbody id="connectedAppsBody"></tbody>
+                </table>
             </div>
         </div>
     </div>

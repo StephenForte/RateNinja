@@ -205,7 +205,7 @@ function migrateUsers(records) {
             return [
                 record.id,
                 joinValue(f.UserName),
-                joinValue(f.Pwd),
+                null,
                 joinValue(f.DisplayName),
                 joinValue(f.RateView),
                 joinValue(f['CompanyID (from CompanyReference)']),
