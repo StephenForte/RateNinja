@@ -26,6 +26,8 @@ Install dependencies once (`npm install`). Password hashing uses `@node-rs/argon
 | `PARTNER_OAUTH_ENABLED` | No | `false` on Render until security gates are opened. See `docs/partner-integration.md` |
 | `RATE_NINJA_API_KEY` | For `/api/v1/*` | Public demo API key (`X-API-Key`). Does not grant partner access |
 | `SQLITE_DB_PATH` | No | Defaults to `data/rateninja.db` |
+| `RESEND_API_KEY` | For password reset mail | Resend API key. Never commit it |
+| `RESEND_FROM` | For password reset mail | From address Resend is allowed to send as |
 
 Airtable env vars are only needed for the one-time `npm run migrate` importer.
 
@@ -38,7 +40,9 @@ Airtable env vars are only needed for the one-time `npm run migrate` importer.
 
 ## Security note
 
-Passwords are stored as Argon2id hashes. Existing plaintext passwords are not migrated; an administrator sets a new password (`node scripts/set-password.js SteveF 'a-long-password'`) or uses the admin screen. Email reset and a new login page are not in this pass.
+Passwords are stored as Argon2id hashes. Existing plaintext passwords are not migrated. An administrator (SteveF) can still set a password from the admin screen or with `node scripts/set-password.js SteveF 'a-long-password'`. Sign-in is at `/login`. Forgot-password sends a single-use link through Resend when `RESEND_API_KEY` and `RESEND_FROM` are set. Two-factor authentication is optional and is requested only after a user enrolls.
+
+On startup the server adds missing SQLite columns and tables to the existing database file. It does not delete or replace that file.
 
 Partner OAuth, the partner API, and MCP are documented in `docs/partner-integration.md`. Leave `PARTNER_OAUTH_ENABLED` false in production until that document's gates are accepted. The host stays this Render service. `rateninja.co` can be attached later.
 

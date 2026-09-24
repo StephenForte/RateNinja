@@ -11,43 +11,6 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
-    <!-- Login Page -->
-    <div id="loginPage" class="login-container">
-        <div class="login-card">
-            <div class="login-header">
-                <h1><i class="fas fa-ship"></i> Rate Ninja</h1>
-                <p class="login-subtitle">Ocean freight intelligence, simplified.</p>
-            </div>
-            
-            <form id="loginForm" class="login-form">
-                <div class="form-group">
-                    <label for="username">Username</label>
-                    <div class="input-container">
-                        <i class="fas fa-user"></i>
-                        <input type="text" id="username" name="username" required>
-                    </div>
-                </div>
-                
-                <div class="form-group">
-                    <label for="password">Password</label>
-                    <div class="input-container">
-                        <i class="fas fa-lock"></i>
-                        <input type="password" id="password" name="password" required>
-                    </div>
-                </div>
-                
-                <button type="submit" class="login-btn">
-                    <i class="fas fa-sign-in-alt"></i> Sign In
-                </button>
-                
-                <div id="loginError" class="error-message" hidden>
-                    <i class="fas fa-exclamation-triangle"></i>
-                    <span id="loginErrorMessage">Invalid username or password</span>
-                </div>
-            </form>
-        </div>
-    </div>
-
     <!-- Main Application Page -->
     <div id="mainPage" class="container" hidden>
         <header class="header">
@@ -72,6 +35,9 @@
             
             <!-- Hamburger Menu Dropdown -->
             <div id="hamburgerMenu" class="hamburger-menu" hidden>
+                <a href="#" id="accountSecurityLink" class="menu-item">
+                    <i class="fas fa-shield-alt"></i> Account security
+                </a>
                 <a href="#" id="rateAdjustmentLink" class="menu-item">
                     <i class="fas fa-cog"></i> Rate Adjustment
                 </a>
@@ -300,13 +266,14 @@
 
             <div class="admin-section" id="usersPanel">
                 <h2><i class="fas fa-user-lock"></i> User passwords</h2>
-                <p class="pull-forward-subtitle">Set a new password of at least 12 characters. This signs that user out. Email reset is not available yet.</p>
+                <p class="pull-forward-subtitle">Set a password of at least 12 characters, or save the email address used for password reset. Clearing two-factor signs that user out. Enrollment stays optional.</p>
                 <div class="admin-table-container">
                     <table class="admin-table">
                         <thead>
                             <tr>
                                 <th>User</th>
                                 <th>Company</th>
+                                <th>Email</th>
                                 <th>Password</th>
                                 <th></th>
                             </tr>
@@ -354,6 +321,48 @@
                         <tbody id="oauthClientsBody"></tbody>
                     </table>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="securityScreen" class="container" hidden>
+        <header class="header">
+            <div class="header-content">
+                <div class="header-left">
+                    <button id="securityBack" class="back-btn" type="button">
+                        <i class="fas fa-arrow-left"></i>
+                    </button>
+                    <h1><i class="fas fa-shield-alt"></i> Account security</h1>
+                    <p class="subtitle">Two-factor authentication is optional</p>
+                </div>
+            </div>
+        </header>
+        <div class="admin-content">
+            <p id="securityStatus" class="pull-forward-subtitle"></p>
+            <div id="securityEnroll">
+                <button id="start2faBtn" class="save-btn" type="button">Set up authenticator</button>
+                <div id="securitySetup" hidden>
+                    <p class="pull-forward-subtitle">Add this secret to an authenticator app. Two-factor stays off until you confirm a current code.</p>
+                    <p><code id="securitySecret"></code></p>
+                    <form id="securityConfirmForm" class="admin-form">
+                        <label>Authenticator code <input id="securityCode" inputmode="numeric" autocomplete="one-time-code" required></label>
+                        <button class="save-btn" type="submit">Confirm and turn on</button>
+                    </form>
+                </div>
+            </div>
+            <div id="securityRecovery" hidden>
+                <p class="pull-forward-subtitle">Save these recovery codes now. Each code works once, and they will not be shown again.</p>
+                <ul id="securityRecoveryList"></ul>
+            </div>
+            <form id="securityDisable" class="admin-form" hidden>
+                <p class="pull-forward-subtitle">Turn off two-factor with your password and a current authenticator or recovery code. This signs you out.</p>
+                <label>Password <input id="securityPassword" type="password" autocomplete="current-password" required></label>
+                <label>Code <input id="securityDisableCode" autocomplete="one-time-code" required></label>
+                <button class="save-btn" type="submit">Turn off two-factor</button>
+            </form>
+            <div id="securityError" class="error-message" hidden>
+                <i class="fas fa-exclamation-triangle"></i>
+                <span id="securityErrorMessage"></span>
             </div>
         </div>
     </div>

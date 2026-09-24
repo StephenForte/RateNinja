@@ -18,9 +18,9 @@ Production on Render keeps partner OAuth **off** until the security gates in the
 
 Local callbacks may be `http://localhost` or `http://127.0.0.1`. Every other redirect must be `https`.
 
-## Passwords
+## Passwords and sign-in
 
-Passwords are Argon2id hashes. Plaintext values are not migrated and are cleared on startup. An administrator sets passwords in the admin screen.
+Passwords are Argon2id hashes. Plaintext values are not migrated and are cleared on startup. An administrator can still set a password in the admin screen.
 
 Bootstrap the first admin before anyone can sign in:
 
@@ -28,7 +28,13 @@ Bootstrap the first admin before anyone can sign in:
 node scripts/set-password.js SteveF 'a-long-password'
 ```
 
-There is no email reset and no second factor in this pass.
+The sign-in page is `/login` on this same service. It collects username and password, then an authenticator or recovery code only when that user has enrolled two-factor authentication. Enrollment is optional. SteveF can clear two-factor for a user from the admin screen.
+
+Forgot-password emails are sent with the Resend API. Set `RESEND_API_KEY` and `RESEND_FROM` in the environment. Do not commit either value. If they are missing, the reset request still returns success and does not say whether the account exists. The server logs that mail was not sent, without the reset token or the API key. Reset links expire after 30 minutes, work once, and only a hash of the token is stored. The account needs an email address, which an administrator saves on the user row.
+
+## Existing database
+
+Startup opens the SQLite file at `SQLITE_DB_PATH` and adds any missing columns and tables before queries that use them. A database created before `owner_company_id` and the partner tables is updated in place. Rows are not deleted and the file is not replaced. The Render disk at `/var/data/rateninja.db` is that file.
 
 ## Tokens
 

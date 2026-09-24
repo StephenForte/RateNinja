@@ -30,3 +30,8 @@ services:
       # not required for deploy.
       - key: PARTNER_OAUTH_ENABLED
         value: "false"
+      # Set in the Render dashboard. Do not commit the API key or from-address.
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM
+        sync: false

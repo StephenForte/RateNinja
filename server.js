@@ -53,7 +53,20 @@ const { verifyPasswordOrDummy } = require('./lib/passwords');
 const { isLimited, recordFailure, clearFailures } = require('./lib/throttle');
 const { csrfMatches } = require('./lib/csrf');
 const { recordAudit } = require('./lib/audit');
-const { setPasswordById, setDisabled } = require('./lib/accounts');
+const { setPasswordById, setEmailById, setDisabled } = require('./lib/accounts');
+const { requestPasswordReset, completePasswordReset } = require('./lib/password-reset');
+const { resendSettings } = require('./lib/resend');
+const {
+    mfaStatus,
+    startEnrollment,
+    confirmEnrollment,
+    verifySecondFactor,
+    disableOwnMfa,
+    clearMfa,
+    createLoginChallenge,
+    readLoginChallenge,
+    consumeLoginChallenge
+} = require('./lib/mfa');
 const { ensureFoundation } = require('./lib/foundation');
 const { appRates, appPredictiveRates, appSailings, listPartnerRates, getPartnerRate, listPartnerSailings, getPartnerSailing } = require('./lib/visibility');
 const oauth = require('./lib/oauth');
@@ -345,6 +358,16 @@ async function handleLogin(request, response) {
         return;
     }
     clearFailures(loginName, source);
+    if (record.totpEnabled) {
+        const challenge = createLoginChallenge(record.id);
+        recordAudit('login_mfa_required', { actorUserId: record.id, detail: { username: loginName } });
+        sendJson(response, 200, { mfaRequired: true, challenge }, securityHeaders());
+        return;
+    }
+    finishLogin(response, record, loginName);
+}
+
+function finishLogin(response, record, loginName) {
     const user = presentSession(record);
     const token = createSession(user);
     recordAudit('login_success', { actorUserId: user.id, detail: { username: loginName } });
@@ -352,6 +375,59 @@ async function handleLogin(request, response) {
         'Set-Cookie': sessionCookie(token),
         ...securityHeaders()
     });
+}
+
+async function handleMfaLogin(request, response) {
+    if (!requireConfiguration(response)) return;
+    const { challenge, code } = await readJson(request);
+    if (typeof challenge !== 'string' || typeof code !== 'string' || !challenge || !code.trim()) {
+        sendError(response, 400, 'Authentication code is required.');
+        return;
+    }
+    const pending = readLoginChallenge(challenge);
+    const record = pending ? getUserById(pending.user_id) : null;
+    const loginName = record?.username || '';
+    const source = clientIp(request);
+    if (loginName && isLimited(loginName, source)) {
+        recordAudit('login_throttled', { detail: { username: loginName, source: sourceFingerprint(source) } });
+        sendError(response, 429, 'Too many attempts. Try again later.');
+        return;
+    }
+    if (!record || record.disabled || !verifySecondFactor(record.id, code.trim())) {
+        if (loginName) recordFailure(loginName, source);
+        recordAudit('login_failure', { actorUserId: record?.id, detail: { username: loginName, source: sourceFingerprint(source) } });
+        sendError(response, 401, 'Invalid authentication code.');
+        return;
+    }
+    if (!consumeLoginChallenge(challenge)) {
+        sendError(response, 401, 'Invalid authentication code.');
+        return;
+    }
+    clearFailures(loginName, source);
+    finishLogin(response, record, loginName);
+}
+
+async function handleForgotPassword(request, response) {
+    const { username } = await readJson(request);
+    const source = clientIp(request);
+    const loginName = typeof username === 'string' ? username.trim() : '';
+    if (loginName && isLimited(`reset:${loginName}`, source)) {
+        sendError(response, 429, 'Too many attempts. Try again later.');
+        return;
+    }
+    if (loginName) recordFailure(`reset:${loginName}`, source);
+    const result = await requestPasswordReset({ username: loginName, origin: externalOrigin(request) });
+    sendJson(response, 200, result, securityHeaders());
+}
+
+async function handleResetPassword(request, response) {
+    const { token, password } = await readJson(request);
+    const result = completePasswordReset({ token, password });
+    if (!result.ok) {
+        sendError(response, result.status, result.error);
+        return;
+    }
+    sendJson(response, 200, { ok: true }, securityHeaders());
 }
 
 async function handleRates(request, response, session) {
@@ -537,16 +613,76 @@ async function handleAdminUserUpdate(request, response, session, userId) {
     if (!requireAdmin(response, session)) return;
     const body = await readJson(request);
     if (!requireCsrf(request, response, session, body)) return;
-    if (typeof body.disabled !== 'boolean') {
+    const hasEmail = Object.prototype.hasOwnProperty.call(body, 'email');
+    const hasDisabled = typeof body.disabled === 'boolean';
+    if (!hasEmail && !hasDisabled) {
         sendError(response, 400, 'disabled must be true or false.');
         return;
     }
-    const result = setDisabled(userId, body.disabled, session.user.id);
+    if (hasEmail) {
+        const emailResult = setEmailById(userId, body.email, session.user.id);
+        if (!emailResult.ok) {
+            sendError(response, emailResult.status, emailResult.error);
+            return;
+        }
+    }
+    if (hasDisabled) {
+        const result = setDisabled(userId, body.disabled, session.user.id);
+        if (!result.ok) {
+            sendError(response, result.status, result.error);
+            return;
+        }
+    }
+    sendJson(response, 200, { ok: true }, securityHeaders());
+}
+
+async function handleAdminClearMfa(request, response, session, userId) {
+    if (!requireAdmin(response, session)) return;
+    const body = await readJson(request);
+    if (!requireCsrf(request, response, session, body)) return;
+    const result = clearMfa(userId, session.user.id);
     if (!result.ok) {
         sendError(response, result.status, result.error);
         return;
     }
-    sendJson(response, 200, { ok: true }, securityHeaders());
+    sendJson(response, 200, { ok: true, signedOut: userId === session.user.id }, securityHeaders());
+}
+
+function handleSecurityStatus(request, response, session) {
+    sendJson(response, 200, mfaStatus(session.user.id), securityHeaders());
+}
+
+async function handleSecurityStart(request, response, session) {
+    const body = await readJson(request);
+    if (!requireCsrf(request, response, session, body)) return;
+    const result = startEnrollment(session.user.id);
+    if (!result.ok) {
+        sendError(response, result.status, result.error);
+        return;
+    }
+    sendJson(response, 200, { secret: result.secret, otpauthUrl: result.otpauthUrl }, securityHeaders());
+}
+
+async function handleSecurityConfirm(request, response, session) {
+    const body = await readJson(request);
+    if (!requireCsrf(request, response, session, body)) return;
+    const result = confirmEnrollment(session.user.id, body.code);
+    if (!result.ok) {
+        sendError(response, result.status, result.error);
+        return;
+    }
+    sendJson(response, 200, { ok: true, recoveryCodes: result.recoveryCodes }, securityHeaders());
+}
+
+async function handleSecurityDisable(request, response, session) {
+    const body = await readJson(request);
+    if (!requireCsrf(request, response, session, body)) return;
+    const result = disableOwnMfa(session.user.id, body.password, body.code);
+    if (!result.ok) {
+        sendError(response, result.status, result.error);
+        return;
+    }
+    sendJson(response, 200, { ok: true, signedOut: true }, securityHeaders());
 }
 
 async function handleAdminClients(request, response, session) {
@@ -592,7 +728,7 @@ async function handleAdminClientRotate(request, response, session, clientId) {
 
 function sendOAuthResult(response, result) {
     if (result.type === 'redirect') return redirectTo(response, result.location);
-    if (result.type === 'login') return redirectTo(response, `/?next=${encodeURIComponent(result.next)}`);
+    if (result.type === 'login') return redirectTo(response, `/login?next=${encodeURIComponent(result.next)}`);
     if (result.type === 'html') return sendHtml(response, result.status, result.html);
     return sendOAuthError(response, result.status || 400, result.body?.error || 'invalid_request', result.body?.error_description || 'Request failed.');
 }
@@ -775,6 +911,7 @@ function handleHealth(request, response) {
         partnerOauthEnabled: partnerOauthEnabled(),
         passwordHashing: 'argon2id',
         mcp: '/mcp',
+        resendConfigured: resendSettings().configured,
         checks
     });
 }
@@ -812,6 +949,9 @@ const server = http.createServer(async (request, response) => {
     try {
         if (pathname === '/api/health' && request.method === 'GET') return handleHealth(request, response);
         if (pathname === '/api/auth/login' && request.method === 'POST') return handleLogin(request, response);
+        if (pathname === '/api/auth/login/mfa' && request.method === 'POST') return handleMfaLogin(request, response);
+        if (pathname === '/api/auth/forgot-password' && request.method === 'POST') return handleForgotPassword(request, response);
+        if (pathname === '/api/auth/reset-password' && request.method === 'POST') return handleResetPassword(request, response);
         if (pathname === '/api/auth/logout' && request.method === 'POST') {
             const session = getSession(request);
             if (session && !requireCsrf(request, response, session)) return;
@@ -861,6 +1001,10 @@ const server = http.createServer(async (request, response) => {
         if (pathname === '/oauth/consents' && request.method === 'GET') return handleConsents(request, response, session);
         const consentMatch = pathname.match(/^\/oauth\/consents\/([\w-]+)$/);
         if (consentMatch && request.method === 'DELETE') return handleConsentDelete(request, response, session, consentMatch[1]);
+        if (pathname === '/api/account/security' && request.method === 'GET') return handleSecurityStatus(request, response, session);
+        if (pathname === '/api/account/2fa/start' && request.method === 'POST') return handleSecurityStart(request, response, session);
+        if (pathname === '/api/account/2fa/confirm' && request.method === 'POST') return handleSecurityConfirm(request, response, session);
+        if (pathname === '/api/account/2fa/disable' && request.method === 'POST') return handleSecurityDisable(request, response, session);
         if (pathname === '/api/rates/predictive' && request.method === 'GET') return handlePredictiveRates(request, response, session, url);
         if (pathname === '/api/rates' && request.method === 'GET') return handleRates(request, response, session);
         if (pathname === '/api/sailings' && request.method === 'GET') return handleSailings(request, response, session, url);
@@ -874,6 +1018,8 @@ const server = http.createServer(async (request, response) => {
         if (companyMatch && request.method === 'PATCH') return handleAdminCompanyUpdate(request, response, session, companyMatch[1]);
         const userPasswordMatch = pathname.match(/^\/api\/admin\/users\/([\w-]+)\/password$/);
         if (userPasswordMatch && request.method === 'POST') return handleAdminPassword(request, response, session, userPasswordMatch[1]);
+        const userMfaMatch = pathname.match(/^\/api\/admin\/users\/([\w-]+)\/two-factor$/);
+        if (userMfaMatch && request.method === 'DELETE') return handleAdminClearMfa(request, response, session, userMfaMatch[1]);
         const userMatch = pathname.match(/^\/api\/admin\/users\/([\w-]+)$/);
         if (userMatch && request.method === 'PATCH') return handleAdminUserUpdate(request, response, session, userMatch[1]);
         const clientRotateMatch = pathname.match(/^\/api\/admin\/oauth-clients\/([\w-]+)\/rotate-secret$/);
@@ -881,6 +1027,7 @@ const server = http.createServer(async (request, response) => {
         const clientMatch = pathname.match(/^\/api\/admin\/oauth-clients\/([\w-]+)$/);
         if (clientMatch && request.method === 'PATCH') return handleAdminClientUpdate(request, response, session, clientMatch[1]);
         if (pathname.startsWith('/api/') || pathname.startsWith('/oauth/')) return sendError(response, 404, 'API route not found.');
+        if (pathname === '/login') return serveStatic(request, response, '/login.html');
         return serveStatic(request, response, pathname);
     } catch (error) {
         const message = error.message === 'Request body must be valid JSON.' || error.message === 'Request body is too large.'

@@ -345,7 +345,7 @@ describe('partner http', () => {
         assert.equal(expiredConsent.status, 302);
         assert.equal((expiredConsent.headers.get('content-type') || '').includes('application/json'), false);
         const loginNext = new URL(expiredConsent.headers.get('location'), baseUrl);
-        assert.equal(loginNext.pathname, '/');
+        assert.equal(loginNext.pathname, '/login');
         const next = loginNext.searchParams.get('next');
         assert.ok(next.startsWith('/oauth/authorize?'));
         const restored = new URL(next, baseUrl);

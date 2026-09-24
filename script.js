@@ -41,12 +41,18 @@ let elements;
 
 document.addEventListener('DOMContentLoaded', () => {
     elements = {
-        loginPage: document.getElementById('loginPage'),
         mainPage: document.getElementById('mainPage'),
         adminScreen: document.getElementById('adminScreen'),
-        loginForm: document.getElementById('loginForm'),
-        loginError: document.getElementById('loginError'),
-        loginErrorMessage: document.getElementById('loginErrorMessage'),
+        securityScreen: document.getElementById('securityScreen'),
+        securityStatus: document.getElementById('securityStatus'),
+        securityEnroll: document.getElementById('securityEnroll'),
+        securitySetup: document.getElementById('securitySetup'),
+        securitySecret: document.getElementById('securitySecret'),
+        securityRecovery: document.getElementById('securityRecovery'),
+        securityRecoveryList: document.getElementById('securityRecoveryList'),
+        securityDisable: document.getElementById('securityDisable'),
+        securityError: document.getElementById('securityError'),
+        securityErrorMessage: document.getElementById('securityErrorMessage'),
         welcomeText: document.getElementById('welcomeText'),
         logoutBtn: document.getElementById('logoutBtn'),
         loading: document.getElementById('loading'),
@@ -88,6 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
         pullForwardSuccessMessage: document.getElementById('pullForwardSuccessMessage'),
         sailingsModal: document.getElementById('sailingsModal'),
         contractModal: document.getElementById('contractModal'),
+        accountSecurityLink: document.getElementById('accountSecurityLink'),
         connectedAppsLink: document.getElementById('connectedAppsLink'),
         connectedAppsScreen: document.getElementById('connectedAppsScreen'),
         connectedAppsBack: document.getElementById('connectedAppsBack'),
@@ -142,7 +149,6 @@ async function request(path, options = {}) {
 }
 
 function bindEvents() {
-    elements.loginForm.addEventListener('submit', handleLogin);
     elements.logoutBtn.addEventListener('click', logout);
     elements.search.addEventListener('input', debounce(resetAndApplyFilters, 250));
     filterDefinitions.forEach(([id]) => document.getElementById(id).addEventListener('change', resetAndApplyFilters));
@@ -161,10 +167,18 @@ function bindEvents() {
         event.stopPropagation();
         elements.hamburgerMenu.hidden = !elements.hamburgerMenu.hidden;
     });
+    elements.accountSecurityLink.addEventListener('click', event => {
+        event.preventDefault();
+        showSecurityScreen();
+    });
     elements.rateAdjustmentLink.addEventListener('click', event => {
         event.preventDefault();
         showAdminScreen();
     });
+    document.getElementById('securityBack').addEventListener('click', showMainPage);
+    document.getElementById('start2faBtn').addEventListener('click', startTwoFactor);
+    document.getElementById('securityConfirmForm').addEventListener('submit', confirmTwoFactor);
+    elements.securityDisable.addEventListener('submit', disableTwoFactor);
     elements.connectedAppsLink.addEventListener('click', event => {
         event.preventDefault();
         showConnectedApps();
@@ -203,25 +217,6 @@ async function restoreSession() {
     }
 }
 
-async function handleLogin(event) {
-    event.preventDefault();
-    const form = new FormData(elements.loginForm);
-    hideLoginError();
-    try {
-        const payload = await request('/api/auth/login', {
-            method: 'POST',
-            body: JSON.stringify({ username: form.get('username'), password: form.get('password') }),
-            allowUnauthenticated: true
-        });
-        rememberAuth(payload);
-        if (followOauthNext()) return;
-        showMainPage();
-        await loadRates();
-    } catch (error) {
-        showLoginError(error.message);
-    }
-}
-
 async function logout() {
     try {
         await request('/api/auth/logout', { method: 'POST', allowUnauthenticated: true });
@@ -247,34 +242,103 @@ function resetPredictiveMode() {
 }
 
 function showLoginPage() {
-    elements.loginPage.hidden = false;
-    elements.mainPage.hidden = true;
-    elements.adminScreen.hidden = true;
-    elements.connectedAppsScreen.hidden = true;
-    elements.loginForm.reset();
-    hideLoginError();
+    const next = safeOauthNext(new URLSearchParams(location.search).get('next'));
+    location.replace(next ? `/login?next=${encodeURIComponent(next)}` : '/login');
 }
 
 function showMainPage() {
     if (!state.user) return;
-    elements.loginPage.hidden = true;
     elements.mainPage.hidden = false;
     elements.adminScreen.hidden = true;
+    elements.securityScreen.hidden = true;
     elements.connectedAppsScreen.hidden = true;
     elements.welcomeText.textContent = `Welcome, ${state.user.username}`;
-    elements.hamburger.hidden = !(state.user.isAdmin || state.user.isContractOwner);
+    elements.hamburger.hidden = false;
     elements.rateAdjustmentLink.hidden = !state.user.isAdmin;
     elements.connectedAppsLink.hidden = !state.user.isContractOwner;
     elements.hamburgerMenu.hidden = true;
 }
 
-function showLoginError(message) {
-    elements.loginErrorMessage.textContent = message;
-    elements.loginError.hidden = false;
+function showSecurityError(message) {
+    elements.securityErrorMessage.textContent = message;
+    elements.securityError.hidden = false;
 }
 
-function hideLoginError() {
-    elements.loginError.hidden = true;
+async function showSecurityScreen() {
+    elements.mainPage.hidden = true;
+    elements.adminScreen.hidden = true;
+    elements.connectedAppsScreen.hidden = true;
+    elements.securityScreen.hidden = false;
+    elements.hamburgerMenu.hidden = true;
+    elements.securityError.hidden = true;
+    elements.securitySetup.hidden = true;
+    elements.securityRecovery.hidden = true;
+    try {
+        const status = await request('/api/account/security');
+        const enabled = Boolean(status.enabled);
+        elements.securityStatus.textContent = enabled
+            ? 'Two-factor authentication is on. Sign-in asks for a code from your authenticator app or a recovery code.'
+            : 'Two-factor authentication is off. You can keep signing in with your password until you choose to enroll.';
+        elements.securityEnroll.hidden = enabled;
+        elements.securityDisable.hidden = !enabled;
+    } catch (error) {
+        showSecurityError(error.message);
+    }
+}
+
+async function startTwoFactor() {
+    elements.securityError.hidden = true;
+    try {
+        const result = await request('/api/account/2fa/start', { method: 'POST', body: JSON.stringify({}) });
+        elements.securitySecret.textContent = result.secret;
+        elements.securitySetup.hidden = false;
+    } catch (error) {
+        showSecurityError(error.message);
+    }
+}
+
+async function confirmTwoFactor(event) {
+    event.preventDefault();
+    elements.securityError.hidden = true;
+    try {
+        const result = await request('/api/account/2fa/confirm', {
+            method: 'POST',
+            body: JSON.stringify({ code: document.getElementById('securityCode').value })
+        });
+        elements.securityEnroll.hidden = true;
+        elements.securitySetup.hidden = true;
+        elements.securityRecovery.hidden = false;
+        elements.securityDisable.hidden = false;
+        elements.securityStatus.textContent = 'Two-factor authentication is on. The next sign-in will ask for a code.';
+        elements.securityRecoveryList.replaceChildren();
+        for (const code of result.recoveryCodes || []) {
+            const item = document.createElement('li');
+            item.textContent = code;
+            elements.securityRecoveryList.append(item);
+        }
+    } catch (error) {
+        showSecurityError(error.message);
+    }
+}
+
+async function disableTwoFactor(event) {
+    event.preventDefault();
+    try {
+        const result = await request('/api/account/2fa/disable', {
+            method: 'POST',
+            body: JSON.stringify({
+                password: document.getElementById('securityPassword').value,
+                code: document.getElementById('securityDisableCode').value
+            })
+        });
+        if (result.signedOut) {
+            state.user = null;
+            csrfToken = null;
+            showLoginPage();
+        }
+    } catch (error) {
+        showSecurityError(error.message);
+    }
 }
 
 async function loadRates() {
@@ -652,6 +716,7 @@ async function showAdminScreen() {
     if (!state.user?.isAdmin) return;
     elements.mainPage.hidden = true;
     elements.connectedAppsScreen.hidden = true;
+    elements.securityScreen.hidden = true;
     elements.adminScreen.hidden = false;
     elements.hamburgerMenu.hidden = true;
     elements.adminLoading.hidden = false;
@@ -687,6 +752,12 @@ function renderUsersTable(users) {
     elements.usersTableBody.replaceChildren();
     users.forEach(user => {
         const row = document.createElement('tr');
+        const email = document.createElement('input');
+        email.type = 'email';
+        email.value = user.email || '';
+        email.autocomplete = 'off';
+        const emailCell = document.createElement('td');
+        emailCell.append(email);
         const password = document.createElement('input');
         password.type = 'password';
         password.autocomplete = 'new-password';
@@ -694,28 +765,71 @@ function renderUsersTable(users) {
         const passwordCell = document.createElement('td');
         passwordCell.append(password);
         const actions = document.createElement('td');
+        const saveEmail = document.createElement('button');
+        saveEmail.type = 'button';
+        saveEmail.className = 'back-btn';
+        saveEmail.textContent = 'Save email';
+        saveEmail.addEventListener('click', () => setUserEmail(user, email.value));
+        actions.append(saveEmail);
         const save = document.createElement('button');
         save.type = 'button';
         save.className = 'save-btn';
         save.textContent = 'Set password';
         save.addEventListener('click', () => setUserPassword(user, password.value, save));
         actions.append(save);
-        if (user.id !== undefined) {
-            const toggle = document.createElement('button');
-            toggle.type = 'button';
-            toggle.className = 'back-btn';
-            toggle.textContent = user.disabled ? 'Enable' : 'Disable';
-            toggle.addEventListener('click', () => setUserDisabled(user, !user.disabled));
-            actions.append(toggle);
+        if (user.totpEnabled) {
+            const clearMfa = document.createElement('button');
+            clearMfa.type = 'button';
+            clearMfa.className = 'back-btn';
+            clearMfa.textContent = 'Clear 2FA';
+            clearMfa.addEventListener('click', () => clearUserMfa(user));
+            actions.append(clearMfa);
         }
+        const toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.className = 'back-btn';
+        toggle.textContent = user.disabled ? 'Enable' : 'Disable';
+        toggle.addEventListener('click', () => setUserDisabled(user, !user.disabled));
+        actions.append(toggle);
+        const label = `${user.displayName || user.username}${user.hasPassword ? '' : ' (no password)'}${user.totpEnabled ? ' · 2FA' : ''}`;
         row.append(
-            textCell(`${user.displayName || user.username}${user.hasPassword ? '' : ' (no password)'}`),
+            textCell(label),
             textCell(`${user.companyName || '—'} · ${user.companyType || '—'}`),
+            emailCell,
             passwordCell,
             actions
         );
         elements.usersTableBody.append(row);
     });
+}
+
+async function setUserEmail(user, email) {
+    try {
+        await request(`/api/admin/users/${user.id}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ email })
+        });
+        await showAdminScreen();
+    } catch (error) {
+        elements.adminErrorMessage.textContent = error.message;
+        elements.adminError.hidden = false;
+    }
+}
+
+async function clearUserMfa(user) {
+    try {
+        const result = await request(`/api/admin/users/${user.id}/two-factor`, { method: 'DELETE' });
+        if (result.signedOut) {
+            state.user = null;
+            csrfToken = null;
+            showLoginPage();
+            return;
+        }
+        await showAdminScreen();
+    } catch (error) {
+        elements.adminErrorMessage.textContent = error.message;
+        elements.adminError.hidden = false;
+    }
 }
 
 async function setUserPassword(user, password, button) {
@@ -849,6 +963,7 @@ async function showConnectedApps() {
     if (!state.user?.isContractOwner) return;
     elements.mainPage.hidden = true;
     elements.adminScreen.hidden = true;
+    elements.securityScreen.hidden = true;
     elements.connectedAppsScreen.hidden = false;
     elements.hamburgerMenu.hidden = true;
     const { grants } = await request('/oauth/consents');
