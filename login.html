@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#102a43">
+    <title>Sign in | Rate Ninja</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <h1><i class="fas fa-ship"></i> Rate Ninja</h1>
+                <p class="login-subtitle">Ocean freight intelligence, simplified.</p>
+            </div>
+
+            <form id="loginForm" class="login-form">
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <div class="input-container">
+                        <i class="fas fa-user"></i>
+                        <input type="text" id="username" name="username" autocomplete="username" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <div class="input-container">
+                        <i class="fas fa-lock"></i>
+                        <input type="password" id="password" name="password" autocomplete="current-password" required>
+                    </div>
+                </div>
+                <button type="submit" class="login-btn">
+                    <i class="fas fa-sign-in-alt"></i> Sign In
+                </button>
+                <p class="login-links"><button type="button" id="showForgot" class="link-button">Forgot password?</button></p>
+            </form>
+
+            <form id="mfaForm" class="login-form" hidden>
+                <p class="login-subtitle">Enter the code from your authenticator app, or a recovery code.</p>
+                <div class="form-group">
+                    <label for="mfaCode">Authentication code</label>
+                    <div class="input-container">
+                        <i class="fas fa-shield-alt"></i>
+                        <input type="text" id="mfaCode" name="code" autocomplete="one-time-code" required>
+                    </div>
+                </div>
+                <button type="submit" class="login-btn">
+                    <i class="fas fa-check"></i> Continue
+                </button>
+                <p class="login-links"><button type="button" id="mfaBack" class="link-button">Back to sign in</button></p>
+            </form>
+
+            <form id="forgotForm" class="login-form" hidden>
+                <p class="login-subtitle">Enter your username. If that account has an email address, a reset link will be sent.</p>
+                <div class="form-group">
+                    <label for="forgotUsername">Username</label>
+                    <div class="input-container">
+                        <i class="fas fa-user"></i>
+                        <input type="text" id="forgotUsername" name="username" autocomplete="username" required>
+                    </div>
+                </div>
+                <button type="submit" class="login-btn">Send reset link</button>
+                <p class="login-links"><button type="button" id="forgotBack" class="link-button">Back to sign in</button></p>
+            </form>
+
+            <form id="resetForm" class="login-form" hidden>
+                <p class="login-subtitle">Choose a new password of at least 12 characters.</p>
+                <div class="form-group">
+                    <label for="newPassword">New password</label>
+                    <div class="input-container">
+                        <i class="fas fa-lock"></i>
+                        <input type="password" id="newPassword" name="password" autocomplete="new-password" minlength="12" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="confirmPassword">Confirm password</label>
+                    <div class="input-container">
+                        <i class="fas fa-lock"></i>
+                        <input type="password" id="confirmPassword" autocomplete="new-password" minlength="12" required>
+                    </div>
+                </div>
+                <button type="submit" class="login-btn">Update password</button>
+            </form>
+
+            <div id="loginNotice" class="pull-forward-success" hidden>
+                <i class="fas fa-check-circle"></i>
+                <span id="loginNoticeMessage"></span>
+            </div>
+            <div id="loginError" class="error-message" hidden>
+                <i class="fas fa-exclamation-triangle"></i>
+                <span id="loginErrorMessage">Invalid username or password</span>
+            </div>
+        </div>
+    </div>
+    <script src="login.js"></script>
+</body>
+</html>

@@ -65,6 +65,36 @@ body {
     text-align: left;
 }
 
+.login-links {
+    margin-top: 16px;
+    text-align: center;
+}
+
+.link-button {
+    border: 0;
+    background: transparent;
+    color: #0b7285;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0;
+}
+
+.login-card code,
+#securitySecret {
+    display: inline-block;
+    margin: 8px 0 16px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: #f4f7fb;
+    word-break: break-all;
+}
+
+#securityRecoveryList {
+    margin: 12px 0 20px 18px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
 .form-group {
     margin-bottom: 25px;
 }
