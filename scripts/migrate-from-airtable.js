@@ -194,23 +194,45 @@ function migrateRates(records) {
     );
 }
 
+function firstLinkedId(value) {
+    const joined = joinValue(value);
+    if (!joined) return null;
+    const first = String(joined).split(', ')[0].trim();
+    return first || null;
+}
+
+function companyRecordIdForUser(fields) {
+    const reference = firstLinkedId(fields.CompanyReference);
+    const businessId = joinValue(fields['CompanyID (from CompanyReference)']);
+    if (reference) {
+        const byRecord = db.prepare('SELECT id FROM companies WHERE id = ?').get(reference);
+        if (byRecord) return byRecord.id;
+    }
+    if (businessId) {
+        const byBusiness = db.prepare('SELECT id FROM companies WHERE company_id = ? OR id = ?').get(String(businessId), String(businessId));
+        if (byBusiness) return byBusiness.id;
+    }
+    return null;
+}
+
 function migrateUsers(records) {
     return insertAll(
         records,
         `INSERT OR REPLACE INTO users
-            (id, username, pwd, display_name, rate_view, company_id, company_reference, admin_screen)
-         VALUES (?,?,?,?,?,?,?,?)`,
+            (id, username, pwd, display_name, rate_view, company_id, company_reference, admin_screen, company_record_id)
+         VALUES (?,?,?,?,?,?,?,?,?)`,
         record => {
             const f = record.fields;
             return [
                 record.id,
                 joinValue(f.UserName),
-                joinValue(f.Pwd),
+                null,
                 joinValue(f.DisplayName),
                 joinValue(f.RateView),
                 joinValue(f['CompanyID (from CompanyReference)']),
                 joinValue(f.CompanyReference),
-                boolValue(f.AdminScreen)
+                boolValue(f.AdminScreen),
+                companyRecordIdForUser(f)
             ];
         }
     );
@@ -266,14 +288,14 @@ async function main() {
         throw new Error('AIRTABLE_PAT is required to run the migration.');
     }
 
-    const rates = await fetchRates();
-    const ratesCount = migrateRates(rates);
+    const companies = await fetchAllRecords(config.tables.companies);
+    const companiesCount = migrateCompanies(companies);
 
     const users = await fetchAllRecords(config.tables.users);
     const usersCount = migrateUsers(users);
 
-    const companies = await fetchAllRecords(config.tables.companies);
-    const companiesCount = migrateCompanies(companies);
+    const rates = await fetchRates();
+    const ratesCount = migrateRates(rates);
 
     const sailings = await fetchAllRecords(config.tables.sailings);
     const sailingsCount = migrateSailings(sailings);
@@ -285,7 +307,15 @@ async function main() {
     console.log(`  sailings:  ${sailingsCount}`);
 }
 
-main().catch(error => {
-    console.error(`Migration failed: ${error.message}`);
-    process.exitCode = 1;
-});
+if (require.main === module) {
+    main().catch(error => {
+        console.error(`Migration failed: ${error.message}`);
+        process.exitCode = 1;
+    });
+}
+
+module.exports = {
+    companyRecordIdForUser,
+    migrateCompanies,
+    migrateUsers
+};

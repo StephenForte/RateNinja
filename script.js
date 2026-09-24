@@ -35,6 +35,7 @@ const searchFields = [
 ];
 
 const ADMIN_SAVE_CONCURRENCY = 3;
+let csrfToken = null;
 
 let elements;
 
@@ -86,19 +87,49 @@ document.addEventListener('DOMContentLoaded', () => {
         pullForwardSuccess: document.getElementById('pullForwardSuccess'),
         pullForwardSuccessMessage: document.getElementById('pullForwardSuccessMessage'),
         sailingsModal: document.getElementById('sailingsModal'),
-        contractModal: document.getElementById('contractModal')
+        contractModal: document.getElementById('contractModal'),
+        connectedAppsLink: document.getElementById('connectedAppsLink'),
+        connectedAppsScreen: document.getElementById('connectedAppsScreen'),
+        connectedAppsBack: document.getElementById('connectedAppsBack'),
+        connectedAppsBody: document.getElementById('connectedAppsBody'),
+        connectedAppsEmpty: document.getElementById('connectedAppsEmpty'),
+        usersTableBody: document.getElementById('usersTableBody'),
+        oauthClientForm: document.getElementById('oauthClientForm'),
+        oauthSecretNotice: document.getElementById('oauthSecretNotice'),
+        oauthClientsBody: document.getElementById('oauthClientsBody')
     };
     elements.predictiveDate.min = predictiveMinDate();
     bindEvents();
     restoreSession();
 });
 
+function safeOauthNext(value) {
+    if (typeof value !== 'string' || !value.startsWith('/oauth/authorize?')) return null;
+    if (value.includes('\\') || value.includes('\n') || value.includes('\r')) return null;
+    try {
+        const url = new URL(value, 'http://localhost');
+        if (url.origin !== 'http://localhost' || url.pathname !== '/oauth/authorize') return null;
+        return `${url.pathname}${url.search}`;
+    } catch {
+        return null;
+    }
+}
+
+function followOauthNext() {
+    const next = safeOauthNext(new URLSearchParams(location.search).get('next'));
+    if (!next) return false;
+    location.replace(next);
+    return true;
+}
+
 async function request(path, options = {}) {
     const { allowUnauthenticated = false, ...fetchOptions } = options;
+    const method = String(fetchOptions.method || 'GET').toUpperCase();
     const response = await fetch(path, {
         ...fetchOptions,
         headers: {
             ...(fetchOptions.body ? { 'Content-Type': 'application/json' } : {}),
+            ...(csrfToken && method !== 'GET' && method !== 'HEAD' ? { 'X-CSRF-Token': csrfToken } : {}),
             ...fetchOptions.headers
         }
     });
@@ -134,6 +165,12 @@ function bindEvents() {
         event.preventDefault();
         showAdminScreen();
     });
+    elements.connectedAppsLink.addEventListener('click', event => {
+        event.preventDefault();
+        showConnectedApps();
+    });
+    elements.connectedAppsBack.addEventListener('click', showMainPage);
+    elements.oauthClientForm.addEventListener('submit', registerOauthClient);
     elements.backToMain.addEventListener('click', showMainPage);
     elements.saveChanges.addEventListener('click', saveAdminChanges);
     elements.pfType.addEventListener('change', syncPullForwardType);
@@ -149,10 +186,16 @@ function bindEvents() {
     });
 }
 
+function rememberAuth(payload) {
+    if (payload?.csrfToken) csrfToken = payload.csrfToken;
+    if (payload?.user) state.user = payload.user;
+}
+
 async function restoreSession() {
     try {
-        const { user } = await request('/api/session', { allowUnauthenticated: true });
-        state.user = user;
+        const payload = await request('/api/session', { allowUnauthenticated: true });
+        rememberAuth(payload);
+        if (followOauthNext()) return;
         showMainPage();
         await loadRates();
     } catch {
@@ -165,12 +208,13 @@ async function handleLogin(event) {
     const form = new FormData(elements.loginForm);
     hideLoginError();
     try {
-        const { user } = await request('/api/auth/login', {
+        const payload = await request('/api/auth/login', {
             method: 'POST',
             body: JSON.stringify({ username: form.get('username'), password: form.get('password') }),
             allowUnauthenticated: true
         });
-        state.user = user;
+        rememberAuth(payload);
+        if (followOauthNext()) return;
         showMainPage();
         await loadRates();
     } catch (error) {
@@ -185,6 +229,7 @@ async function logout() {
         // A failed logout should still clear the local UI state.
     }
     state.user = null;
+    csrfToken = null;
     state.rates = [];
     state.filteredRates = [];
     resetPredictiveMode();
@@ -205,6 +250,7 @@ function showLoginPage() {
     elements.loginPage.hidden = false;
     elements.mainPage.hidden = true;
     elements.adminScreen.hidden = true;
+    elements.connectedAppsScreen.hidden = true;
     elements.loginForm.reset();
     hideLoginError();
 }
@@ -214,8 +260,11 @@ function showMainPage() {
     elements.loginPage.hidden = true;
     elements.mainPage.hidden = false;
     elements.adminScreen.hidden = true;
+    elements.connectedAppsScreen.hidden = true;
     elements.welcomeText.textContent = `Welcome, ${state.user.username}`;
-    elements.hamburger.hidden = !state.user.isAdmin;
+    elements.hamburger.hidden = !(state.user.isAdmin || state.user.isContractOwner);
+    elements.rateAdjustmentLink.hidden = !state.user.isAdmin;
+    elements.connectedAppsLink.hidden = !state.user.isContractOwner;
     elements.hamburgerMenu.hidden = true;
 }
 
@@ -456,7 +505,9 @@ function createRateRow(rate) {
         textCell(rate.inlandDeliveryLocation),
         textCell(rate.commodityType),
         rateLink(rate.carrier, 'carrier-link', event => { event.preventDefault(); openSailingsModal(rate); }),
-        rateLink(rate.contractOwner, 'contract-link', event => { event.preventDefault(); openContractModal(rate); }),
+        rateLink(rate.ownerCompanyName && rate.ownerCompanyName !== rate.contractOwner
+            ? `${rate.contractOwner} · ${rate.ownerCompanyName}`
+            : rate.contractOwner, 'contract-link', event => { event.preventDefault(); openContractModal(rate); }),
         rateCell(rate.rate20D),
         rateCell(rate.rate40D),
         rateCell(rate.rate40HC),
@@ -600,6 +651,7 @@ function closeContractModal() {
 async function showAdminScreen() {
     if (!state.user?.isAdmin) return;
     elements.mainPage.hidden = true;
+    elements.connectedAppsScreen.hidden = true;
     elements.adminScreen.hidden = false;
     elements.hamburgerMenu.hidden = true;
     elements.adminLoading.hidden = false;
@@ -609,24 +661,222 @@ async function showAdminScreen() {
     resetPullForwardMessages();
     state.adminChanges.clear();
     try {
-        const { companies } = await request('/api/admin/companies');
-        renderAdminTable(companies);
-        elements.adminTableContainer.hidden = false;
-        elements.pullForwardPanel.hidden = false;
+        const [companiesResult, usersResult, clientsResult] = await Promise.allSettled([
+            request('/api/admin/companies'),
+            request('/api/admin/users'),
+            request('/api/admin/oauth-clients')
+        ]);
+        if (companiesResult.status === 'fulfilled') {
+            renderAdminTable(companiesResult.value.companies);
+            elements.adminTableContainer.hidden = false;
+            elements.pullForwardPanel.hidden = false;
+        }
+        if (usersResult.status === 'fulfilled') renderUsersTable(usersResult.value.users);
+        if (clientsResult.status === 'fulfilled') renderOauthClients(clientsResult.value.clients);
+        const failed = [companiesResult, usersResult, clientsResult].find(result => result.status === 'rejected');
+        if (failed) throw failed.reason;
     } catch (error) {
-        elements.adminErrorMessage.textContent = `Failed to load companies: ${error.message}`;
+        elements.adminErrorMessage.textContent = `Failed to load administration data: ${error.message}`;
         elements.adminError.hidden = false;
     } finally {
         elements.adminLoading.hidden = true;
     }
 }
 
+function renderUsersTable(users) {
+    elements.usersTableBody.replaceChildren();
+    users.forEach(user => {
+        const row = document.createElement('tr');
+        const password = document.createElement('input');
+        password.type = 'password';
+        password.autocomplete = 'new-password';
+        password.minLength = 12;
+        const passwordCell = document.createElement('td');
+        passwordCell.append(password);
+        const actions = document.createElement('td');
+        const save = document.createElement('button');
+        save.type = 'button';
+        save.className = 'save-btn';
+        save.textContent = 'Set password';
+        save.addEventListener('click', () => setUserPassword(user, password.value, save));
+        actions.append(save);
+        if (user.id !== undefined) {
+            const toggle = document.createElement('button');
+            toggle.type = 'button';
+            toggle.className = 'back-btn';
+            toggle.textContent = user.disabled ? 'Enable' : 'Disable';
+            toggle.addEventListener('click', () => setUserDisabled(user, !user.disabled));
+            actions.append(toggle);
+        }
+        row.append(
+            textCell(`${user.displayName || user.username}${user.hasPassword ? '' : ' (no password)'}`),
+            textCell(`${user.companyName || '—'} · ${user.companyType || '—'}`),
+            passwordCell,
+            actions
+        );
+        elements.usersTableBody.append(row);
+    });
+}
+
+async function setUserPassword(user, password, button) {
+    button.disabled = true;
+    try {
+        const result = await request(`/api/admin/users/${user.id}/password`, {
+            method: 'POST',
+            body: JSON.stringify({ password })
+        });
+        if (result.signedOut) {
+            state.user = null;
+            csrfToken = null;
+            showLoginPage();
+            return;
+        }
+        await showAdminScreen();
+    } catch (error) {
+        elements.adminErrorMessage.textContent = error.message;
+        elements.adminError.hidden = false;
+    } finally {
+        button.disabled = false;
+    }
+}
+
+async function setUserDisabled(user, disabled) {
+    try {
+        await request(`/api/admin/users/${user.id}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ disabled })
+        });
+        await showAdminScreen();
+    } catch (error) {
+        elements.adminErrorMessage.textContent = error.message;
+        elements.adminError.hidden = false;
+    }
+}
+
+function renderOauthClients(clients) {
+    elements.oauthClientsBody.replaceChildren();
+    clients.forEach(client => {
+        const row = document.createElement('tr');
+        const redirects = document.createElement('textarea');
+        redirects.rows = 2;
+        redirects.value = (client.redirectUris || []).join('\n');
+        const redirectCell = document.createElement('td');
+        redirectCell.append(redirects);
+        const actions = document.createElement('td');
+        const saveRedirects = document.createElement('button');
+        saveRedirects.type = 'button';
+        saveRedirects.className = 'save-btn';
+        saveRedirects.textContent = 'Save redirects';
+        saveRedirects.addEventListener('click', () => updateOauthClient(client, {
+            redirectUris: redirects.value.split(/\n+/).map(value => value.trim()).filter(Boolean)
+        }));
+        actions.append(saveRedirects);
+        const toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.className = 'back-btn';
+        toggle.textContent = client.status === 'active' ? 'Disable' : 'Enable';
+        toggle.addEventListener('click', () => updateOauthClient(client, { status: client.status === 'active' ? 'disabled' : 'active' }));
+        actions.append(toggle);
+        if (client.clientType === 'confidential') {
+            const rotate = document.createElement('button');
+            rotate.type = 'button';
+            rotate.className = 'save-btn';
+            rotate.textContent = client.hasSecret ? 'Rotate secret' : 'Set secret';
+            rotate.addEventListener('click', () => rotateOauthSecret(client.id));
+            actions.append(rotate);
+        }
+        row.append(textCell(client.displayName), textCell(client.id), redirectCell, textCell(client.clientType), textCell(client.status), actions);
+        elements.oauthClientsBody.append(row);
+    });
+}
+
+function showClientSecret(secret) {
+    if (!secret) return;
+    elements.oauthSecretNotice.hidden = false;
+    elements.oauthSecretNotice.textContent = `Copy this client secret now. It will not be shown again: ${secret}`;
+}
+
+async function registerOauthClient(event) {
+    event.preventDefault();
+    const allowedScopes = [...elements.oauthClientForm.querySelectorAll('input[name="oauthScope"]:checked')].map(input => input.value);
+    try {
+        const result = await request('/api/admin/oauth-clients', {
+            method: 'POST',
+            body: JSON.stringify({
+                displayName: document.getElementById('oauthDisplayName').value,
+                clientType: document.getElementById('oauthClientType').value,
+                redirectUris: document.getElementById('oauthRedirects').value.split(/\n+/).map(value => value.trim()).filter(Boolean),
+                allowedScopes
+            })
+        });
+        showClientSecret(result.clientSecret);
+        elements.oauthClientForm.reset();
+        await showAdminScreen();
+    } catch (error) {
+        elements.adminErrorMessage.textContent = error.message;
+        elements.adminError.hidden = false;
+    }
+}
+
+async function updateOauthClient(client, patch) {
+    try {
+        await request(`/api/admin/oauth-clients/${client.id}`, {
+            method: 'PATCH',
+            body: JSON.stringify(patch)
+        });
+        await showAdminScreen();
+    } catch (error) {
+        elements.adminErrorMessage.textContent = error.message;
+        elements.adminError.hidden = false;
+    }
+}
+
+async function rotateOauthSecret(clientId) {
+    try {
+        const result = await request(`/api/admin/oauth-clients/${clientId}/rotate-secret`, {
+            method: 'POST',
+            body: JSON.stringify({})
+        });
+        showClientSecret(result.clientSecret);
+        await showAdminScreen();
+    } catch (error) {
+        elements.adminErrorMessage.textContent = error.message;
+        elements.adminError.hidden = false;
+    }
+}
+
+async function showConnectedApps() {
+    if (!state.user?.isContractOwner) return;
+    elements.mainPage.hidden = true;
+    elements.adminScreen.hidden = true;
+    elements.connectedAppsScreen.hidden = false;
+    elements.hamburgerMenu.hidden = true;
+    const { grants } = await request('/oauth/consents');
+    elements.connectedAppsEmpty.hidden = grants.length > 0;
+    elements.connectedAppsBody.replaceChildren();
+    grants.forEach(grant => {
+        const row = document.createElement('tr');
+        const actions = document.createElement('td');
+        const revoke = document.createElement('button');
+        revoke.type = 'button';
+        revoke.className = 'save-btn';
+        revoke.textContent = 'Revoke';
+        revoke.addEventListener('click', async () => {
+            await request(`/oauth/consents/${grant.clientId}`, { method: 'DELETE' });
+            await showConnectedApps();
+        });
+        actions.append(revoke);
+        row.append(textCell(grant.displayName), textCell(grant.scopes.join(' ')), actions);
+        elements.connectedAppsBody.append(row);
+    });
+}
+
 function renderAdminTable(companies) {
     elements.adminTableBody.replaceChildren();
     if (!companies.length) {
         const row = document.createElement('tr');
-        const cell = textCell('No companies found matching your criteria');
-        cell.colSpan = 3;
+        const cell = textCell('No customer companies found');
+        cell.colSpan = 4;
         cell.className = 'empty-table-message';
         row.append(cell);
         elements.adminTableBody.append(row);
@@ -637,6 +887,7 @@ function renderAdminTable(companies) {
         row.append(textCell(company.name));
         row.append(createMarginInput(company, 'marginPercent', company.marginPercent));
         row.append(createMarginInput(company, 'marginNumber', company.marginNumber));
+        row.append(textCell(company.linked ? 'Yes' : 'No'));
         elements.adminTableBody.append(row);
     });
 }
