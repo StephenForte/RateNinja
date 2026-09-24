@@ -54,7 +54,7 @@ npm run check
 npm test
 ```
 
-Tests use Node's built-in test runner (`node:test`) with no extra dependencies. Store tests run against a temporary SQLite file, not `data/rateninja.db`.
+Tests use Node's built-in test runner (`node:test`) with no extra dependencies. Store tests run against a temporary SQLite file, not `data/rateninja.db`. GitHub Actions runs this suite on pull requests and on pushes to `main`.
 
 ## Render deployment
 
