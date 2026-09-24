@@ -44,11 +44,11 @@ function pkce() {
     return { verifier, challenge, state: crypto.randomBytes(12).toString('base64url') };
 }
 
-async function authorizeAndToken(session, secret, redirectUri) {
+async function authorizeAndToken(session, secret, redirectUri, clientId = client.id) {
     const proof = pkce();
     const params = new URLSearchParams({
         response_type: 'code',
-        client_id: client.id,
+        client_id: clientId,
         redirect_uri: redirectUri,
         scope: 'profile:read rates:read sailings:read',
         state: proof.state,
@@ -82,7 +82,7 @@ async function authorizeAndToken(session, secret, redirectUri) {
             grant_type: 'authorization_code',
             code,
             redirect_uri: redirectUri,
-            client_id: client.id,
+            client_id: clientId,
             client_secret: secret,
             code_verifier: proof.verifier
         })
@@ -258,9 +258,112 @@ describe('partner http', () => {
         assert.equal(family.status, 400);
 
         const clients = await fetch(`${baseUrl}/api/admin/oauth-clients`, { headers: { cookie: steve.cookie } });
-        const clientNames = (await clients.json()).clients.map(item => item.displayName);
+        const clientsBody = await clients.json();
+        const clientNames = clientsBody.clients.map(item => item.displayName);
         assert.ok(clientNames.includes('Capacity Exchange'));
         assert.ok(clientNames.includes('Test Partner'));
+        const seeded = clientsBody.clients.find(item => item.id === 'capacity-exchange');
+        assert.deepEqual(seeded.redirectUris, []);
+        assert.equal(seeded.hasSecret, false);
+
+        const redirectUriSeed = 'http://127.0.0.1:9/capacity';
+        const savedRedirects = await fetch(`${baseUrl}/api/admin/oauth-clients/capacity-exchange`, {
+            method: 'PATCH',
+            headers: { cookie: steve.cookie, 'content-type': 'application/json', 'x-csrf-token': steve.csrf },
+            body: JSON.stringify({ redirectUris: [redirectUriSeed] })
+        });
+        const savedRedirectsBody = await savedRedirects.json();
+        assert.equal(savedRedirects.status, 200, JSON.stringify(savedRedirectsBody));
+        assert.deepEqual(savedRedirectsBody.client.redirectUris, [redirectUriSeed]);
+        const seededSecret = await fetch(`${baseUrl}/api/admin/oauth-clients/capacity-exchange/rotate-secret`, {
+            method: 'POST',
+            headers: { cookie: steve.cookie, 'content-type': 'application/json', 'x-csrf-token': steve.csrf },
+            body: JSON.stringify({})
+        });
+        const seededSecretBody = await seededSecret.json();
+        assert.equal(seededSecret.status, 200, JSON.stringify(seededSecretBody));
+        assert.equal(typeof seededSecretBody.clientSecret, 'string');
+        assert.ok(seededSecretBody.clientSecret.length > 10);
+        const seededToken = await authorizeAndToken(steve, seededSecretBody.clientSecret, redirectUriSeed, 'capacity-exchange');
+        assert.equal(seededToken.token.token_type, 'Bearer');
+
+        db.prepare(`
+            INSERT INTO companies (id, company_id, company_name, company_type, company_type_id)
+            VALUES ('rec-owner', 'CO-9', 'Migrated Owner Co', 'Contract Owner', 'contract_owner')
+        `).run();
+        db.prepare(`
+            INSERT INTO users (id, username, display_name, company_id, company_reference, company_record_id, admin_screen, disabled, session_epoch)
+            VALUES ('user-migrated', 'MigratedOwner', 'Migrated Owner', 'CO-9', 'rec-missing, rec-owner', NULL, 0, 0, 0)
+        `).run();
+        assert.equal(setPasswordByUsername('MigratedOwner', PASSWORD).ok, true);
+        const migrated = await login('MigratedOwner');
+        assert.equal(migrated.user.isContractOwner, true);
+        assert.equal(migrated.user.companyType, 'Contract Owner');
+        const linked = db.prepare(`SELECT company_record_id FROM users WHERE id = 'user-migrated'`).get();
+        assert.equal(linked.company_record_id, 'rec-owner');
+        const migratedGrant = await authorizeAndToken(migrated, client.secret, redirectUri);
+        const migratedProfile = await fetch(`${baseUrl}/oauth/userinfo`, {
+            headers: { authorization: `Bearer ${migratedGrant.token.access_token}` }
+        });
+        const migratedProfileBody = await migratedProfile.json();
+        assert.equal(migratedProfile.status, 200, JSON.stringify(migratedProfileBody));
+        assert.equal(migratedProfileBody.companyType, 'Contract Owner');
+
+        const fresh = await authorizeAndToken(steve, client.secret, redirectUri);
+        const badDate = await fetch(`${baseUrl}/mcp`, {
+            method: 'POST',
+            headers: { authorization: `Bearer ${fresh.token.access_token}`, 'content-type': 'application/json' },
+            body: JSON.stringify({
+                jsonrpc: '2.0',
+                id: 7,
+                method: 'tools/call',
+                params: { name: 'rateninja_list_my_rates', arguments: { carrier: 'CMA', effectiveDate: 'not-a-date' } }
+            })
+        });
+        const badDateBody = await badDate.json();
+        assert.equal(badDate.status, 200);
+        assert.equal(badDateBody.result.isError, true);
+        assert.equal(badDateBody.result.structuredContent.error, 'invalid_request');
+        assert.equal(badDateBody.result.structuredContent.data, undefined);
+
+        const proof = pkce();
+        const authorizeParams = new URLSearchParams({
+            response_type: 'code',
+            client_id: client.id,
+            redirect_uri: redirectUri,
+            scope: 'profile:read rates:read',
+            state: proof.state,
+            code_challenge: proof.challenge,
+            code_challenge_method: 'S256'
+        });
+        const expiredConsent = await fetch(`${baseUrl}/oauth/authorize`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ ...Object.fromEntries(authorizeParams), decision: 'approve' }),
+            redirect: 'manual'
+        });
+        assert.equal(expiredConsent.status, 302);
+        assert.equal((expiredConsent.headers.get('content-type') || '').includes('application/json'), false);
+        const loginNext = new URL(expiredConsent.headers.get('location'), baseUrl);
+        assert.equal(loginNext.pathname, '/');
+        const next = loginNext.searchParams.get('next');
+        assert.ok(next.startsWith('/oauth/authorize?'));
+        const restored = new URL(next, baseUrl);
+        assert.equal(restored.searchParams.get('client_id'), client.id);
+        assert.equal(restored.searchParams.get('redirect_uri'), redirectUri);
+        assert.equal(restored.searchParams.get('state'), proof.state);
+        assert.equal(restored.searchParams.get('code_challenge'), proof.challenge);
+
+        for (const path of ['/oauth/token', '/oauth/revoke']) {
+            const malformed = await fetch(`${baseUrl}${path}`, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: '{not json'
+            });
+            const malformedBody = await malformed.json();
+            assert.equal(malformed.status, 400, `${path} ${JSON.stringify(malformedBody)}`);
+            assert.equal(malformedBody.error, 'invalid_request');
+        }
 
         process.env.PARTNER_OAUTH_ENABLED = 'false';
         const blocked = await fetch(`${baseUrl}/oauth/token`, {

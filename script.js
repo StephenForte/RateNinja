@@ -757,7 +757,20 @@ function renderOauthClients(clients) {
     elements.oauthClientsBody.replaceChildren();
     clients.forEach(client => {
         const row = document.createElement('tr');
+        const redirects = document.createElement('textarea');
+        redirects.rows = 2;
+        redirects.value = (client.redirectUris || []).join('\n');
+        const redirectCell = document.createElement('td');
+        redirectCell.append(redirects);
         const actions = document.createElement('td');
+        const saveRedirects = document.createElement('button');
+        saveRedirects.type = 'button';
+        saveRedirects.className = 'save-btn';
+        saveRedirects.textContent = 'Save redirects';
+        saveRedirects.addEventListener('click', () => updateOauthClient(client, {
+            redirectUris: redirects.value.split(/\n+/).map(value => value.trim()).filter(Boolean)
+        }));
+        actions.append(saveRedirects);
         const toggle = document.createElement('button');
         toggle.type = 'button';
         toggle.className = 'back-btn';
@@ -768,11 +781,11 @@ function renderOauthClients(clients) {
             const rotate = document.createElement('button');
             rotate.type = 'button';
             rotate.className = 'save-btn';
-            rotate.textContent = 'Rotate secret';
+            rotate.textContent = client.hasSecret ? 'Rotate secret' : 'Set secret';
             rotate.addEventListener('click', () => rotateOauthSecret(client.id));
             actions.append(rotate);
         }
-        row.append(textCell(client.displayName), textCell(client.id), textCell(client.clientType), textCell(client.status), actions);
+        row.append(textCell(client.displayName), textCell(client.id), redirectCell, textCell(client.clientType), textCell(client.status), actions);
         elements.oauthClientsBody.append(row);
     });
 }

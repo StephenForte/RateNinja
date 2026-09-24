@@ -21,7 +21,7 @@ const { db } = require('./lib/db');
 const {
     getRatesByCarrierOrigin,
     getCompanyByRecordId,
-    getCompanyByCompanyId,
+    companyForUser,
     getSailings,
     queryPublicRates,
     pullForwardRates,
@@ -166,9 +166,7 @@ function requireConfiguration(response) {
 }
 
 function presentSession(record) {
-    const company = record.companyRecordId
-        ? getCompanyByRecordId(record.companyRecordId)
-        : getCompanyByCompanyId(record.companyId);
+    const company = companyForUser(record);
     const companyType = company?.fields?.CompanyType || '';
     return {
         id: record.id,
@@ -609,28 +607,49 @@ async function handleAuthorize(request, response, url) {
         return sendOAuthResult(response, result);
     }
     if (request.method === 'POST') {
-        const session = requireSession(request, response);
-        if (!session) return;
         const form = formBody(await readBody(request));
+        const session = liveSession(request);
+        if (!session) {
+            return sendOAuthResult(response, oauth.completeAuthorization({ form, sessionUser: null }));
+        }
         if (!requireCsrf(request, response, session, form)) return;
         return sendOAuthResult(response, oauth.completeAuthorization({ form, sessionUser: session.user }));
     }
     sendError(response, 405, 'Method not allowed.');
 }
 
+function parseOAuthBody(text, contentType) {
+    if ((contentType || '').includes('application/json')) {
+        try {
+            const body = text ? JSON.parse(text) : {};
+            if (!body || typeof body !== 'object' || Array.isArray(body)) return { error: true };
+            return { body };
+        } catch {
+            return { error: true };
+        }
+    }
+    return { body: formBody(text) };
+}
+
 async function handleToken(request, response) {
     const text = await readBody(request);
-    const contentType = request.headers['content-type'] || '';
-    const body = contentType.includes('application/json') ? JSON.parse(text || '{}') : formBody(text);
-    const result = oauth.grantToken(body);
+    const parsed = parseOAuthBody(text, request.headers['content-type'] || '');
+    if (parsed.error) {
+        sendOAuthError(response, 400, 'invalid_request', 'Request body must be valid JSON.');
+        return;
+    }
+    const result = oauth.grantToken(parsed.body);
     sendJson(response, result.status, result.body, securityHeaders());
 }
 
 async function handleRevoke(request, response) {
     const text = await readBody(request);
-    const contentType = request.headers['content-type'] || '';
-    const body = contentType.includes('application/json') ? JSON.parse(text || '{}') : formBody(text);
-    const result = oauth.revokePresentedToken(body);
+    const parsed = parseOAuthBody(text, request.headers['content-type'] || '');
+    if (parsed.error) {
+        sendOAuthError(response, 400, 'invalid_request', 'Request body must be valid JSON.');
+        return;
+    }
+    const result = oauth.revokePresentedToken(parsed.body);
     sendJson(response, result.status, result.body, securityHeaders());
 }
 
