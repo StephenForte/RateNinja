@@ -20,6 +20,7 @@ const { setPasswordByUsername } = require('../lib/accounts');
 const { setMailDelivery } = require('../lib/resend');
 const { hotp, currentStep } = require('../lib/totp');
 const { MAIL_NOT_SENT } = require('../lib/password-reset');
+const { clearFailures } = require('../lib/throttle');
 
 const PASSWORD = 'sail-the-ocean';
 const NEXT_PASSWORD = 'harbor-lantern-9';
@@ -403,6 +404,7 @@ describe('password reset and optional two-factor', () => {
     });
 
     it('keeps a reset token when the new password is too short and retires it when another is issued', async () => {
+        clearFailures('reset:SteveF', '127.0.0.1');
         process.env.RESEND_FROM = 'Rate Ninja <reset@example.com>';
         const sent = [];
         setMailDelivery(async message => {
