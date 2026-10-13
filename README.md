@@ -13,7 +13,7 @@ Rate Ninja is a small web application for browsing ocean freight rates, sailing 
    npm start
    ```
 
-5. Open [http://localhost:3000](http://localhost:3000).
+5. Open [http://localhost:3000](http://localhost:3000). Browser files live in `public/` (`index.html`, `login.html`, `styles.css`, `script.js`, `favicon.svg`, `api-docs.html`, and `api-testbed.html` with its stylesheet and script). Sign-in is `/login` (`public/login.html`). The server serves static files only from `public/`.
 
 Install dependencies once (`npm install`). Password hashing uses `@node-rs/argon2`.
 
