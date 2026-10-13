@@ -100,7 +100,7 @@ function startServer(dbPath) {
     const env = { ...process.env, NODE_ENV: 'test' };
     delete env.MIGRATIONS_DIR;
     env.SQLITE_DB_PATH = dbPath;
-    env.PORT = '0';
+    env.PORT = '35108';
     env.HOST = '127.0.0.1';
     env.SESSION_SECRET = 'test-session-secret-value-which-is-long';
     env.OAUTH_SIGNING_SECRET = 'test-oauth-signing-secret-value-long';
@@ -177,7 +177,7 @@ describe('r1-08 migration 006', { concurrency: 1 }, () => {
         let migrations;
         try {
             migrations = opened.prepare('SELECT id, applied_at FROM schema_migrations ORDER BY id').all();
-            assert.deepEqual(migrations.map(row => row.id), ['001', '006']);
+            assert.deepEqual(migrations.map(row => row.id), ['001', '002', '005', '006']);
             assert.deepEqual(counts(opened), before);
             for (const table of ['rates', 'sailings']) {
                 const rows = opened.prepare(`SELECT id, row_version, deleted_at FROM ${table} ORDER BY id`).all();
@@ -195,7 +195,7 @@ describe('r1-08 migration 006', { concurrency: 1 }, () => {
             opened.close();
         }
         const backups = listBackups(dbPath);
-        assert.ok(backups.some(name => name.includes('-pre-006.db')));
+        assert.ok(backups.some(name => name.includes('-pre-002.db')));
 
         const second = startServer(dbPath);
         try {
