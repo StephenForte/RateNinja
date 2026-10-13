@@ -928,30 +928,83 @@ function handleHealth(request, response) {
     });
 }
 
+const PUBLIC_DIR = path.join(ROOT, 'public');
+
 function hasDotSegment(pathname) {
     return pathname.split('/').some(segment => segment.startsWith('.'));
 }
 
+function staticPathFromRequest(requestUrl) {
+    const raw = typeof requestUrl === 'string' && requestUrl.length > 0 ? requestUrl : '/';
+    const cut = raw.search(/[?#]/);
+    return cut === -1 ? raw : raw.slice(0, cut);
+}
+
+function hasEmptySegment(pathname) {
+    return pathname.split('/').slice(1).some(segment => segment.length === 0);
+}
+
+function staticPathForbidden(pathname) {
+    if (typeof pathname !== 'string' || !pathname.startsWith('/') || pathname.includes('\\') || pathname.includes('\0')) {
+        return true;
+    }
+    return hasDotSegment(pathname) || hasEmptySegment(pathname);
+}
+
+function isInsideDir(root, candidate) {
+    const relative = path.relative(path.resolve(root), path.resolve(candidate));
+    return relative.length > 0
+        && relative !== '..'
+        && !relative.startsWith(`..${path.sep}`)
+        && !path.isAbsolute(relative);
+}
+
 async function serveStatic(request, response, pathname) {
     const requestedPath = pathname === '/' ? '/index.html' : pathname;
-    if (hasDotSegment(requestedPath)) {
+    if (staticPathForbidden(requestedPath)) {
         sendError(response, 403, 'Forbidden.');
         return;
     }
-    const filePath = path.resolve(ROOT, `.${requestedPath}`);
-    if (!filePath.startsWith(`${ROOT}${path.sep}`)) {
+    let decodedPath;
+    try {
+        decodedPath = decodeURIComponent(requestedPath);
+    } catch {
+        sendError(response, 403, 'Forbidden.');
+        return;
+    }
+    if (staticPathForbidden(decodedPath)) {
+        sendError(response, 403, 'Forbidden.');
+        return;
+    }
+    const filePath = path.resolve(PUBLIC_DIR, `.${decodedPath}`);
+    if (!isInsideDir(PUBLIC_DIR, filePath)) {
         sendError(response, 403, 'Forbidden.');
         return;
     }
     try {
-        const content = await fs.readFile(filePath);
+        const realPublic = await fs.realpath(PUBLIC_DIR);
+        const listed = await fs.lstat(filePath);
+        if (listed.isSymbolicLink() || !listed.isFile()) {
+            sendError(response, 403, 'Forbidden.');
+            return;
+        }
+        const realFile = await fs.realpath(filePath);
+        if (!isInsideDir(realPublic, realFile)) {
+            sendError(response, 403, 'Forbidden.');
+            return;
+        }
+        const content = await fs.readFile(realFile);
         response.writeHead(200, {
-            'Content-Type': contentTypes[path.extname(filePath)] || 'application/octet-stream',
+            'Content-Type': contentTypes[path.extname(realFile)] || 'application/octet-stream',
             ...securityHeaders()
         });
         response.end(content);
-    } catch {
-        sendError(response, 404, 'Not found.');
+    } catch (error) {
+        if (error && error.code === 'ENOENT') {
+            sendError(response, 404, 'Not found.');
+            return;
+        }
+        sendError(response, 403, 'Forbidden.');
     }
 }
 
@@ -1040,7 +1093,8 @@ const server = http.createServer(async (request, response) => {
         if (clientMatch && request.method === 'PATCH') return handleAdminClientUpdate(request, response, session, clientMatch[1]);
         if (pathname.startsWith('/api/') || pathname.startsWith('/oauth/')) return sendError(response, 404, 'API route not found.');
         if (pathname === '/login') return serveStatic(request, response, '/login.html');
-        return serveStatic(request, response, pathname);
+        // Raw path: the WHATWG parser rewrites "//server.js" to "/" and would serve the index.
+        return serveStatic(request, response, staticPathFromRequest(request.url));
     } catch (error) {
         const message = error.message === 'Request body must be valid JSON.' || error.message === 'Request body is too large.'
             ? error.message
