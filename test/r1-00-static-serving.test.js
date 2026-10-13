@@ -94,6 +94,12 @@ function fileMarker(relativePath, needle) {
     return needle;
 }
 
+function legacyMarker(relativePath, needle) {
+    const fullPath = path.join(repoRoot, relativePath);
+    if (!fs.existsSync(fullPath)) return needle;
+    return fileMarker(relativePath, needle);
+}
+
 describe('static files are served only from public/', () => {
     before(async () => {
         cleanupProbes();
@@ -150,7 +156,9 @@ describe('static files are served only from public/', () => {
             ['/render.yaml', fileMarker('render.yaml', 'healthCheckPath')],
             ['/tasks/prd-round-1-enhancements.md', fileMarker('tasks/prd-round-1-enhancements.md', 'Draft for product review')],
             ['/scripts/ralph/prd.json', fileMarker('scripts/ralph/prd.json', 'ralph/sqlite-migration-pull-forward-predictive')],
-            ['/RateNinja/index.html', fileMarker('RateNinja/index.html', 'Vortecx Rate Engine')],
+            // RateNinja is a gitlink and has no .gitmodules entry, so CI does not check out its files.
+            ['/RateNinja/index.html', legacyMarker('RateNinja/index.html', 'Vortecx Rate Engine')],
+            ['/RateNinja/script.js', legacyMarker('RateNinja/script.js', 'AIRTABLE_BASE_ID')],
             ['/README.md', fileMarker('README.md', 'Browser files live in `public/`')],
             ['/data/r1-00-probe.db', DB_MARKER],
             ['/public-x/secret', SECRET]
