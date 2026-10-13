@@ -57,8 +57,8 @@ Model names are the planner's proposal; operator overrides recorded in the Run c
 | --- | --- | --- | --- | --- | --- |
 | R1-00 | Static serving lockdown (hotfix) | — | — | M / Sonnet 5.5 | approved 2026-10-12, PR #12 |
 | R1-01 | Scaffolding: migration runner, route modules, test harness, limits | §Data | R1-00 | S / Opus 5.5 | merged 2026-10-13, PR #14 |
-| R1-02 | Roles and company isolation | Roles, Delivery 1 | R1-01 | S / Opus 5.5 | changes requested 2026-10-13, PR #17 (D-021) |
-| R1-03 | App shell: addressable pages and menu | FR1 | R1-01 | M / Sonnet 5.5 | briefed 2026-10-13 (W1) |
+| R1-02 | Roles and company isolation | Roles, Delivery 1 | R1-01 | S / Opus 5.5 | approved 2026-10-13, PR #17 (`c45a0cb`) |
+| R1-03 | App shell: addressable pages and menu | FR1 | R1-01 | M / Sonnet 5.5 | approved 2026-10-13, PR #18 (`dc572ef`) |
 | R1-04 | Profile and password lifecycle | FR4 | R1-02, R1-03 | S / Opus 5.5 | not dispatched |
 | R1-05 | Saved queries and saved views | FR2, FR3 | R1-03 | M / Sonnet 5.5 | not dispatched |
 | R1-06 | Company and user onboarding | FR5, FR6 | R1-04 | S / Opus 5.5 | not dispatched |
@@ -67,7 +67,7 @@ Model names are the planner's proposal; operator overrides recorded in the Run c
 | R1-09 | Pull-forward wizard and operation undo | FR9 | R1-08 | S / Opus 5.5 | not dispatched |
 | R1-10 | Imports discovery spike, CSV + Excel (no product code) | FR8 | representative files from operator | M / Sonnet 5.5 | awaiting files |
 | R1-11a | Imports implementation: CSV + Excel | FR8 | R1-08, R1-10 | S / Opus 5.5 | not dispatched |
-| R1-12 | MCP / partner API parity incl. predictive | FR11 | R1-01 | S / Opus 5.5 | approved 2026-10-13, PR #19 (`2797c08`) |
+| R1-12 | MCP / partner API parity incl. predictive | FR11 | R1-01 | S / Opus 5.5 | merged 2026-10-13, PR #19 |
 | R1-13 | API and MCP instructions + docs alignment | FR10 | R1-07, R1-12 | M / Sonnet 5.5 | not dispatched |
 | R1-14 | Integrated release acceptance | §Validation | all P1 | M / Sonnet 5.5 + operator | not dispatched |
 | R1-15 | P2: bulk price adjustment | FR12 | R1-09 | S | not planned in detail |
@@ -150,6 +150,8 @@ Every migration task must also prove: fresh DB, prod-shaped copy, and re-run (id
 
 _(planner appends: task, PR, verdict, what was independently verified and how)_
 
+- 2026-10-13 · **R1-03, PR #18: approved at `dc572ef`.** Base `d264f95` is stale, but a trial merge of main `05de3f8` + #17 + #18 has no conflicts, and that combined tree passes 97/0/0; CI green on `dc572ef`. Browser check on the combined tree (scratch DB, generated test passwords): a cold `/admin/users` deep link loads its CSS and shows "Select a company" (no 409); choosing Blackwater sets `companyContext` and the user list shows only Alan; Back/Forward work; `aria-expanded` and Escape work; a customer member deep-linking an admin page gets "Access denied" and sees no admin links; `/rates` renders a seeded rate with the menu (z-index 50) above the table. Litter: the worker's clone at `/Users/stephenforte/rateninja-r1-03` remains; the operator should delete it.
+- 2026-10-13 · **R1-02, PR #17: approved at `c45a0cb`** after D-021 and the rebase onto `05de3f8`. Fresh clone: 88/0/0. Probes: the company list returns 403 to a company admin; for a system admin it returns only `{id, name, companyType}`, sorted; no context gives 409; after POST context, users returns 200 and the session reports the chosen company. The rebase touched R1-12's files only in the one specified line.
 - 2026-10-13 · **R1-12, PR #19: approved at `2797c08`.** Base `d264f95` = main; scope clean. Fresh clone: 74/0/0. The golden test, run against a clean main checkout, passes 2/2, so the captured predictive bytes really are main's. The parity test covers cross-owner `not_found`, scope, schema rejection without an audit row, 90/91 days, the MCP audit channel, revocation, the deployment gate, and demo-key rejection, all over real HTTP. Real client: Inspector 2.10.1 with OAuth; revocation made the next call fail. **Trial merge #19 + #17 + #18:** one textual conflict in `test/r1-01-routes.test.js` (module-count check), plus a semantic one: the R1-12 parity setup creates OAuth clients as a company admin, which D-008 now forbids. With both fixed (one line sets `is_system_admin` in setup), the combined suite is 96/96, 0 cancelled. **Merge order: #19, then #17 (rebased, carrying both fixes), then #18 immediately after (D-021).**
 - 2026-10-13 · **R1-02, PR #17: changes requested (one item, a planning gap).** Base `d264f95` = main; scope clean. Fresh clone gate 84/0/0, matching the handoff. Live probes (startApp + direct DB edits): a demoted admin's existing session gets 403 on its next request (permissions read live); a company admin's PATCH on another company's user returns 404 and leaves it unchanged; the user list is limited to their own company. **Blocker:** a system admin with no context gets 409 on users and companies, and nothing lists companies to select, so production admin screens are locked once 001 makes SteveF a system admin. The fix is D-021 (company-list endpoint in R1-02, selector in R1-03, back-to-back merge).
 - 2026-10-13 · **R1-01, PR #14: approved at `5be291c`.** The fix changed only `.gitignore` (`data/`) and added one test. Fresh clone: 71/0/0. With the fix reverted, the new ignore test fails, so it can catch the problem. Approval posted on #14.
