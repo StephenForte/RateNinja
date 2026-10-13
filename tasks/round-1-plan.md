@@ -56,9 +56,9 @@ Model names are the planner's proposal; operator overrides recorded in the Run c
 | Task | Title | PRD | Depends on | Tier / model | Status |
 | --- | --- | --- | --- | --- | --- |
 | R1-00 | Static serving lockdown (hotfix) | — | — | M / Sonnet 5.5 | approved 2026-10-12, PR #12 |
-| R1-01 | Scaffolding: migration runner, route modules, test harness, limits | §Data | R1-00 | S / Opus 5.5 | approved 2026-10-13, PR #14 (`5be291c`) |
-| R1-02 | Roles and company isolation | Roles, Delivery 1 | R1-01 | S / Opus 5.5 | not dispatched |
-| R1-03 | App shell: addressable pages and menu | FR1 | R1-01 | M / Sonnet 5.5 | not dispatched |
+| R1-01 | Scaffolding: migration runner, route modules, test harness, limits | §Data | R1-00 | S / Opus 5.5 | merged 2026-10-13, PR #14 |
+| R1-02 | Roles and company isolation | Roles, Delivery 1 | R1-01 | S / Opus 5.5 | briefed 2026-10-13 (W1) |
+| R1-03 | App shell: addressable pages and menu | FR1 | R1-01 | M / Sonnet 5.5 | briefed 2026-10-13 (W1) |
 | R1-04 | Profile and password lifecycle | FR4 | R1-02, R1-03 | S / Opus 5.5 | not dispatched |
 | R1-05 | Saved queries and saved views | FR2, FR3 | R1-03 | M / Sonnet 5.5 | not dispatched |
 | R1-06 | Company and user onboarding | FR5, FR6 | R1-04 | S / Opus 5.5 | not dispatched |
@@ -67,7 +67,7 @@ Model names are the planner's proposal; operator overrides recorded in the Run c
 | R1-09 | Pull-forward wizard and operation undo | FR9 | R1-08 | S / Opus 5.5 | not dispatched |
 | R1-10 | Imports discovery spike, CSV + Excel (no product code) | FR8 | representative files from operator | M / Sonnet 5.5 | awaiting files |
 | R1-11a | Imports implementation: CSV + Excel | FR8 | R1-08, R1-10 | S / Opus 5.5 | not dispatched |
-| R1-12 | MCP / partner API parity incl. predictive | FR11 | R1-01 | S / Opus 5.5 | not dispatched |
+| R1-12 | MCP / partner API parity incl. predictive | FR11 | R1-01 | S / Opus 5.5 | briefed 2026-10-13 (W1) |
 | R1-13 | API and MCP instructions + docs alignment | FR10 | R1-07, R1-12 | M / Sonnet 5.5 | not dispatched |
 | R1-14 | Integrated release acceptance | §Validation | all P1 | M / Sonnet 5.5 + operator | not dispatched |
 | R1-15 | P2: bulk price adjustment | FR12 | R1-09 | S | not planned in detail |
@@ -76,7 +76,7 @@ Model names are the planner's proposal; operator overrides recorded in the Run c
 ### Run order (waves)
 
 - **W0** (serial, one worker): R1-00 → R1-01.
-- **W1** (parallel, after R1-01 merges): R1-02, R1-03, R1-12.
+- **W1** (parallel, after R1-01 merges): R1-02, R1-03, R1-12. Merge order: any order, except R1-03 after R1-02 (it consumes D-009). R1-12 must merge before R1-07/R1-08 start (`lib/visibility.js`).
 - **W2** (parallel): R1-05 (needs R1-03 only — can start as soon as it lands); R1-04, R1-07, R1-08 (need R1-02 + R1-03).
 - **W3**: R1-06 (after R1-04), R1-09 (after R1-08), R1-11a (after R1-08 + R1-10). R1-10 can run any time once representative files are supplied.
 - **W4**: R1-13, then R1-14.
@@ -91,7 +91,7 @@ Peak concurrency is 4 (W2). If the operator runs fewer agents, drop R1-05 to W3 
 | --- | --- | --- |
 | R1-00 | `public/` (git mv of `index.html`, `login.html`, `login.js`, `script.js`, `styles.css`, `favicon.svg`, `api-docs.html`, `api-testbed.*`); `test/r1-00-*.test.js` | `server.js` `serveStatic` + page routes only; `README.md` path mentions |
 | R1-01 | `lib/migrations/index.js`, `lib/migrations/README.md`, `lib/http.js`, `lib/routes/index.js` + **empty stub for every route module below**, `lib/limits.js`, `test/helpers/app.js`, `test/r1-01-*.test.js` | `lib/db.js` (call runner after baseline DDL; baseline frozen after this), `server.js` (dispatch to route modules; move shared helpers to `lib/http.js`; exact-path routes for `/docs/partner-integration.md` and `/API-README.md`, from the R1-00 review) |
-| R1-02 | `lib/permissions.js`, `lib/migrations/001-roles.js`, `lib/routes/admin-context.js`, `test/r1-02-*` | `lib/foundation.js`, `server.js` (session payload, existing admin handlers), `lib/store.js` (`listUsersForAdmin`, user mutators) |
+| R1-02 | `lib/permissions.js`, `lib/migrations/001-roles.js`, `lib/routes/admin-context.js`, `test/r1-02-*` | `lib/foundation.js`, `server.js` (session payload, existing admin handlers), `lib/store.js` (`listUsersForAdmin`, user mutators), `lib/session.js` (session-context setter only), `lib/accounts.js` (scope and last-admin guards only), `test/r1-01-migrations.test.js` (delete the no-`NNN` assertion only) |
 | R1-03 | `public/index.html`, `public/styles.css`, `public/js/**` (split of `public/script.js`, which is deleted), **stub for every admin/profile section below**, `test/r1-03-*` | `server.js` page-path fallback only |
 | R1-04 | `lib/migrations/002-*`, `lib/routes/account.js`, `public/js/profile/account.js`, `public/js/password-required.js`, `test/r1-04-*` | `lib/accounts.js`, `lib/password-reset.js`, `lib/session.js`, `lib/oauth.js` (authorize gate only), `server.js` (restricted-session gate, admin password handler) |
 | R1-05 | `lib/migrations/003-*`, `lib/preferences.js`, `lib/view-fields.js`, `lib/routes/preferences.js`, `public/js/rates/queries.js`, `public/js/rates/views.js`, `public/js/rates/grouping.js`, `public/js/profile/preferences.js`, `test/r1-05-*` | `public/js/rates/*.js` existing files (wire-up only) |
@@ -101,7 +101,7 @@ Peak concurrency is 4 (W2). If the operator runs fewer agents, drop R1-05 to W3 
 | R1-09 | `lib/pull-forward.js`, `public/js/admin/pull-forward.js`, `test/r1-09-*` | `lib/data-ops.js`, `lib/routes/data-ops.js`, `server.js` (delete legacy pull-forward handlers), `lib/store.js` (pull-forward functions) |
 | R1-10 | `docs/imports-discovery.md`, `test/fixtures/imports/**` | — |
 | R1-11a | `lib/migrations/008-*`, `lib/imports/**`, `lib/routes/imports.js`, `public/js/admin/imports.js`, `public/templates/*`, `test/r1-11-*` | `package.json`/lockfile (parser + Anthropic deps), `lib/config.js` (import/Claude settings), `lib/data-ops.js` (undo hook), `lib/record-validation.js` |
-| R1-12 | `lib/predictive.js`, `lib/mcp-schema.js`, `lib/routes/partner.js`, `test/r1-12-*` | `lib/mcp.js`, `lib/visibility.js` (predictive helpers move out), `server.js` (predictive handlers delegate; MCP audit), `lib/audit.js` |
+| R1-12 | `lib/predictive.js`, `lib/mcp-schema.js`, `lib/partner-http.js` (bearer/partner-access/page-arg helpers moved out of `server.js`), `lib/routes/partner.js`, `test/r1-12-*` | `lib/mcp.js`, `lib/visibility.js` (predictive helpers move out), `server.js` (predictive handlers delegate; MCP audit), `lib/audit.js` |
 | R1-13 | `public/js/admin/integrations.js` | `public/api-docs.html`, `API-README.md`, `docs/partner-integration.md` |
 | R1-14 | `test/r1-14-*`, `docs/release-acceptance-r1.md` | — |
 
@@ -135,6 +135,8 @@ Every migration task must also prove: fresh DB, prod-shaped copy, and re-run (id
 - **R1-11a:** the route dispatcher JSON-parses every unsafe-method session body (1 MB cap) before CSRF. File upload needs a route-level opt-out (for example `body: 'raw'` with header-only CSRF) and its own size limit; that change to `server.js` is in R1-11a's scope.
 
 ## Open items
+
+- **Operator question (D-020):** do system admins need to browse rates as another company in P1? Default: no.
 
 - ~~Import formats~~ resolved 2026-10-12 (D-017), narrowed by D-018: Round 1 imports CSV + Excel; PDF deferred.
 - **Deferred past Round 1 (D-018):** Claude extraction of unstructured files, and with it PDF import. Guardrails recorded; no Round 1 task. Target: P3 or P4 (operator, 2026-10-12).
