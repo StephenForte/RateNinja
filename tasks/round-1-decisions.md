@@ -199,3 +199,22 @@ R1-10 covers CSV and Excel only.
   keeps metadata and outcomes only, never document contents or model output.
 - **Cost:** model spend scales with document size. The later task measures cost per
   representative file and proposes per-file and per-day limits before dispatch.
+
+### D-019 — Owner-scoped predictive pricing parameters (2026-10-13)
+
+`GET /api/partner/v1/me/predictive-pricing` and MCP `rateninja_get_my_predictive_pricing` take:
+`after` (required, `YYYY-MM-DD`, more than 90 days in the future, same check as the demo),
+`carrier` and `originPort` (optional exact-match filters, same matching as partner rates),
+`page` and `pageSize` (same defaults and bounds as partner rates).
+
+They differ from the demo, which requires carrier and originPort, because the owner-scoped
+dataset is already bounded and an AI client should not need to know port names before asking.
+Output is base contract pricing only (no customer margin), marked as an estimate. It carries the
+input date, the basis (the D-015 formula), the owner company, and `partnerListMeta` pagination.
+
+### D-020 — System-admin browsing context is not in R1-02 (2026-10-13)
+
+The PRD role table lists system-admin browsing "in selected company context". R1-02 scopes
+**administration** endpoints to the selected context (D-007). Rate and sailing browsing stays on
+the system admin's own company. Whether system admins need to browse as another company in P1 is
+an open operator question. Until it is answered, no task implements it.
