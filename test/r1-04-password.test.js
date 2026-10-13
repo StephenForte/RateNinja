@@ -85,7 +85,7 @@ describe('r1-04 password lifecycle', { concurrency: 1 }, () => {
         }
     }
 
-    it('rejects a wrong, mismatched, or short password without changing the account', async () => {
+    it('rejects a wrong, mismatched, short, or unchanged password without changing the account', async () => {
         addUser({ id: 'user-fields', username: 'field-user', password: INITIAL, email: 'field-user@example.com' });
         const auth = await login(app.baseUrl, 'field-user', INITIAL);
         assert.equal(auth.response.status, 200);
@@ -121,6 +121,22 @@ describe('r1-04 password lifecycle', { concurrency: 1 }, () => {
         const still = await call(app.baseUrl, auth, 'GET', '/api/session');
         assert.equal(still.status, 200);
         assert.equal(still.json.user.mustChangePassword, false);
+
+        app.db.prepare('UPDATE users SET must_change_password = 1 WHERE username = ?').run('field-user');
+        const same = await call(app.baseUrl, auth, 'POST', '/api/account/password', {
+            currentPassword: INITIAL,
+            newPassword: INITIAL,
+            confirmPassword: INITIAL
+        });
+        assert.equal(same.status, 400);
+        assert.equal(same.json.field, 'newPassword');
+        assert.match(same.json.error, /different/);
+        const kept = row(app.db, 'field-user');
+        assert.equal(kept.must_change_password, 1);
+        assert.equal(kept.password_hash, before.password_hash);
+        const gated = await call(app.baseUrl, auth, 'GET', '/api/rates');
+        assert.equal(gated.status, 403);
+        assert.equal(gated.json.code, 'password_change_required');
     });
 
     it('throttles repeated wrong current passwords with the login limiter', async () => {
