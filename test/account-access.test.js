@@ -46,6 +46,20 @@ async function login(username, password = PASSWORD) {
     return { response, body, cookie: cookieHeader(response) };
 }
 
+function companyRecordId(username) {
+    return db.prepare('SELECT company_record_id AS id FROM users WHERE username = ?').get(username).id;
+}
+
+// SteveF is a system admin. Company-scoped admin calls need an explicit company.
+async function selectCompany(companyId) {
+    const response = await fetch(`${baseUrl}/api/admin/context`, {
+        method: 'POST',
+        headers: { cookie: steve.cookie, 'content-type': 'application/json', 'x-csrf-token': steve.csrf },
+        body: JSON.stringify({ companyId })
+    });
+    assert.equal(response.status, 200, JSON.stringify(await response.clone().json()));
+}
+
 describe('password reset and optional two-factor', () => {
     before(async () => {
         ensureFoundation();
@@ -113,6 +127,7 @@ describe('password reset and optional two-factor', () => {
             sent.push(message);
             return { sent: true };
         });
+        await selectCompany(companyRecordId('SteveF'));
         const emailSave = await fetch(`${baseUrl}/api/admin/users/${db.prepare(`SELECT id FROM users WHERE username = 'SteveF'`).get().id}`, {
             method: 'PATCH',
             headers: { cookie: steve.cookie, 'content-type': 'application/json', 'x-csrf-token': steve.csrf },
@@ -162,6 +177,7 @@ describe('password reset and optional two-factor', () => {
         assert.equal(signedIn.body.user.username, 'SteveF');
         steve = { cookie: signedIn.cookie, csrf: signedIn.body.csrfToken };
 
+        await selectCompany(companyRecordId('Alan'));
         const adminSet = await fetch(`${baseUrl}/api/admin/users/${db.prepare(`SELECT id FROM users WHERE username = 'Alan'`).get().id}/password`, {
             method: 'POST',
             headers: { cookie: steve.cookie, 'content-type': 'application/json', 'x-csrf-token': steve.csrf },
@@ -224,6 +240,7 @@ describe('password reset and optional two-factor', () => {
         });
         assert.equal(recoveryReplay.status, 401);
 
+        await selectCompany(companyRecordId('SteveF'));
         const cleared = await fetch(`${baseUrl}/api/admin/users/${steveId}/two-factor`, {
             method: 'DELETE',
             headers: { cookie: steve.cookie, 'x-csrf-token': steve.csrf }
@@ -380,6 +397,7 @@ describe('password reset and optional two-factor', () => {
         assert.equal(db.prepare('SELECT COUNT(*) AS count FROM password_reset_tokens').get().count, before);
 
         const alanId = db.prepare(`SELECT id FROM users WHERE username = 'Alan'`).get().id;
+        await selectCompany(companyRecordId('Alan'));
         const disabled = await fetch(`${baseUrl}/api/admin/users/${alanId}`, {
             method: 'PATCH',
             headers: { cookie: steve.cookie, 'content-type': 'application/json', 'x-csrf-token': steve.csrf },
