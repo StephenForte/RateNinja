@@ -5,391 +5,168 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#102a43">
     <title>Rate Ninja | Ocean Freight Intelligence</title>
-    <link rel="icon" type="image/svg+xml" href="favicon.svg">
-    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="stylesheet" href="/styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
-    <!-- Main Application Page -->
-    <div id="mainPage" class="container" hidden>
+    <div id="app" class="container" hidden>
         <header class="header">
             <div class="header-content">
                 <div class="header-left">
-                    <button id="hamburgerBtn" class="hamburger-btn" type="button" hidden aria-label="Open administration menu">
-                        <i class="fas fa-bars"></i>
+                    <button id="menuButton" class="hamburger-btn" type="button" aria-expanded="false" aria-controls="appMenu" aria-haspopup="true" aria-label="Open menu">
+                        <i class="fas fa-bars" aria-hidden="true"></i>
                     </button>
-                    <h1><i class="fas fa-ship"></i> Rate Ninja</h1>
+                    <h1><i class="fas fa-ship" aria-hidden="true"></i> Rate Ninja</h1>
                     <p class="subtitle">Ocean freight intelligence</p>
+                    <p id="companyContext" class="company-context" hidden></p>
                 </div>
                 <div class="header-right">
                     <div class="welcome-message">
-                        <i class="fas fa-user-circle"></i>
-                        <span id="welcomeText">Welcome, User</span>
+                        <i class="fas fa-user-circle" aria-hidden="true"></i>
+                        <span id="welcomeText">Welcome</span>
                     </div>
                     <button id="logoutBtn" class="logout-btn" type="button">
-                        <i class="fas fa-sign-out-alt"></i> Logout
+                        <i class="fas fa-sign-out-alt" aria-hidden="true"></i> Logout
                     </button>
                 </div>
             </div>
-            
-            <!-- Hamburger Menu Dropdown -->
-            <div id="hamburgerMenu" class="hamburger-menu" hidden>
-                <a href="#" id="accountSecurityLink" class="menu-item">
-                    <i class="fas fa-shield-alt"></i> Account security
-                </a>
-                <a href="#" id="rateAdjustmentLink" class="menu-item">
-                    <i class="fas fa-cog"></i> Rate Adjustment
-                </a>
-                <a href="#" id="connectedAppsLink" class="menu-item" hidden>
-                    <i class="fas fa-link"></i> Connected apps
-                </a>
-            </div>
+            <nav id="appMenu" class="hamburger-menu" hidden aria-label="Sections"></nav>
         </header>
 
-        <div class="controls">
-            <div class="search-container">
-                <i class="fas fa-search"></i>
-                <input type="search" id="searchInput" placeholder="Search routes, carriers, contracts…" aria-label="Search rates">
-            </div>
-            
-            <div class="filter-container">
-                <select id="carrierFilter" aria-label="Filter by carrier">
-                    <option value="">All Carriers</option>
-                </select>
-                
-                <select id="originPortFilter" aria-label="Filter by origin port">
-                    <option value="">All Origin Ports</option>
-                </select>
-                
-                <select id="destinationPortFilter" aria-label="Filter by destination port">
-                    <option value="">All Destination Ports</option>
-                </select>
-                
-                <select id="contractOwnerFilter" aria-label="Filter by contract owner">
-                    <option value="">All Contract Owners</option>
-                </select>
-            </div>
-            
-            <button id="refreshBtn" class="refresh-btn">
-                <i class="fas fa-sync-alt"></i> Refresh
-            </button>
-
-            <div class="predictive-container">
-                <label class="predictive-toggle">
-                    <input type="checkbox" id="predictiveToggle">
-                    <span>Predictive rates</span>
-                </label>
-                <input type="date" id="predictiveDate" aria-label="Departing after" disabled>
-                <span id="predictiveDateError" class="predictive-date-error" hidden></span>
-            </div>
-        </div>
-
-        <div id="predictiveBanner" class="predictive-banner" hidden>
-            <i class="fas fa-flask"></i>
-            <span id="predictiveBannerText"></span>
-        </div>
-
-        <div class="table-container">
-            <div class="loading" id="loading">
-                <i class="fas fa-spinner fa-spin"></i>
-                <span>Loading shipping rates...</span>
-            </div>
-            
-            <div class="error" id="error" hidden>
-                <i class="fas fa-exclamation-triangle"></i>
-                <span id="errorMessage">Failed to load data</span>
-            </div>
-
-            <table class="rates-table" id="ratesTable">
-                <thead>
-                    <tr>
-                        <th class="sortable" data-column="rateType">
-                            Rate Type <i class="fas fa-sort"></i>
-                        </th>
-                        <th class="sortable" data-column="originPort">
-                            Origin Port <i class="fas fa-sort"></i>
-                        </th>
-                        <th class="sortable" data-column="destinationPort">
-                            Destination Port/Via Port <i class="fas fa-sort"></i>
-                        </th>
-                        <th class="sortable" data-column="inlandDeliveryLocation">
-                            Inland Delivery Location <i class="fas fa-sort"></i>
-                        </th>
-                        <th class="sortable" data-column="commodityType">
-                            Commodity Type <i class="fas fa-sort"></i>
-                        </th>
-                        <th class="sortable" data-column="carrier">
-                            Carrier <i class="fas fa-sort"></i>
-                        </th>
-                        <th class="sortable" data-column="contractOwner">
-                            Contract Owner <i class="fas fa-sort"></i>
-                        </th>
-                        <th class="sortable" data-column="rate20D">
-                            20D Rate (USD) <i class="fas fa-sort"></i>
-                        </th>
-                        <th class="sortable" data-column="rate40D">
-                            40D Rate (USD) <i class="fas fa-sort"></i>
-                        </th>
-                        <th class="sortable" data-column="rate40HC">
-                            40HC Rate (USD) <i class="fas fa-sort"></i>
-                        </th>
-                        <th class="sortable" data-column="rateEffectiveDate">
-                            Rate Effective Date <i class="fas fa-sort"></i>
-                        </th>
-                        <th class="sortable" data-column="rateExpirationDate">
-                            Rate Expiration Date <i class="fas fa-sort"></i>
-                        </th>
-                        <th class="sortable" data-column="notes1">
-                            Notes 1 <i class="fas fa-sort"></i>
-                        </th>
-                    </tr>
-                </thead>
-                <tbody id="ratesTableBody">
-                </tbody>
-            </table>
-        </div>
-
-        <div class="pagination" id="pagination">
-            <button id="prevBtn" class="pagination-btn" disabled>
-                <i class="fas fa-chevron-left"></i> Previous
-            </button>
-            <span id="pageInfo">Page 1 of 1</span>
-            <button id="nextBtn" class="pagination-btn" disabled>
-                Next <i class="fas fa-chevron-right"></i>
-            </button>
-        </div>
-    </div>
-
-    <!-- Admin Screen for Rate Adjustment -->
-    <div id="adminScreen" class="container" hidden>
-        <header class="header">
-            <div class="header-content">
-                <div class="header-left">
-                    <button id="backToMainBtn" class="back-btn">
-                        <i class="fas fa-arrow-left"></i>
-                    </button>
-                    <h1><i class="fas fa-cog"></i> Rate Adjustment</h1>
-                    <p class="subtitle">Margins, passwords, and partner clients</p>
+        <section id="ratesView" hidden>
+            <div class="controls">
+                <div class="search-container">
+                    <i class="fas fa-search" aria-hidden="true"></i>
+                    <input type="search" id="searchInput" placeholder="Search routes, carriers, contracts…" aria-label="Search rates">
                 </div>
-                <div class="header-right">
-                    <button id="saveChangesBtn" class="save-btn">
-                        <i class="fas fa-save"></i> Save Changes
-                    </button>
+
+                <div class="filter-container">
+                    <select id="carrierFilter" aria-label="Filter by carrier">
+                        <option value="">All Carriers</option>
+                    </select>
+
+                    <select id="originPortFilter" aria-label="Filter by origin port">
+                        <option value="">All Origin Ports</option>
+                    </select>
+
+                    <select id="destinationPortFilter" aria-label="Filter by destination port">
+                        <option value="">All Destination Ports</option>
+                    </select>
+
+                    <select id="contractOwnerFilter" aria-label="Filter by contract owner">
+                        <option value="">All Contract Owners</option>
+                    </select>
+                </div>
+
+                <button id="refreshBtn" class="refresh-btn" type="button">
+                    <i class="fas fa-sync-alt" aria-hidden="true"></i> Refresh
+                </button>
+
+                <div class="predictive-container">
+                    <label class="predictive-toggle">
+                        <input type="checkbox" id="predictiveToggle">
+                        <span>Predictive rates</span>
+                    </label>
+                    <input type="date" id="predictiveDate" aria-label="Departing after" disabled>
+                    <span id="predictiveDateError" class="predictive-date-error" hidden></span>
                 </div>
             </div>
-        </header>
 
-        <div class="admin-content">
-            <div class="loading" id="adminLoading">
-                <i class="fas fa-spinner fa-spin"></i>
-                <span>Loading companies...</span>
-            </div>
-            
-            <div class="error" id="adminError" hidden>
-                <i class="fas fa-exclamation-triangle"></i>
-                <span id="adminErrorMessage">Failed to load data</span>
+            <div id="predictiveBanner" class="predictive-banner" hidden>
+                <i class="fas fa-flask" aria-hidden="true"></i>
+                <span id="predictiveBannerText"></span>
             </div>
 
-            <div class="admin-table-container" id="adminTableContainer" hidden>
-                <table class="admin-table" id="adminTable">
+            <div class="table-container">
+                <div class="loading" id="loading" hidden>
+                    <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                    <span>Loading shipping rates...</span>
+                </div>
+
+                <div class="error" id="error" hidden>
+                    <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+                    <span id="errorMessage">Failed to load data</span>
+                </div>
+
+                <table class="rates-table" id="ratesTable">
                     <thead>
                         <tr>
-                            <th>Customer company</th>
-                            <th>Margin Percent (%)</th>
-                            <th>Margin Number ($)</th>
-                            <th>Linked</th>
+                            <th class="sortable" data-column="rateType">
+                                Rate Type <i class="fas fa-sort" aria-hidden="true"></i>
+                            </th>
+                            <th class="sortable" data-column="originPort">
+                                Origin Port <i class="fas fa-sort" aria-hidden="true"></i>
+                            </th>
+                            <th class="sortable" data-column="destinationPort">
+                                Destination Port/Via Port <i class="fas fa-sort" aria-hidden="true"></i>
+                            </th>
+                            <th class="sortable" data-column="inlandDeliveryLocation">
+                                Inland Delivery Location <i class="fas fa-sort" aria-hidden="true"></i>
+                            </th>
+                            <th class="sortable" data-column="commodityType">
+                                Commodity Type <i class="fas fa-sort" aria-hidden="true"></i>
+                            </th>
+                            <th class="sortable" data-column="carrier">
+                                Carrier <i class="fas fa-sort" aria-hidden="true"></i>
+                            </th>
+                            <th class="sortable" data-column="contractOwner">
+                                Contract Owner <i class="fas fa-sort" aria-hidden="true"></i>
+                            </th>
+                            <th class="sortable" data-column="rate20D">
+                                20D Rate (USD) <i class="fas fa-sort" aria-hidden="true"></i>
+                            </th>
+                            <th class="sortable" data-column="rate40D">
+                                40D Rate (USD) <i class="fas fa-sort" aria-hidden="true"></i>
+                            </th>
+                            <th class="sortable" data-column="rate40HC">
+                                40HC Rate (USD) <i class="fas fa-sort" aria-hidden="true"></i>
+                            </th>
+                            <th class="sortable" data-column="rateEffectiveDate">
+                                Rate Effective Date <i class="fas fa-sort" aria-hidden="true"></i>
+                            </th>
+                            <th class="sortable" data-column="rateExpirationDate">
+                                Rate Expiration Date <i class="fas fa-sort" aria-hidden="true"></i>
+                            </th>
+                            <th class="sortable" data-column="notes1">
+                                Notes 1 <i class="fas fa-sort" aria-hidden="true"></i>
+                            </th>
                         </tr>
                     </thead>
-                    <tbody id="adminTableBody">
+                    <tbody id="ratesTableBody">
                     </tbody>
                 </table>
             </div>
 
-            <div class="pull-forward-panel" id="pullForwardPanel" hidden>
-                <h2 class="pull-forward-title"><i class="fas fa-forward"></i> Pull Forward Data</h2>
-                <p class="pull-forward-subtitle">Copy a past range of rates or sailings into a future range.</p>
-                <div class="pull-forward-form">
-                    <div class="form-row">
-                        <div class="pf-field">
-                            <label for="pullForwardType">Data type</label>
-                            <select id="pullForwardType">
-                                <option value="rates">Rates</option>
-                                <option value="sailings">Sailings</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="pf-field">
-                            <label for="pfSourceStart">Source start</label>
-                            <input type="date" id="pfSourceStart">
-                        </div>
-                        <div class="pf-field">
-                            <label for="pfSourceEnd">Source end</label>
-                            <input type="date" id="pfSourceEnd">
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="pf-field">
-                            <label for="pfTargetStart">Target start</label>
-                            <input type="date" id="pfTargetStart">
-                        </div>
-                        <div class="pf-field">
-                            <label for="pfTargetEnd">Target end</label>
-                            <input type="date" id="pfTargetEnd">
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="pf-field">
-                            <label for="pfPriceIncrease">Price increase (%)</label>
-                            <input type="number" id="pfPriceIncrease" min="0" max="100" step="0.01" value="0">
-                        </div>
-                        <div class="pf-field pf-checkbox">
-                            <label for="pfDeleteExisting"><input type="checkbox" id="pfDeleteExisting"> Delete existing data in target range</label>
-                        </div>
-                    </div>
-                    <div class="pull-forward-actions">
-                        <button type="button" id="pullForwardBtn" class="save-btn">
-                            <i class="fas fa-forward"></i> Pull Forward
-                        </button>
-                    </div>
-                    <div id="pullForwardError" class="error-message" hidden>
-                        <i class="fas fa-exclamation-triangle"></i>
-                        <span id="pullForwardErrorMessage"></span>
-                    </div>
-                    <div id="pullForwardSuccess" class="pull-forward-success" hidden>
-                        <i class="fas fa-check-circle"></i>
-                        <span id="pullForwardSuccessMessage"></span>
-                    </div>
-                </div>
+            <div class="pagination" id="pagination">
+                <button id="prevBtn" class="pagination-btn" type="button" disabled>
+                    <i class="fas fa-chevron-left" aria-hidden="true"></i> Previous
+                </button>
+                <span id="pageInfo">Page 1 of 1</span>
+                <button id="nextBtn" class="pagination-btn" type="button" disabled>
+                    Next <i class="fas fa-chevron-right" aria-hidden="true"></i>
+                </button>
             </div>
+        </section>
 
-            <div class="admin-section" id="usersPanel">
-                <h2><i class="fas fa-user-lock"></i> User passwords</h2>
-                <p class="pull-forward-subtitle">Set a password of at least 12 characters, or save the email address used for password reset. Clearing two-factor signs that user out. Enrollment stays optional.</p>
-                <div class="admin-table-container">
-                    <table class="admin-table">
-                        <thead>
-                            <tr>
-                                <th>User</th>
-                                <th>Company</th>
-                                <th>Email</th>
-                                <th>Password</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody id="usersTableBody"></tbody>
-                    </table>
-                </div>
-            </div>
+        <section id="sectionView" class="admin-content" hidden>
+            <div id="sectionMount"></div>
+        </section>
 
-            <div class="admin-section" id="oauthPanel">
-                <h2><i class="fas fa-key"></i> OAuth clients</h2>
-                <p class="pull-forward-subtitle">Register partner and desktop clients. The first client is Capacity Exchange. A new secret is shown once.</p>
-                <div id="oauthSecretNotice" class="secret-notice" hidden></div>
-                <form id="oauthClientForm" class="admin-form">
-                    <label>Display name <input id="oauthDisplayName" required maxlength="80"></label>
-                    <label>Type
-                        <select id="oauthClientType">
-                            <option value="confidential">Confidential (partner backend)</option>
-                            <option value="public">Public (Cursor or Claude PKCE)</option>
-                        </select>
-                    </label>
-                    <label>Redirect URIs, one per line
-                        <textarea id="oauthRedirects" rows="3" placeholder="https://partner.example/callback"></textarea>
-                    </label>
-                    <fieldset>
-                        <legend>Scopes</legend>
-                        <label><input type="checkbox" name="oauthScope" value="profile:read" checked> profile:read</label>
-                        <label><input type="checkbox" name="oauthScope" value="rates:read" checked> rates:read</label>
-                        <label><input type="checkbox" name="oauthScope" value="sailings:read" checked> sailings:read</label>
-                    </fieldset>
-                    <button type="submit" class="save-btn">Register client</button>
-                </form>
-                <div class="admin-table-container">
-                    <table class="admin-table">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Client id</th>
-                                <th>Redirect URIs</th>
-                                <th>Type</th>
-                                <th>Status</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody id="oauthClientsBody"></tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
+        <section id="notFoundView" class="route-message" hidden>
+            <h2>Page not found</h2>
+            <p class="pull-forward-subtitle">That page does not exist.</p>
+            <button id="notFoundHome" class="refresh-btn" type="button">Back to rates</button>
+        </section>
+
+        <section id="deniedView" class="route-message" hidden>
+            <h2>Access denied</h2>
+            <p id="deniedMessage" class="pull-forward-subtitle">You do not have access to this section.</p>
+            <button id="deniedHome" class="refresh-btn" type="button">Back to rates</button>
+        </section>
     </div>
 
-    <div id="securityScreen" class="container" hidden>
-        <header class="header">
-            <div class="header-content">
-                <div class="header-left">
-                    <button id="securityBack" class="back-btn" type="button">
-                        <i class="fas fa-arrow-left"></i>
-                    </button>
-                    <h1><i class="fas fa-shield-alt"></i> Account security</h1>
-                    <p class="subtitle">Two-factor authentication is optional</p>
-                </div>
-            </div>
-        </header>
-        <div class="admin-content">
-            <p id="securityStatus" class="pull-forward-subtitle"></p>
-            <div id="securityEnroll">
-                <button id="start2faBtn" class="save-btn" type="button">Set up authenticator</button>
-                <div id="securitySetup" hidden>
-                    <p class="pull-forward-subtitle">Add this secret to an authenticator app. Two-factor stays off until you confirm a current code.</p>
-                    <p><code id="securitySecret"></code></p>
-                    <form id="securityConfirmForm" class="admin-form">
-                        <label>Authenticator code <input id="securityCode" inputmode="numeric" autocomplete="one-time-code" required></label>
-                        <button class="save-btn" type="submit">Confirm and turn on</button>
-                    </form>
-                </div>
-            </div>
-            <div id="securityRecovery" hidden>
-                <p class="pull-forward-subtitle">Save these recovery codes now. Each code works once, and they will not be shown again.</p>
-                <ul id="securityRecoveryList"></ul>
-            </div>
-            <form id="securityDisable" class="admin-form" hidden>
-                <p class="pull-forward-subtitle">Turn off two-factor with your password and a current authenticator or recovery code. This signs you out.</p>
-                <label>Password <input id="securityPassword" type="password" autocomplete="current-password" required></label>
-                <label>Code <input id="securityDisableCode" autocomplete="one-time-code" required></label>
-                <button class="save-btn" type="submit">Turn off two-factor</button>
-            </form>
-            <div id="securityError" class="error-message" hidden>
-                <i class="fas fa-exclamation-triangle"></i>
-                <span id="securityErrorMessage"></span>
-            </div>
-        </div>
-    </div>
-
-    <div id="connectedAppsScreen" class="container" hidden>
-        <header class="header">
-            <div class="header-content">
-                <div class="header-left">
-                    <button id="connectedAppsBack" class="back-btn" type="button">
-                        <i class="fas fa-arrow-left"></i>
-                    </button>
-                    <h1><i class="fas fa-link"></i> Connected apps</h1>
-                    <p class="subtitle">Partner grants for this contract owner</p>
-                </div>
-            </div>
-        </header>
-        <div class="admin-content">
-            <div id="connectedAppsEmpty" hidden>No applications are connected.</div>
-            <div class="admin-table-container">
-                <table class="admin-table">
-                    <tbody id="connectedAppsBody"></tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-    <!-- Sailings Popup Modal -->
     <div id="sailingsModal" class="modal" hidden>
         <div class="modal-content">
             <div class="modal-header">
@@ -398,7 +175,7 @@
             </div>
             <div class="modal-body">
                 <div id="sailingsLoading" class="loading-modal">
-                    <i class="fas fa-spinner fa-spin"></i>
+                    <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
                     <span>Loading sailings...</span>
                 </div>
                 <div id="sailingsContent" hidden>
@@ -407,12 +184,12 @@
                         <table class="sailings-table" id="sailingsTable">
                             <thead>
                                 <tr>
-                                    <th class="sortable" data-column="departure">Departure <i class="fas fa-sort"></i></th>
-                                    <th class="sortable" data-column="arrival">Arrival <i class="fas fa-sort"></i></th>
-                                    <th class="sortable" data-column="transitTime">Transit Time <i class="fas fa-sort"></i></th>
-                                    <th class="sortable" data-column="vessel">Vessel <i class="fas fa-sort"></i></th>
-                                    <th class="sortable" data-column="voyage">Voyage <i class="fas fa-sort"></i></th>
-                                    <th class="sortable" data-column="service">Service <i class="fas fa-sort"></i></th>
+                                    <th class="sortable" data-column="departure">Departure <i class="fas fa-sort" aria-hidden="true"></i></th>
+                                    <th class="sortable" data-column="arrival">Arrival <i class="fas fa-sort" aria-hidden="true"></i></th>
+                                    <th class="sortable" data-column="transitTime">Transit Time <i class="fas fa-sort" aria-hidden="true"></i></th>
+                                    <th class="sortable" data-column="vessel">Vessel <i class="fas fa-sort" aria-hidden="true"></i></th>
+                                    <th class="sortable" data-column="voyage">Voyage <i class="fas fa-sort" aria-hidden="true"></i></th>
+                                    <th class="sortable" data-column="service">Service <i class="fas fa-sort" aria-hidden="true"></i></th>
                                 </tr>
                             </thead>
                             <tbody id="sailingsTableBody">
@@ -421,14 +198,13 @@
                     </div>
                 </div>
                 <div id="sailingsError" class="error-modal" hidden>
-                    <i class="fas fa-exclamation-triangle"></i>
+                    <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
                     <span id="sailingsErrorMessage">Failed to load sailings</span>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Contract Details Popup Modal -->
     <div id="contractModal" class="modal" hidden>
         <div class="modal-content">
             <div class="modal-header">
@@ -444,16 +220,16 @@
                             <span class="contract-type" id="contractType">Annual Contract</span>
                         </div>
                     </div>
-                    
+
                     <div class="contract-description">
                         <h4>Contract Terms & Conditions</h4>
                         <p>This Master Service Agreement (MSA) establishes the terms and conditions governing the provision of ocean freight transportation services between the Carrier and Kings Group. The contract encompasses spot rate quotations, service level commitments, and operational protocols for containerized cargo movements across designated trade lanes.</p>
-                        
+
                         <p>All rates quoted herein are subject to the terms of this agreement, including but not limited to: minimum quantity commitments, service frequency requirements, equipment availability, and force majeure provisions. Rates are valid for the specified validity period and may be subject to adjustment based on market conditions, fuel surcharges, and regulatory changes.</p>
-                        
+
                         <p>The Carrier warrants that all services will be performed in accordance with industry standards and applicable international maritime regulations. Kings Group agrees to provide accurate cargo information and comply with all documentation requirements as specified in the International Maritime Dangerous Goods (IMDG) Code and relevant customs regulations.</p>
                     </div>
-                    
+
                     <div class="contract-rates">
                         <h4>Contract Rates</h4>
                         <div class="rates-grid">
@@ -474,7 +250,7 @@
                             </div>
                         </div>
                     </div>
-                    
+
                     <div class="contract-footer">
                         <div class="validity-info">
                             <strong>Rate Validity:</strong> <span id="contractValidity">N/A</span>
@@ -488,6 +264,6 @@
         </div>
     </div>
 
-    <script src="script.js"></script>
+    <script type="module" src="/js/main.js"></script>
 </body>
 </html>

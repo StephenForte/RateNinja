@@ -914,6 +914,16 @@ function isInsideDir(root, candidate) {
         && !path.isAbsolute(relative);
 }
 
+// Literal shell paths map to the literal index file. Request input is never
+// joined onto a directory: encoded bytes, dots, and extra segments fall through.
+function isAppShellPath(rawPath) {
+    if (typeof rawPath !== 'string' || rawPath.includes('%') || rawPath.includes('\\') || rawPath.includes('\0')) return false;
+    const pathOnly = rawPath.length > 1 && rawPath.endsWith('/') ? rawPath.slice(0, -1) : rawPath;
+    if (hasDotSegment(pathOnly) || hasEmptySegment(pathOnly)) return false;
+    if (pathOnly === '/rates' || pathOnly === '/profile') return true;
+    return /^\/(?:profile|admin)\/[A-Za-z0-9-]+$/.test(pathOnly);
+}
+
 async function serveStatic(request, response, pathname) {
     const requestedPath = pathname === '/' ? '/index.html' : pathname;
     if (staticPathForbidden(requestedPath)) {
@@ -1116,7 +1126,11 @@ const server = http.createServer(async (request, response) => {
         if (await serveExactDocument(response, staticPathFromRequest(request.url))) return;
         if (pathname === '/login') return serveStatic(request, response, '/login.html');
         // Raw path: the WHATWG parser rewrites "//server.js" to "/" and would serve the index.
-        return serveStatic(request, response, staticPathFromRequest(request.url));
+        const rawStaticPath = staticPathFromRequest(request.url);
+        if ((request.method === 'GET' || request.method === 'HEAD') && isAppShellPath(rawStaticPath)) {
+            return serveStatic(request, response, '/index.html');
+        }
+        return serveStatic(request, response, rawStaticPath);
     } catch (error) {
         const message = error.message === 'Request body must be valid JSON.' || error.message === 'Request body is too large.'
             ? error.message
