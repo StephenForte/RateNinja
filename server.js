@@ -10,8 +10,6 @@ const {
     ROOT,
     PUBLIC_API_RATE_LIMIT,
     PUBLIC_API_WINDOW_MS,
-    PARTNER_RATE_LIMIT,
-    PARTNER_WINDOW_MS,
     config,
     partnerOauthEnabled,
     oauthSigningKey
@@ -33,13 +31,8 @@ const {
     listUsersForAdmin
 } = require('./lib/store');
 const {
-    normalizeValue,
     parsePageNumber,
-    parseDateOnly,
-    fullDaysUntil,
     validatePullForwardRange,
-    calculatePredictiveRate,
-    latestPredictiveRateRecords,
     mapRateRecord
 } = require('./lib/domain');
 const {
@@ -88,10 +81,11 @@ const {
 const { ensureFoundation } = require('./lib/foundation');
 const { appRates, appPredictiveRates, appSailings, listPartnerRates, getPartnerRate, listPartnerSailings, getPartnerSailing } = require('./lib/visibility');
 const oauth = require('./lib/oauth');
-const { handleMcp } = require('./lib/mcp');
+const { handleMcp, SUPPORTED_PROTOCOL_VERSIONS } = require('./lib/mcp');
+const { predictiveWindow, demoPredictiveData } = require('./lib/predictive');
+const { bearerToken, requirePartnerAccess, pageArgs, consumePartnerRequest } = require('./lib/partner-http');
 
 let publicApiWindow = { startedAt: Date.now(), requests: 0 };
-const partnerWindows = new Map();
 
 const contentTypes = {
     '.css': 'text/css; charset=utf-8',
@@ -242,62 +236,6 @@ function requirePublicApiAccess(request, response) {
     return consumePublicApiRequest(response);
 }
 
-function bearerToken(request) {
-    const header = request.headers.authorization || '';
-    const match = /^Bearer\s+(\S+)$/i.exec(header);
-    return match ? match[1] : '';
-}
-
-function consumePartnerRequest(clientId, subject) {
-    const key = `${clientId}:${subject}`;
-    const now = Date.now();
-    const current = partnerWindows.get(key);
-    if (!current || now - current.startedAt >= PARTNER_WINDOW_MS) {
-        partnerWindows.set(key, { startedAt: now, requests: 1 });
-        return true;
-    }
-    if (current.requests >= PARTNER_RATE_LIMIT) return false;
-    current.requests += 1;
-    return true;
-}
-
-function requirePartnerAccess(request, response, scope) {
-    const origin = externalOrigin(request);
-    const headers = {
-        'WWW-Authenticate': `Bearer realm="rateninja", resource_metadata="${origin}/.well-known/oauth-protected-resource"`
-    };
-    const token = bearerToken(request);
-    if (!token) {
-        sendOAuthError(response, 401, 'invalid_token', 'A bearer access token is required.', headers);
-        return null;
-    }
-    const verified = oauth.verifyAccessToken(token, scope);
-    if (!verified.ok) {
-        sendOAuthError(response, verified.status, verified.error, verified.description, verified.status === 401 ? headers : {});
-        return null;
-    }
-    if (!consumePartnerRequest(verified.access.clientId, verified.access.sub)) {
-        sendOAuthError(response, 429, 'rate_limited', 'Partner API rate limit exceeded. Try again in a minute.');
-        return null;
-    }
-    return verified.access;
-}
-
-function pageArgs(source) {
-    const read = name => (typeof source.get === 'function' ? source.get(name) : source[name]) || '';
-    const effectiveDate = read('effectiveDate');
-    if (effectiveDate && !parseDateOnly(effectiveDate)) return { error: 'effectiveDate must be YYYY-MM-DD.' };
-    return {
-        carrier: read('carrier'),
-        originPort: read('originPort'),
-        destinationPort: read('destinationPort'),
-        after: read('after'),
-        effectiveDate,
-        page: parsePageNumber(read('page'), 1, 10_000),
-        pageSize: parsePageNumber(read('pageSize'), 50, 100)
-    };
-}
-
 async function handleLogin(request, response) {
     if (!requireConfiguration(response)) return;
     const { username, password } = await readJson(request);
@@ -403,14 +341,12 @@ async function handleRates(request, response, session) {
 
 async function handlePredictiveRates(request, response, session, url) {
     const after = url.searchParams.get('after') || '';
-    const departureDate = parseDateOnly(after);
-    const daysUntilDeparture = departureDate && fullDaysUntil(departureDate);
-    if (!departureDate || daysUntilDeparture <= 90) {
-        sendError(response, 400, 'Departing after must be more than 90 days in the future.');
+    const window = predictiveWindow(after);
+    if (!window.ok) {
+        sendError(response, 400, window.error);
         return;
     }
-    const fullThirtyDayPeriods = Math.floor(daysUntilDeparture / 30);
-    const rates = appPredictiveRates(session.user, fullThirtyDayPeriods, after);
+    const rates = appPredictiveRates(session.user, window.fullThirtyDayPeriods, after);
     sendJson(response, 200, { rates }, securityHeaders());
 }
 
@@ -451,28 +387,12 @@ async function handlePredictivePricing(request, response, url) {
         sendError(response, 400, 'Carrier, originPort, and after query parameters are required.');
         return;
     }
-    const departureDate = parseDateOnly(after);
-    const daysUntilDeparture = departureDate && fullDaysUntil(departureDate);
-    if (!departureDate || daysUntilDeparture <= 90) {
-        sendError(response, 400, 'Departing after must be more than 90 days in the future.');
+    const result = demoPredictiveData(getRatesByCarrierOrigin(carrier, originPort), after);
+    if (!result.ok) {
+        sendError(response, 400, result.error);
         return;
     }
-    const fullThirtyDayPeriods = Math.floor(daysUntilDeparture / 30);
-    const records = latestPredictiveRateRecords(getRatesByCarrierOrigin(carrier, originPort));
-    const predictions = records.map(record => {
-        const fields = record.fields;
-        return {
-            carrier: normalizeValue(fields.Carrier),
-            originPort: normalizeValue(fields['Origin Port']),
-            destinationPort: normalizeValue(fields['Destination Port/Via Port']),
-            arrival: normalizeValue(fields.Arrival, ''),
-            departingAfter: after,
-            rate20D: calculatePredictiveRate(fields['20D Rate'], fullThirtyDayPeriods),
-            rate40D: calculatePredictiveRate(fields['40D rate'], fullThirtyDayPeriods),
-            rate40HC: calculatePredictiveRate(fields['40HC Rate'], fullThirtyDayPeriods)
-        };
-    });
-    sendJson(response, 200, { data: predictions, meta: { total: predictions.length } }, securityHeaders());
+    sendJson(response, 200, result.body, securityHeaders());
 }
 
 async function handleSailings(request, response, session, url) {
@@ -834,6 +754,15 @@ async function handleMcpRequest(request, response) {
     }
     if (!partnerOauthEnabled()) {
         sendJson(response, 403, { jsonrpc: '2.0', id: message?.id ?? null, error: { code: -32001, message: 'partner_oauth_disabled' } }, securityHeaders());
+        return;
+    }
+    const protocolHeader = request.headers['mcp-protocol-version'];
+    if (protocolHeader && !SUPPORTED_PROTOCOL_VERSIONS.includes(String(protocolHeader))) {
+        sendJson(response, 400, {
+            jsonrpc: '2.0',
+            id: message?.id ?? null,
+            error: { code: -32600, message: 'Unsupported protocol version' }
+        }, securityHeaders());
         return;
     }
     const token = bearerToken(request);

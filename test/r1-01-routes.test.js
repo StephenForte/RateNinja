@@ -139,7 +139,14 @@ describe('r1-01 routes and exact documents', { concurrency: 1 }, () => {
             assert.match(source, new RegExp(`require\\('\\./${name}'\\)`));
             const mod = require(`../lib/routes/${name}`);
             assert.ok(Array.isArray(mod.routes));
-            if (name !== 'account') assert.equal(mod.routes.length, 0);
+            if (name === 'partner') {
+                assert.equal(mod.routes.length, 1);
+                assert.equal(mod.routes[0].method, 'GET');
+                assert.equal(mod.routes[0].path, '/api/partner/v1/me/predictive-pricing');
+                assert.equal(mod.routes[0].access, 'public');
+            } else if (name !== 'account') {
+                assert.equal(mod.routes.length, 0);
+            }
         }
     });
 
