@@ -130,7 +130,7 @@ describe('static files are served only from public/', () => {
             ['/api-testbed.html', 'text/html; charset=utf-8', 'public/api-testbed.html'],
             ['/styles.css', 'text/css; charset=utf-8', 'public/styles.css'],
             ['/styles.css?v=1', 'text/css; charset=utf-8', 'public/styles.css'],
-            ['/script.js', 'application/javascript; charset=utf-8', 'public/script.js'],
+            ['/js/main.js', 'application/javascript; charset=utf-8', 'public/js/main.js'],
             ['/login.js', 'application/javascript; charset=utf-8', 'public/login.js'],
             ['/favicon.svg', 'image/svg+xml', 'public/favicon.svg'],
             ['/api-testbed.css', 'text/css; charset=utf-8', 'public/api-testbed.css'],
