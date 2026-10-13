@@ -1,5 +1,6 @@
 import { companyOperationGate } from '../confirm.js';
 import { request } from '../api.js';
+import { adminFailureMessage } from '../permissions.js';
 import { errorBox, heading, paragraph, textCell } from '../dom.js';
 
 const SAVE_CONCURRENCY = 3;
@@ -116,7 +117,7 @@ export async function mount(container, ctx) {
             changes.clear();
             await load();
         } catch (error) {
-            errors.show(`Failed to save changes: ${error.message}`);
+            errors.show(adminFailureMessage(error, `Failed to save changes: ${error.message}`));
         } finally {
             save.disabled = false;
             save.textContent = 'Save Changes';
@@ -133,7 +134,7 @@ export async function mount(container, ctx) {
             render(companies);
             wrap.hidden = false;
         } catch (error) {
-            errors.show(`Failed to load administration data: ${error.message}`);
+            errors.show(adminFailureMessage(error, `Failed to load administration data: ${error.message}`));
         } finally {
             loading.hidden = true;
         }

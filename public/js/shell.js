@@ -1,8 +1,9 @@
 import { clearCsrf, rememberCsrf, request, showLoginPage } from './api.js';
-import { companyIndicator, contextFromPayload, permissionsFromUser } from './permissions.js';
+import { adminSectionNeedsCompany, companyIndicator, contextFromPayload, permissionsFromUser } from './permissions.js';
 import { oauthNextFromSearch } from './oauth-next.js';
 import { isClientRoute, resolveRoute } from './router.js';
 import { menuFor } from './menu.js';
+import { mountPlaceholder } from './placeholder.js';
 import { showRates } from './rates/browse.js';
 
 const ICONS = {
@@ -23,7 +24,10 @@ const ICONS = {
 
 let user = null;
 let permissions = permissionsFromUser(null);
+let companies = [];
+let applyingSelection = false;
 let activeSection = null;
+let sectionBlocked = false;
 let activeUnmount = null;
 let renderGeneration = 0;
 
@@ -38,13 +42,21 @@ export async function boot() {
         rememberAuth(payload);
         if (followOauthNext()) return;
         permissions = permissionsFromUser(user);
-        if (permissions.systemAdmin) {
+        if (permissions.systemAdmin && !(permissions.companyContext && permissions.companyContext.id)) {
             try {
                 const contextPayload = await request('/api/admin/context');
                 const companyContext = contextFromPayload(contextPayload);
                 if (companyContext) permissions = { ...permissions, companyContext };
             } catch (error) {
                 if (error.status === 401) return;
+            }
+        }
+        if (permissions.systemAdmin) {
+            try {
+                companies = companyList(await request('/api/admin/context/companies'));
+            } catch (error) {
+                if (error.status === 401) return;
+                companies = [];
             }
         }
         app().hidden = false;
@@ -138,6 +150,7 @@ function bindShell() {
     });
     document.getElementById('notFoundHome').addEventListener('click', () => navigate('/rates'));
     document.getElementById('deniedHome').addEventListener('click', () => navigate('/rates'));
+    document.getElementById('companyContextSelect').addEventListener('change', selectCompany);
 }
 
 function menuItems() {
@@ -184,11 +197,73 @@ function renderMenu() {
     }
 }
 
+function companyList(payload) {
+    const rows = payload && Array.isArray(payload.companies) ? payload.companies : [];
+    return rows.filter(company => company && typeof company.id === 'string' && company.id);
+}
+
 function renderIndicator() {
     const node = document.getElementById('companyContext');
+    const select = document.getElementById('companyContextSelect');
+    const error = document.getElementById('companyContextError');
     const indicator = companyIndicator(permissions);
     node.hidden = !indicator.visible;
-    node.textContent = indicator.text;
+    if (!indicator.visible) return;
+    select.setAttribute('aria-label', indicator.text);
+    applyingSelection = true;
+    select.replaceChildren();
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = 'Select a company';
+    select.append(placeholder);
+    const selectedId = permissions.companyContext && permissions.companyContext.id;
+    const listed = companies.some(company => company.id === selectedId);
+    for (const company of companies) {
+        const option = document.createElement('option');
+        option.value = company.id;
+        option.textContent = company.name || company.id;
+        select.append(option);
+    }
+    if (selectedId && !listed) {
+        const option = document.createElement('option');
+        option.value = selectedId;
+        option.textContent = permissions.companyContext.name || selectedId;
+        select.append(option);
+    }
+    select.value = selectedId || '';
+    applyingSelection = false;
+    if (error.hidden) error.textContent = '';
+}
+
+async function selectCompany(event) {
+    if (applyingSelection) return;
+    const companyId = event.target.value;
+    const error = document.getElementById('companyContextError');
+    if (!companyId) {
+        renderIndicator();
+        return;
+    }
+    error.hidden = true;
+    try {
+        await request('/api/admin/context', {
+            method: 'POST',
+            body: JSON.stringify({ companyId })
+        });
+        const payload = await request('/api/session');
+        rememberAuth(payload);
+        permissions = permissionsFromUser(user);
+        renderMenu();
+        renderIndicator();
+        const decision = resolveRoute(location.pathname, permissions);
+        if (decision.kind === 'section' && decision.section.area === 'admin') {
+            await renderRoute({ remount: true });
+        }
+    } catch (requestError) {
+        if (requestError.status === 401) return;
+        renderIndicator();
+        error.textContent = requestError.message || 'Could not select that company.';
+        error.hidden = false;
+    }
 }
 
 function welcome() {
@@ -213,7 +288,7 @@ export function navigate(path) {
     return renderRoute();
 }
 
-async function renderRoute() {
+async function renderRoute(options = {}) {
     const generation = ++renderGeneration;
     welcome();
     renderIndicator();
@@ -244,7 +319,17 @@ async function renderRoute() {
         return;
     }
     document.getElementById('sectionView').hidden = false;
-    if (activeSection === decision.section.id) return;
+    if (adminSectionNeedsCompany(permissions, decision.section)) {
+        if (!options.remount && sectionBlocked && activeSection === decision.section.id) return;
+        clearSection();
+        const slot = document.createElement('div');
+        document.getElementById('sectionMount').append(slot);
+        mountPlaceholder(slot, decision.section.label, 'Select a company');
+        activeSection = decision.section.id;
+        sectionBlocked = true;
+        return;
+    }
+    if (!options.remount && !sectionBlocked && activeSection === decision.section.id) return;
     clearSection();
     const slot = document.createElement('div');
     document.getElementById('sectionMount').append(slot);
@@ -283,5 +368,6 @@ function clearSection() {
     if (activeUnmount) activeUnmount();
     activeUnmount = null;
     activeSection = null;
+    sectionBlocked = false;
     document.getElementById('sectionMount').replaceChildren();
 }

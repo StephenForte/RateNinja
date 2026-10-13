@@ -1,6 +1,7 @@
 import { companyOperationGate } from '../confirm.js';
 import { fullDaysUntil, parseIsoDate } from '../dates.js';
 import { request } from '../api.js';
+import { adminFailureMessage } from '../permissions.js';
 import { errorBox, fieldLabel, heading, paragraph } from '../dom.js';
 
 function validatePullForward({ sourceStart, sourceEnd, targetStart, targetEnd, type, priceIncreasePercent }) {
@@ -162,7 +163,7 @@ export function mount(container, ctx) {
             successText.textContent = `Copied ${result.copied} ${selectedType}, deleted ${result.deleted}.`;
             success.hidden = false;
         } catch (error) {
-            errors.show(error.message);
+            errors.show(adminFailureMessage(error, error.message));
         } finally {
             button.disabled = false;
             button.replaceChildren(buttonIcon, document.createTextNode(' Pull Forward'));

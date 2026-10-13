@@ -1,5 +1,6 @@
 import { clearCsrf, request, showLoginPage } from '../api.js';
 import { errorBox, heading, paragraph, textCell } from '../dom.js';
+import { adminFailureMessage } from '../permissions.js';
 
 export async function mount(container, ctx) {
     container.replaceChildren();
@@ -23,7 +24,7 @@ export async function mount(container, ctx) {
     );
 
     function showActionError(error) {
-        errors.show(error.message);
+        errors.show(adminFailureMessage(error, error.message));
     }
 
     async function reload() {
@@ -151,7 +152,7 @@ export async function mount(container, ctx) {
     try {
         await reload();
     } catch (error) {
-        errors.show(`Failed to load administration data: ${error.message}`);
+        errors.show(adminFailureMessage(error, `Failed to load administration data: ${error.message}`));
     }
 }
 

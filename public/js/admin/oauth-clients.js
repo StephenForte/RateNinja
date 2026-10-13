@@ -1,4 +1,5 @@
 import { request } from '../api.js';
+import { adminFailureMessage } from '../permissions.js';
 import { errorBox, heading, paragraph, textCell } from '../dom.js';
 
 export async function mount(container) {
@@ -140,7 +141,7 @@ export async function mount(container) {
             });
             await reload();
         } catch (error) {
-            errors.show(error.message);
+            errors.show(adminFailureMessage(error, error.message));
         }
     }
 
@@ -154,7 +155,7 @@ export async function mount(container) {
             showSecret(result.clientSecret);
             await reload();
         } catch (error) {
-            errors.show(error.message);
+            errors.show(adminFailureMessage(error, error.message));
         }
     }
 
@@ -177,14 +178,14 @@ export async function mount(container) {
             for (const input of form.querySelectorAll('input[name="oauthScope"]')) input.checked = true;
             await reload();
         } catch (error) {
-            errors.show(error.message);
+            errors.show(adminFailureMessage(error, error.message));
         }
     });
 
     try {
         await reload();
     } catch (error) {
-        errors.show(`Failed to load administration data: ${error.message}`);
+        errors.show(adminFailureMessage(error, `Failed to load administration data: ${error.message}`));
     }
 }
 

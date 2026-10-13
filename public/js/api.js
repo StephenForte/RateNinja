@@ -31,6 +31,7 @@ export async function request(path, options = {}) {
         if (response.status === 401 && !allowUnauthenticated) showLoginPage();
         const error = new Error(payload.error || 'Request failed.');
         error.status = response.status;
+        error.code = typeof payload.code === 'string' ? payload.code : '';
         throw error;
     }
     return payload;

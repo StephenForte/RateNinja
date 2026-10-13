@@ -56,3 +56,17 @@ export function companyIndicator(permissions) {
     if (!name) return { visible: true, text: 'No company selected' };
     return { visible: true, text: `Selected company: ${name}` };
 }
+
+// Company-scoped admin screens 409 until a system admin picks a company.
+// OAuth clients stay available: that list does not require a company context.
+export function adminSectionNeedsCompany(permissions, section) {
+    if (!section || section.area !== 'admin' || section.id === 'oauth-clients') return false;
+    if (!permissions || permissions.systemAdmin !== true) return false;
+    const id = permissions.companyContext && permissions.companyContext.id;
+    return typeof id !== 'string' || id === '';
+}
+
+export function adminFailureMessage(error, fallback) {
+    if (error && error.code === 'company_context_required') return 'Select a company';
+    return fallback;
+}

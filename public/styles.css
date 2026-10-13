@@ -1324,12 +1324,39 @@ a:focus-visible {
 }
 
 .company-context {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
     margin-top: 8px;
     color: #102a43;
     font-size: 0.9rem;
     font-weight: 600;
     letter-spacing: 0;
     text-transform: none;
+}
+
+.company-context select {
+    font: inherit;
+    font-weight: 600;
+    color: #102a43;
+    background: #fff;
+    border: 1px solid #bcccdc;
+    border-radius: 8px;
+    padding: 4px 8px;
+    max-width: 100%;
+}
+
+.company-context select:focus,
+.company-context select:focus-visible {
+    outline: 3px solid #0b7285;
+    outline-offset: 2px;
+}
+
+.company-context-error {
+    color: #c33;
+    font-size: 0.8rem;
+    font-weight: 500;
 }
 
 .route-message {
