@@ -59,8 +59,17 @@ const {
     clearMfaFailures,
     clearMfaUserFailures
 } = require('./lib/throttle');
-const { csrfMatches } = require('./lib/csrf');
 const { recordAudit } = require('./lib/audit');
+const {
+    sendJson,
+    sendError,
+    securityHeaders,
+    readBody,
+    readJson,
+    formBody,
+    requireCsrf
+} = require('./lib/http');
+const routeModules = require('./lib/routes');
 const { setPasswordById, setEmailById, setDisabled } = require('./lib/accounts');
 const { requestPasswordReset, completePasswordReset } = require('./lib/password-reset');
 const { resendSettings } = require('./lib/resend');
@@ -93,24 +102,6 @@ const contentTypes = {
     '.svg': 'image/svg+xml'
 };
 
-function sendJson(response, status, payload, headers = {}) {
-    if (status === 204) {
-        response.writeHead(status, headers);
-        response.end();
-        return;
-    }
-    response.writeHead(status, {
-        'Content-Type': 'application/json; charset=utf-8',
-        'Cache-Control': 'no-store',
-        ...headers
-    });
-    response.end(JSON.stringify(payload));
-}
-
-function sendError(response, status, message) {
-    sendJson(response, status, { error: message });
-}
-
 function sendOAuthError(response, status, error, description, headers = {}) {
     sendJson(response, status, { error, error_description: description }, headers);
 }
@@ -134,14 +125,6 @@ function redirectTo(response, location) {
     response.end();
 }
 
-function securityHeaders() {
-    return {
-        'Content-Security-Policy': "default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src https://fonts.gstatic.com https://cdnjs.cloudflare.com; script-src 'self' https://cdnjs.cloudflare.com; img-src 'self' data:; connect-src 'self'; base-uri 'self'; frame-ancestors 'none'",
-        'Referrer-Policy': 'same-origin',
-        'X-Content-Type-Options': 'nosniff'
-    };
-}
-
 function externalOrigin(request) {
     const forwarded = request.headers['x-forwarded-proto'];
     const proto = forwarded ? String(forwarded).split(',')[0].trim() : 'http';
@@ -157,28 +140,6 @@ function clientIp(request) {
 
 function sourceFingerprint(ip) {
     return crypto.createHash('sha256').update(String(ip)).digest('hex').slice(0, 12);
-}
-
-async function readBody(request) {
-    let body = '';
-    for await (const chunk of request) {
-        body += chunk;
-        if (body.length > 1_000_000) throw new Error('Request body is too large.');
-    }
-    return body;
-}
-
-async function readJson(request) {
-    const body = await readBody(request);
-    try {
-        return body ? JSON.parse(body) : {};
-    } catch {
-        throw new Error('Request body must be valid JSON.');
-    }
-}
-
-function formBody(text) {
-    return Object.fromEntries(new URLSearchParams(text));
 }
 
 function requireConfiguration(response) {
@@ -234,12 +195,6 @@ function requireSession(request, response) {
         return null;
     }
     return session;
-}
-
-function requireCsrf(request, response, session, body) {
-    if (csrfMatches(request, session, body)) return true;
-    sendError(response, 403, 'Your session could not be verified. Refresh the page and try again.');
-    return false;
 }
 
 function requireAdmin(response, session) {
@@ -1008,6 +963,69 @@ async function serveStatic(request, response, pathname) {
     }
 }
 
+// Literal path to literal file. Do not join request input onto a directory.
+const EXACT_DOCUMENTS = new Map([
+    ['/docs/partner-integration.md', path.join(ROOT, 'docs', 'partner-integration.md')],
+    ['/API-README.md', path.join(ROOT, 'API-README.md')]
+]);
+
+async function serveExactDocument(response, requestPath) {
+    const filePath = EXACT_DOCUMENTS.get(requestPath);
+    if (!filePath) return false;
+    const content = await fs.readFile(filePath);
+    response.writeHead(200, {
+        'Content-Type': contentTypes['.md'],
+        ...securityHeaders()
+    });
+    response.end(content);
+    return true;
+}
+
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+function matchRoute(route, pathname) {
+    if (typeof route.path === 'string' && route.pattern == null) {
+        return route.path === pathname ? [] : null;
+    }
+    if (route.pattern instanceof RegExp && route.path == null) {
+        const expression = new RegExp(route.pattern.source, route.pattern.flags.replace('g', ''));
+        const match = expression.exec(pathname);
+        return match ? match.slice(1) : null;
+    }
+    return null;
+}
+
+function findModuleRoute(pathname, method, accessNames) {
+    for (const mod of routeModules) {
+        const routes = mod && Array.isArray(mod.routes) ? mod.routes : [];
+        for (const route of routes) {
+            if (!route || route.method !== method || !accessNames.includes(route.access)) continue;
+            const params = matchRoute(route, pathname);
+            if (params) return { route, params };
+        }
+    }
+    return null;
+}
+
+async function dispatchModuleRoute(request, response, pathname, kind, session) {
+    const accessNames = kind === 'public' ? ['public'] : ['session', 'session-unrestricted'];
+    const hit = findModuleRoute(pathname, request.method, accessNames);
+    if (!hit) return false;
+    if (kind !== 'public' && !SAFE_METHODS.has(request.method)) {
+        const text = await readBody(request);
+        request._rnRawBody = text;
+        let body = {};
+        try {
+            body = text ? JSON.parse(text) : {};
+        } catch {
+            throw new Error('Request body must be valid JSON.');
+        }
+        if (!requireCsrf(request, response, session, body)) return true;
+    }
+    await hit.route.handler(request, response, session, hit.params);
+    return true;
+}
+
 const server = http.createServer(async (request, response) => {
     const url = new URL(request.url, `http://${request.headers.host || 'localhost'}`);
     const { pathname } = url;
@@ -1061,6 +1079,8 @@ const server = http.createServer(async (request, response) => {
         const partnerSailingMatch = pathname.match(/^\/api\/partner\/v1\/me\/sailings\/([\w-]+)$/);
         if (partnerSailingMatch && request.method === 'GET') return handlePartnerSailing(request, response, partnerSailingMatch[1]);
 
+        if (await dispatchModuleRoute(request, response, pathname, 'public', null)) return;
+
         const session = pathname.startsWith('/api/') || pathname.startsWith('/oauth/') ? requireSession(request, response) : null;
         if ((pathname.startsWith('/api/') || pathname.startsWith('/oauth/')) && !session) return;
         if (pathname === '/oauth/consents' && request.method === 'GET') return handleConsents(request, response, session);
@@ -1091,7 +1111,9 @@ const server = http.createServer(async (request, response) => {
         if (clientRotateMatch && request.method === 'POST') return handleAdminClientRotate(request, response, session, clientRotateMatch[1]);
         const clientMatch = pathname.match(/^\/api\/admin\/oauth-clients\/([\w-]+)$/);
         if (clientMatch && request.method === 'PATCH') return handleAdminClientUpdate(request, response, session, clientMatch[1]);
+        if (session && await dispatchModuleRoute(request, response, pathname, 'session', session)) return;
         if (pathname.startsWith('/api/') || pathname.startsWith('/oauth/')) return sendError(response, 404, 'API route not found.');
+        if (await serveExactDocument(response, staticPathFromRequest(request.url))) return;
         if (pathname === '/login') return serveStatic(request, response, '/login.html');
         // Raw path: the WHATWG parser rewrites "//server.js" to "/" and would serve the index.
         return serveStatic(request, response, staticPathFromRequest(request.url));
