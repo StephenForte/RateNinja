@@ -71,3 +71,26 @@ The first registered client display name is **Capacity Exchange**. Administrator
 ## Health
 
 `GET /api/health` reports whether the database, session secret, and OAuth signing key are present, which hash algorithm is in use, and whether partner OAuth is enabled. It does not return secret values. Render's platform health check stays on `/`.
+
+## API-to-tool coverage
+
+Appended by R1-12. A later docs pass rewrites this guide. Equivalent authorized requests return the same data and metadata on the partner route and the MCP tool. Company ownership comes from the access token. The demo API key is not accepted on `/mcp` or any partner route.
+
+| Capability | API | MCP tool | Scope |
+| --- | --- | --- | --- |
+| Current subject and company | `GET /oauth/userinfo` | `rateninja_get_my_profile` | `profile:read` |
+| Rate search and pagination | `GET /api/partner/v1/me/rates` | `rateninja_list_my_rates` | `rates:read` |
+| One authorized rate | `GET /api/partner/v1/me/rates/{rateId}` | `rateninja_get_my_rate` | `rates:read` |
+| Sailing search and pagination | `GET /api/partner/v1/me/sailings` | `rateninja_list_my_sailings` | `sailings:read` |
+| One authorized sailing | `GET /api/partner/v1/me/sailings/{sailingId}` | `rateninja_get_my_sailing` | `sailings:read` |
+| Predictive pricing | `GET /api/partner/v1/me/predictive-pricing` | `rateninja_get_my_predictive_pricing` | `rates:read` |
+
+The demo predictive route remains `GET /api/v1/predictive-pricing`. It is not owner-scoped and still requires `carrier`, `originPort`, and `after`. The partner and MCP predictive calls are limited to the token's contract owner.
+
+Owner-scoped predictive parameters follow D-019. `after` is required (`YYYY-MM-DD`, more than 90 days ahead). `carrier` and `originPort` are optional case-insensitive exact matches, the same match as partner rates. `page` defaults to 1 and `pageSize` defaults to 50, with the same ceilings as partner rates (10000 and 100). The output is base contract pricing marked as an estimate. It includes the input date, the basis (latest rate per route, then 5% per full 30-day period), the owner company, and list metadata (`total`, `page`, `pageSize`, `returned`, `notice`). It does not apply a customer margin and it is not stored.
+
+An MCP `tools/call` is checked against the tool's `inputSchema` before the tool runs. A missing required field, an unknown property, a wrong type, a non-`YYYY-MM-DD` date, or a page size above 100 returns a tool error `invalid_request`. The partner query string still coerces an out-of-range page or page size down to the ceiling, which is the existing partner rate behavior.
+
+MCP rate, sailing, and predictive reads write the same audit event as the matching partner read, with the same user and client, plus `detail.channel` of `mcp`. Profile follows `/oauth/userinfo` and does not write a data-read audit. Audit details do not include tokens or the query payload.
+
+`initialize` echoes a requested `protocolVersion` when this server supports it. Otherwise it answers the latest supported version. The supported set exercised with MCP Inspector 2.10.1 and the tests is `2025-11-25` and `2025-03-26`. `2025-11-25` is the latest of those.
