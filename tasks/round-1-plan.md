@@ -1,0 +1,139 @@
+# Round 1 Enhancements — Implementation Plan
+
+Spec: `tasks/prd-round-1-enhancements.md` (merged in #8, status "Draft for product review").
+Decisions: `tasks/round-1-decisions.md` — cite by id (D-NNN); never re-decide in a PR.
+Owner of this file and the decisions log: the planner. **Workers never edit either file.**
+
+## Baseline (verified 2026-10-12)
+
+- main at `0c3e89f`. `npm run check` clean; `npm test` 50 pass / 0 fail / 0 skipped
+  (run from a `git archive` copy, Node 26 locally; CI uses Node 22).
+- Schema lives inline in `lib/db.js` (`CREATE TABLE IF NOT EXISTS` + `addColumn`). No migration ids exist yet.
+- Routes are one `if` chain in `server.js` (1,062 lines). Frontend is one `script.js` (1,175 lines) + `index.html` with hidden sections.
+- PRD claims verified against code:
+  - `lib/foundation.js` `ensureUser` rewrites `admin_screen`, company, and display name for SteveF/Alan/Bob on **every** startup; `ensureCompany` rewrites company type every startup. → R1-02.
+  - `server.js` user list/password/2FA/update handlers check only `requireAdmin` (no company scope). → R1-02.
+- **Found during planning (not in PRD):** `serveStatic` serves any non-dot file under the repo root.
+  Production returns 200 for `https://rate-ninja.onrender.com/lib/db.js` and `/package.json`
+  (checked 2026-10-12 with curl). The prod DB is at `/var/data` and returns 404, but a local/dev DB
+  under `data/` is downloadable (reproduced locally: `/data/t.db` → 200). → R1-00, dispatch first.
+- `lib/domain.js` `calculateRate` treats a stored margin percent `> 1` as whole percent and `<= 1` as a
+  fraction, so a stored `1` means 100%. → D-013, R1-07.
+
+## Commit-and-merge contract (every prompt references this section)
+
+1. Branch `r1/NN-slug` from **current** `origin/main`. One PR per task, title `R1-NN: <title>`.
+2. Touch only files your task **owns** or may **append to** (task table). Anything else → stop and report in RISKS.
+3. Use the migration id assigned to your task. Never pick "the next number".
+4. New tests go in `test/r1-NN-*.test.js`; shared helpers you add go in `test/helpers/r1-NN.js`.
+5. Gate before handoff, on Node 22: `npm ci && npm run check && npm test` all green, plus the task-specific gate in the brief.
+6. Rebase on `origin/main` immediately before handoff; CI must be green on the PR.
+7. Do not merge. Do not edit `tasks/round-1-*.md`. Handoff uses the `dispatch-worker` return format.
+8. Operator squash-merges after planner review. Integration order below.
+
+## Migration ids (pre-assigned — D-002)
+
+| Id | File | Task |
+| --- | --- | --- |
+| 001 | `lib/migrations/001-roles.js` | R1-02 |
+| 002 | `lib/migrations/002-password-lifecycle.js` | R1-04 |
+| 003 | `lib/migrations/003-saved-preferences.js` | R1-05 |
+| 004 | `lib/migrations/004-login-uniqueness.js` | R1-06 |
+| 005 | `lib/migrations/005-customer-authorization.js` | R1-07 |
+| 006 | `lib/migrations/006-data-operations.js` | R1-08 |
+| 007 | reserved | R1-09 (use only if needed) |
+| 008 | `lib/migrations/008-import-jobs.js` | R1-11 |
+| 009 | reserved | R1-12 (use only if needed) |
+| 010+ | unassigned | ask the planner |
+
+Next free: **010**.
+
+## Task tree
+
+Tier key: **S** = strongest model (security, data integrity, money). **M** = standard model.
+Model names are the planner's proposal; operator overrides recorded in the Run column.
+
+| Task | Title | PRD | Depends on | Tier / model | Status |
+| --- | --- | --- | --- | --- | --- |
+| R1-00 | Static serving lockdown (hotfix) | — | — | M / Sonnet 5.5 | not dispatched |
+| R1-01 | Scaffolding: migration runner, route modules, test harness, limits | §Data | R1-00 | S / Opus 5.5 | not dispatched |
+| R1-02 | Roles and company isolation | Roles, Delivery 1 | R1-01 | S / Opus 5.5 | not dispatched |
+| R1-03 | App shell: addressable pages and menu | FR1 | R1-01 | M / Sonnet 5.5 | not dispatched |
+| R1-04 | Profile and password lifecycle | FR4 | R1-02, R1-03 | S / Opus 5.5 | not dispatched |
+| R1-05 | Saved queries and saved views | FR2, FR3 | R1-03 | M / Sonnet 5.5 | not dispatched |
+| R1-06 | Company and user onboarding | FR5, FR6 | R1-04 | S / Opus 5.5 | not dispatched |
+| R1-07 | Customer authorization and live preview | FR7 | R1-02, R1-03 | S / Opus 5.5 | not dispatched |
+| R1-08 | Data workspace core: soft delete, versions, edit, delete/restore, history | FR9 | R1-02, R1-03 | S / Opus 5.5 | not dispatched |
+| R1-09 | Pull-forward wizard and operation undo | FR9 | R1-08 | S / Opus 5.5 | not dispatched |
+| R1-10 | Imports discovery spike (no product code) | FR8 | **format decision** | M / Sonnet 5.5 | blocked |
+| R1-11 | Imports implementation | FR8 | R1-08, R1-10 | S / Opus 5.5 | not dispatched |
+| R1-12 | MCP / partner API parity incl. predictive | FR11 | R1-01 | S / Opus 5.5 | not dispatched |
+| R1-13 | API and MCP instructions + docs alignment | FR10 | R1-07, R1-12 | M / Sonnet 5.5 | not dispatched |
+| R1-14 | Integrated release acceptance | §Validation | all P1 | M / Sonnet 5.5 + operator | not dispatched |
+| R1-15 | P2: bulk price adjustment | FR12 | R1-09 | S | not planned in detail |
+| R1-16 | P2: duplicate handling | FR13 | R1-11 | S | not planned in detail |
+
+### Run order (waves)
+
+- **W0** (serial, one worker): R1-00 → R1-01.
+- **W1** (parallel, after R1-01 merges): R1-02, R1-03, R1-12.
+- **W2** (parallel): R1-05 (needs R1-03 only — can start as soon as it lands); R1-04, R1-07, R1-08 (need R1-02 + R1-03).
+- **W3**: R1-06 (after R1-04), R1-09 (after R1-08), R1-11 (after R1-08 + R1-10). R1-10 can run any time once the format decision is made.
+- **W4**: R1-13, then R1-14.
+
+Peak concurrency is 4 (W2). If the operator runs fewer agents, drop R1-05 to W3 first.
+
+## Ownership
+
+"Owns" = may create/rewrite. "Appends" = may add to, not restructure. Everything else is read-only for that task.
+
+| Task | Owns | Appends / narrow edits |
+| --- | --- | --- |
+| R1-00 | `public/` (git mv of `index.html`, `login.html`, `login.js`, `script.js`, `styles.css`, `favicon.svg`, `api-docs.html`, `api-testbed.*`); `test/r1-00-*.test.js` | `server.js` `serveStatic` + page routes only; `README.md` path mentions |
+| R1-01 | `lib/migrations/index.js`, `lib/migrations/README.md`, `lib/http.js`, `lib/routes/index.js` + **empty stub for every route module below**, `lib/limits.js`, `test/helpers/app.js`, `test/r1-01-*.test.js` | `lib/db.js` (call runner after baseline DDL; baseline frozen after this), `server.js` (dispatch to route modules; move shared helpers to `lib/http.js`) |
+| R1-02 | `lib/permissions.js`, `lib/migrations/001-roles.js`, `lib/routes/admin-context.js`, `test/r1-02-*` | `lib/foundation.js`, `server.js` (session payload, existing admin handlers), `lib/store.js` (`listUsersForAdmin`, user mutators) |
+| R1-03 | `public/index.html`, `public/styles.css`, `public/js/**` (split of `public/script.js`, which is deleted), **stub for every admin/profile section below**, `test/r1-03-*` | `server.js` page-path fallback only |
+| R1-04 | `lib/migrations/002-*`, `lib/routes/account.js`, `public/js/profile/account.js`, `public/js/password-required.js`, `test/r1-04-*` | `lib/accounts.js`, `lib/password-reset.js`, `lib/session.js`, `lib/oauth.js` (authorize gate only), `server.js` (restricted-session gate, admin password handler) |
+| R1-05 | `lib/migrations/003-*`, `lib/preferences.js`, `lib/view-fields.js`, `lib/routes/preferences.js`, `public/js/rates/queries.js`, `public/js/rates/views.js`, `public/js/rates/grouping.js`, `public/js/profile/preferences.js`, `test/r1-05-*` | `public/js/rates/*.js` existing files (wire-up only) |
+| R1-06 | `lib/migrations/004-*`, `lib/onboarding.js`, `lib/routes/onboarding.js`, `lib/routes/users.js`, `public/js/admin/users.js`, `public/js/admin/companies.js`, `test/r1-06-*` | `lib/store.js` (user queries), `lib/permissions.js` (add predicates only) |
+| R1-07 | `lib/migrations/005-*`, `lib/pricing.js`, `lib/customer-access.js`, `lib/routes/customer-access.js`, `public/js/admin/customers.js`, `test/r1-07-*` | `lib/visibility.js` (call `lib/pricing.js`; filter revoked links), `lib/domain.js` (`calculateRate` delegates), `lib/store.js` (margin functions only) |
+| R1-08 | `lib/migrations/006-*`, `lib/data-ops.js`, `lib/record-validation.js`, `lib/routes/data-ops.js`, `public/js/admin/data.js`, `test/r1-08-*` | `lib/store.js` + `lib/visibility.js` (deleted-row filter on every rate/sailing read), `server.js` (remove legacy pull-forward routes only when R1-09 replaces them — not in R1-08) |
+| R1-09 | `lib/pull-forward.js`, `public/js/admin/pull-forward.js`, `test/r1-09-*` | `lib/data-ops.js`, `lib/routes/data-ops.js`, `server.js` (delete legacy pull-forward handlers), `lib/store.js` (pull-forward functions) |
+| R1-10 | `docs/imports-discovery.md`, `test/fixtures/imports/**` | — |
+| R1-11 | `lib/migrations/008-*`, `lib/imports/**`, `lib/routes/imports.js`, `public/js/admin/imports.js`, `public/templates/*`, `test/r1-11-*` | `package.json`/lockfile (parser + Anthropic deps), `lib/config.js` (import/Claude settings), `lib/data-ops.js` (undo hook), `lib/record-validation.js` |
+| R1-12 | `lib/predictive.js`, `lib/mcp-schema.js`, `lib/routes/partner.js`, `test/r1-12-*` | `lib/mcp.js`, `lib/visibility.js` (predictive helpers move out), `server.js` (predictive handlers delegate; MCP audit), `lib/audit.js` |
+| R1-13 | `public/js/admin/integrations.js` | `public/api-docs.html`, `API-README.md`, `docs/partner-integration.md` |
+| R1-14 | `test/r1-14-*`, `docs/release-acceptance-r1.md` | — |
+
+### Pre-registered modules (so nobody edits a registry)
+
+- **Route modules** created empty and registered by R1-01 in `lib/routes/index.js`:
+  `admin-context`, `account`, `preferences`, `onboarding`, `users`, `customer-access`, `data-ops`, `imports`, `partner`.
+- **Frontend sections** created as stubs and registered by R1-03 (with permission predicates per D-009):
+  Profile: `account`, `security` (2FA, moved from existing screen), `preferences`.
+  Admin: `users`, `companies` (system admin only), `customers` (owner admin), `data`, `pull-forward`, `imports`, `integrations`, `oauth-clients` (system admin; existing UI moved).
+
+## Integration order and predicted conflicts
+
+Merge order within a wave: the order listed in the wave. Expected conflicts even with the ownership split:
+
+| Hotspot | Tasks | Expected | Resolution |
+| --- | --- | --- | --- |
+| `server.js` | R1-02, R1-03, R1-04, R1-09, R1-12 | Likely textual, small | Later PR rebases; keep both sides |
+| `lib/visibility.js` | R1-07, R1-08, R1-12 | **High** | Merge R1-12 first (W1); R1-07 then R1-08 rebase |
+| `lib/store.js` | R1-02, R1-06, R1-07, R1-08, R1-09 | Medium; different functions | Rebase; re-run full suite |
+| `lib/permissions.js` | R1-02 owns, R1-06 appends | Low | — |
+| `package-lock.json` | R1-11 only | none if rule holds | — |
+| Session payload shape | R1-02 produces, R1-03 consumes | Contract, not text | D-009 fixes the shape in advance |
+
+Every migration task must also prove: fresh DB, prod-shaped copy, and re-run (idempotent) all pass — see D-002.
+
+## Open items
+
+- **Product decision needed:** import formats (CSV+Excel vs CSV+Excel+PDF). Blocks R1-10 → R1-11 only.
+- PRD defaults (temp-password replacement, 2 group levels, 3 sorts, 30-day window) adopted as D-011 pending product review.
+- Real MCP client check (R1-12, R1-14) needs the operator: production has `PARTNER_OAUTH_ENABLED=false`; run locally.
+
+## Review log
+
+_(planner appends: task, PR, verdict, what was independently verified and how)_
