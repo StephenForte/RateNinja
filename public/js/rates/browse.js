@@ -129,6 +129,9 @@ const host = {
     },
     noteAttention(needsAttention) {
         state.viewAttention = Boolean(needsAttention);
+    },
+    clearPreferenceError() {
+        state.preferenceError = '';
     }
 };
 
@@ -215,20 +218,29 @@ async function ensureView() {
     if (state.viewReady) return;
     try {
         const catalog = await request('/api/preferences/fields');
-        state.fields = catalog.fields;
-        state.view = standardView(state.fields);
         const { views } = await request('/api/preferences/views');
-        const preferred = views.find(view => view.isDefault);
-        if (preferred) {
-            state.view = preferred.view;
-            state.activeViewId = preferred.id;
-            state.viewIsDefault = true;
-            state.viewAttention = Boolean(preferred.needsAttention);
+        state.fields = catalog.fields;
+        if (!state.activeViewId) {
+            const preferred = views.find(view => view.isDefault);
+            if (preferred) {
+                state.view = preferred.view;
+                state.activeViewId = preferred.id;
+                state.viewIsDefault = true;
+                state.viewAttention = Boolean(preferred.needsAttention);
+            } else {
+                state.view = standardView(state.fields);
+            }
         }
         state.viewReady = true;
         state.preferenceError = '';
     } catch (error) {
         state.preferenceError = error.message || 'Saved views could not be loaded.';
+        const status = document.getElementById('viewStatus');
+        if (status) {
+            status.textContent = state.preferenceError;
+            status.hidden = false;
+            status.classList.add('rates-preference-error');
+        }
     }
 }
 
@@ -305,6 +317,7 @@ async function loadPredictiveRates(generation) {
     if (validationError) {
         showPredictiveDateError(validationError);
         hidePredictiveBanner();
+        hideLoading();
         elements.tableBody.replaceChildren();
         return;
     }
@@ -411,11 +424,11 @@ function applyFilters() {
         predictive: state.predictive,
         predictiveAfter: state.predictiveAfter
     });
+    state.queryUnavailable = Boolean(applied.warning);
     const warning = document.getElementById('ratesQueryWarning');
     if (warning) {
-        const message = applied.warning || state.preferenceError || '';
-        warning.textContent = message;
-        warning.hidden = !message;
+        warning.textContent = applied.warning || '';
+        warning.hidden = !applied.warning;
     }
     if (!applied.ok) {
         state.filteredRates = [];
@@ -490,7 +503,7 @@ function renderTable() {
     elements.tableBody.replaceChildren();
     if (!layout.items.length) {
         const row = document.createElement('tr');
-        const cell = textCell(document.getElementById('ratesQueryWarning')?.hidden === false && state.filteredRates.length === 0
+        const cell = textCell(state.queryUnavailable
             ? 'This saved query is unavailable. No rates are shown.'
             : 'No shipping rates found matching your criteria', 'td');
         cell.colSpan = Math.max(1, visibleColumns().length);

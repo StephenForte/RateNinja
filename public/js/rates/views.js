@@ -305,9 +305,11 @@ export async function loadViews() {
         const current = views.find(view => view.id === host.activeViewId());
         if (host.activeViewId() && !current) host.restoreStandard();
         else if (current && host.noteAttention) host.noteAttention(current.needsAttention);
+        if (host.clearPreferenceError) host.clearPreferenceError();
         syncViewControls(host.view());
         host.setSummary(summarizeView(host.view(), fields));
         if (host.viewAttention()) setStatus('This view needs attention. A column is no longer available and was removed.', true);
+        else setStatus('', false);
     } catch (error) {
         setStatus(error.message, true);
     }
