@@ -219,6 +219,8 @@ The PRD role table lists system-admin browsing "in selected company context". R1
 the system admin's own company. Whether system admins need to browse as another company in P1 is
 an open operator question. Until it is answered, no task implements it.
 
+**Resolved 2026-10-13 (operator): no.** System admins administer the selected company (D-007, D-021) but always browse rates and sailings as their own company. No task implements cross-company browsing.
+
 ### D-021 — System admins pick a company context from the UI (2026-10-13, amends D-007)
 
 D-007 made company context fail closed (409) but gave the UI no way to pick a company. The R1-02
