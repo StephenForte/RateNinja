@@ -59,7 +59,7 @@ Model names are the planner's proposal; operator overrides recorded in the Run c
 | R1-01 | Scaffolding: migration runner, route modules, test harness, limits | §Data | R1-00 | S / Opus 5.5 | merged 2026-10-13, PR #14 |
 | R1-02 | Roles and company isolation | Roles, Delivery 1 | R1-01 | S / Opus 5.5 | merged 2026-10-13, PR #17 |
 | R1-03 | App shell: addressable pages and menu | FR1 | R1-01 | M / Sonnet 5.5 | merged 2026-10-13, PR #18 |
-| R1-04 | Profile and password lifecycle | FR4 | R1-02, R1-03 | S / Opus 5.5 | briefed 2026-10-13 (W2) |
+| R1-04 | Profile and password lifecycle | FR4 | R1-02, R1-03 | S / Opus 5.5 | approved 2026-10-13, PR #24 (`ef2a04d`) |
 | R1-05 | Saved queries and saved views | FR2, FR3 | R1-03 | M / Sonnet 5.5 | briefed 2026-10-13 (W2) |
 | R1-06 | Company and user onboarding | FR5, FR6 | R1-04 | S / Opus 5.5 | not dispatched |
 | R1-07 | Customer authorization and live preview | FR7 | R1-02, R1-03 | S / Opus 5.5 | briefed 2026-10-13 (W2) |
@@ -130,6 +130,7 @@ Every migration task must also prove: fresh DB, prod-shaped copy, and re-run (id
 
 ## Notes for later briefs (from reviews)
 
+- **Every migration task:** `test/r1-02-migration.test.js` asserts the exact list of applied ids. Each new migration extends it, so concurrent merges conflict there. Resolve with the sorted union of the merged ids.
 - **All W2 tasks:** `public/styles.css` is append-only for everyone; add a block headed by your task id.
 
 - **R1-02:** delete the R1-01 assertion in `test/r1-01-migrations.test.js` that `lib/migrations/` has no `NNN-*.js` file (it must, once `001-roles.js` lands); keep the count and second-start checks. Declare it under EXISTING CHECKS MODIFIED.
@@ -141,7 +142,7 @@ Every migration task must also prove: fresh DB, prod-shaped copy, and re-run (id
 ## Open items
 
 - ~~D-020~~ resolved 2026-10-13: no cross-company browsing for system admins.
-- **Production fact (2026-10-13):** `GET https://rate-ninja.onrender.com/api/health` reports `partnerOauthEnabled: true`, so `PARTNER_OAUTH_ENABLED=true` is set in the Render dashboard, overriding `render.yaml` (`"false"`). Partner OAuth and `/mcp` are live in production. Operator to confirm it's intended.
+- **Production fact (2026-10-13):** `GET https://rate-ninja.onrender.com/api/health` reports `partnerOauthEnabled: true`, so `PARTNER_OAUTH_ENABLED=true` is set in the Render dashboard, overriding `render.yaml` (`"false"`). Partner OAuth and `/mcp` are live in production. **Confirmed intended by the operator 2026-10-13:** the partner API and MCP are live in production. Treat partner/MCP regressions as production incidents.
 
 - ~~Import formats~~ resolved 2026-10-12 (D-017), narrowed by D-018: Round 1 imports CSV + Excel; PDF deferred.
 - **Deferred past Round 1 (D-018):** Claude extraction of unstructured files, and with it PDF import. Guardrails recorded; no Round 1 task. Target: P3 or P4 (operator, 2026-10-12).
@@ -153,6 +154,7 @@ Every migration task must also prove: fresh DB, prod-shaped copy, and re-run (id
 
 _(planner appends: task, PR, verdict, what was independently verified and how)_
 
+- 2026-10-13 · **R1-04, PR #24: approved at `ef2a04d`.** Base `94701d9` = main; scope clean. Fresh clone: 107/0/0. One gate sits right after the shared `requireSession`, before both the legacy and module dispatch, and reads the live row. Probe (`must_change_password = 1`): legacy routes (`/api/rates`, 2FA start, `/oauth/consents` GET and DELETE) and module routes (`/api/account`, admin-context ×3, preferences) all return 403 `password_change_required`; `/api/session` returns 200; a same-password change returns 400 and the flag stays 1. The worker's OAuth test uses a real PKCE request: GET and POST `/oauth/authorize` return 403 with 0 grants, and an unrestricted control sees consent.
 - 2026-10-13 · **R1-03, PR #18: approved at `dc572ef`.** Base `d264f95` is stale, but a trial merge of main `05de3f8` + #17 + #18 has no conflicts, and that combined tree passes 97/0/0; CI green on `dc572ef`. Browser check on the combined tree (scratch DB, generated test passwords): a cold `/admin/users` deep link loads its CSS and shows "Select a company" (no 409); choosing Blackwater sets `companyContext` and the user list shows only Alan; Back/Forward work; `aria-expanded` and Escape work; a customer member deep-linking an admin page gets "Access denied" and sees no admin links; `/rates` renders a seeded rate with the menu (z-index 50) above the table. Litter: the worker's clone at `/Users/stephenforte/rateninja-r1-03` remains; the operator should delete it.
 - 2026-10-13 · **R1-02, PR #17: approved at `c45a0cb`** after D-021 and the rebase onto `05de3f8`. Fresh clone: 88/0/0. Probes: the company list returns 403 to a company admin; for a system admin it returns only `{id, name, companyType}`, sorted; no context gives 409; after POST context, users returns 200 and the session reports the chosen company. The rebase touched R1-12's files only in the one specified line.
 - 2026-10-13 · **R1-12, PR #19: approved at `2797c08`.** Base `d264f95` = main; scope clean. Fresh clone: 74/0/0. The golden test, run against a clean main checkout, passes 2/2, so the captured predictive bytes really are main's. The parity test covers cross-owner `not_found`, scope, schema rejection without an audit row, 90/91 days, the MCP audit channel, revocation, the deployment gate, and demo-key rejection, all over real HTTP. Real client: Inspector 2.10.1 with OAuth; revocation made the next call fail. **Trial merge #19 + #17 + #18:** one textual conflict in `test/r1-01-routes.test.js` (module-count check), plus a semantic one: the R1-12 parity setup creates OAuth clients as a company admin, which D-008 now forbids. With both fixed (one line sets `is_system_admin` in setup), the combined suite is 96/96, 0 cancelled. **Merge order: #19, then #17 (rebased, carrying both fixes), then #18 immediately after (D-021).**
