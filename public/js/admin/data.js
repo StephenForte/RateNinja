@@ -340,6 +340,15 @@ function priceOrNull(id) {
     return Number(text);
 }
 
+// The date input only edits the calendar day. Keep the stored time of day.
+function withOriginalClock(original, dateValue) {
+    if (!dateValue) return null;
+    const source = original == null ? '' : String(original);
+    const clock = source.slice(10);
+    if (clock.startsWith('T')) return `${dateValue}${clock}`;
+    return `${dateValue}T00:00:00.000Z`;
+}
+
 function editBody() {
     if (state.dataset === 'rates') {
         return {
@@ -362,8 +371,8 @@ function editBody() {
     return {
         carrier: document.getElementById('editSailingCarrier').value,
         departurePort: document.getElementById('editDeparturePort').value,
-        departure: departure ? `${departure}T00:00:00.000Z` : '',
-        arrival: arrival ? `${arrival}T00:00:00.000Z` : null,
+        departure: withOriginalClock(editing.departure, departure) || '',
+        arrival: withOriginalClock(editing.arrival, arrival),
         vessel: document.getElementById('editVessel').value,
         expectedRowVersion: editing.rowVersion,
         companyId: permissions.companyContext?.id

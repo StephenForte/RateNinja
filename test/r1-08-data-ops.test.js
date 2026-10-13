@@ -105,6 +105,82 @@ describe('r1-08 data operations', { concurrency: 1 }, () => {
         assert.equal(mismatch.body.code, 'company_context_mismatch');
     });
 
+    it('leaves fields out of the patch untouched, including a sailing clock time', async () => {
+        insertRate(app.db, {
+            id: 'partial-rate',
+            origin: 'SHA',
+            destination: 'LAX',
+            carrier: 'MSC',
+            d20: 1000,
+            d40: 1800,
+            d40hc: 1900,
+            effective: '2026-04-01',
+            expiration: '2026-10-01',
+            owner: ownerId,
+            rateType: 'NAC',
+            inland: 'Chicago',
+            commodity: 'Widgets',
+            contractOwner: 'Kept Owner',
+            notes: 'keep-note'
+        });
+        app.db.prepare(`UPDATE rates SET rate_view = 'view-9' WHERE id = 'partial-rate'`).run();
+        const saved = await call(ownerSession, 'PATCH', '/api/admin/data/rates/partial-rate', ratePatch(ownerId, 1, {
+            carrier: 'PARTIAL'
+        }));
+        assert.equal(saved.status, 200, saved.text);
+        const row = app.db.prepare(`
+            SELECT carrier, rate_view, contract_owner, inland_delivery_location, commodity_type, notes_1, rate_type, rate_20d
+            FROM rates WHERE id = 'partial-rate'
+        `).get();
+        assert.equal(row.carrier, 'PARTIAL');
+        assert.equal(row.rate_20d, null);
+        assert.equal(row.rate_view, 'view-9');
+        assert.equal(row.contract_owner, 'Kept Owner');
+        assert.equal(row.inland_delivery_location, 'Chicago');
+        assert.equal(row.commodity_type, 'Widgets');
+        assert.equal(row.notes_1, 'keep-note');
+        assert.equal(row.rate_type, 'NAC');
+
+        insertSailing(app.db, {
+            id: 'timed-sail',
+            departure: '2026-08-01T15:45:00.000Z',
+            arrival: '2026-08-20T08:00:00.000Z',
+            carrier: 'MSC',
+            origin: 'SHA',
+            vessel: 'Old Vessel',
+            voyage: 'VY-9',
+            owner: ownerId
+        });
+        app.db.prepare(`UPDATE sailings SET service = 'AE1', transit_time = '19' WHERE id = 'timed-sail'`).run();
+        const vesselOnly = await call(ownerSession, 'PATCH', '/api/admin/data/sailings/timed-sail', {
+            vessel: 'New Vessel',
+            expectedRowVersion: 1,
+            companyId: ownerId
+        });
+        assert.equal(vesselOnly.status, 200, vesselOnly.text);
+        const sailing = app.db.prepare(`
+            SELECT departure, arrival, vessel, voyage, service, transit_time, carrier FROM sailings WHERE id = 'timed-sail'
+        `).get();
+        assert.equal(sailing.vessel, 'New Vessel');
+        assert.equal(sailing.departure, '2026-08-01T15:45:00.000Z');
+        assert.equal(sailing.arrival, '2026-08-20T08:00:00.000Z');
+        assert.equal(sailing.voyage, 'VY-9');
+        assert.equal(sailing.service, 'AE1');
+        assert.equal(sailing.transit_time, '19');
+        assert.equal(sailing.carrier, 'MSC');
+
+        const dated = await call(ownerSession, 'PATCH', '/api/admin/data/sailings/timed-sail', {
+            departure: '2026-08-02T15:45:00.000Z',
+            expectedRowVersion: 2,
+            companyId: ownerId
+        });
+        assert.equal(dated.status, 200, dated.text);
+        assert.equal(
+            app.db.prepare(`SELECT departure, arrival, vessel FROM sailings WHERE id = 'timed-sail'`).get().departure,
+            '2026-08-02T15:45:00.000Z'
+        );
+    });
+
     async function deleteIds(ids, submissionId) {
         const preview = await call(ownerSession, 'POST', '/api/admin/data/delete/preview', {
             dataset: 'rates',
