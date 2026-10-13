@@ -151,6 +151,8 @@ describe('r1-01 routes and exact documents', { concurrency: 1 }, () => {
                 assert.equal(owned.length, 2);
                 assert.equal(owned.find(route => route.path === '/api/account').access, 'session');
                 assert.equal(owned.find(route => route.path === '/api/account/password').access, 'session-unrestricted');
+            } else if (name === 'customer-access') {
+                assert.equal(mod.routes.length, 8);
             } else {
                 assert.equal(mod.routes.length, 0);
             }

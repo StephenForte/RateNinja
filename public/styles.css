@@ -1921,3 +1921,71 @@ body {
     margin: -4px 0 8px;
     font-size: 0.9rem;
 }
+
+/* R1-07 */
+.customer-toolbar,
+.customer-preview-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: end;
+    margin: 12px 0;
+}
+
+.customer-toolbar label,
+.customer-preview-filters label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 13px;
+}
+
+.customer-toolbar input,
+.customer-preview-filters input,
+.customer-lookup-results button,
+.customer-actions button {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--ink);
+    padding: 6px 10px;
+}
+
+.customer-lookup-results {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    margin-bottom: 12px;
+}
+
+.customer-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.customer-status {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #e5f6ef;
+    color: #0b6b45;
+    font-size: 12px;
+}
+
+.customer-status-revoked {
+    background: #fde8e8;
+    color: #9b1c1c;
+}
+
+.customer-proposed {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #fff4d6;
+    color: #8a5a00;
+    font-size: 12px;
+    font-weight: 600;
+}

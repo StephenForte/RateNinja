@@ -18,7 +18,6 @@ const { COMPANY_TYPE_CONTRACT_OWNER } = require('./lib/constants');
 const { db } = require('./lib/db');
 const {
     getRatesByCarrierOrigin,
-    getCompanyByRecordId,
     companyForUser,
     getSailings,
     queryPublicRates,
@@ -26,8 +25,6 @@ const {
     pullForwardSailings,
     getUserCredentials,
     getUserById,
-    listCustomerMarginTargets,
-    upsertCompanyMargin,
     listUsersForAdmin
 } = require('./lib/store');
 const {
@@ -431,33 +428,6 @@ async function handleSailings(request, response, session, url) {
     }
     const sailings = appSailings(session.user, { carrier, originPort, after });
     sendJson(response, 200, { sailings }, securityHeaders());
-}
-
-async function handleAdminCompanies(request, response, session) {
-    const scope = requireContractAdmin(response, session);
-    if (!scope) return;
-    sendJson(response, 200, { companies: listCustomerMarginTargets(scope.company.id) }, securityHeaders());
-}
-
-async function handleAdminCompanyUpdate(request, response, session, recordId) {
-    const body = await readJson(request);
-    if (!requireCsrf(request, response, session, body)) return;
-    const scope = requireContractAdmin(response, session);
-    if (!scope) return;
-    if (rejectCompanyMismatch(response, body, scope.company)) return;
-    const { marginPercent, marginNumber } = body;
-    if (![marginPercent, marginNumber].every(value => Number.isFinite(value) && value >= 0 && value <= 1_000_000)) {
-        sendError(response, 400, 'Margins must be non-negative numbers no greater than 1,000,000.');
-        return;
-    }
-    const company = getCompanyByRecordId(recordId);
-    if (!permissions.marginTargetInScope(scope, company)) {
-        sendError(response, 404, 'Company was not found in your administration scope.');
-        return;
-    }
-    upsertCompanyMargin(scope.company.id, recordId, { marginPercent, marginNumber });
-    recordAudit('margin_updated', { actorUserId: session.user.id, detail: { customerCompanyId: recordId } });
-    sendJson(response, 200, { ok: true }, securityHeaders());
 }
 
 async function handlePullForwardRates(request, response, session) {
@@ -1098,14 +1068,11 @@ const server = http.createServer(async (request, response) => {
         if (pathname === '/api/rates/predictive' && request.method === 'GET') return handlePredictiveRates(request, response, session, url);
         if (pathname === '/api/rates' && request.method === 'GET') return handleRates(request, response, session);
         if (pathname === '/api/sailings' && request.method === 'GET') return handleSailings(request, response, session, url);
-        if (pathname === '/api/admin/companies' && request.method === 'GET') return handleAdminCompanies(request, response, session);
         if (pathname === '/api/admin/users' && request.method === 'GET') return handleAdminUsers(request, response, session);
         if (pathname === '/api/admin/oauth-clients' && request.method === 'GET') return handleAdminClients(request, response, session);
         if (pathname === '/api/admin/oauth-clients' && request.method === 'POST') return handleAdminClientCreate(request, response, session);
         if (pathname === '/api/admin/pull-forward/rates' && request.method === 'POST') return handlePullForwardRates(request, response, session);
         if (pathname === '/api/admin/pull-forward/sailings' && request.method === 'POST') return handlePullForwardSailings(request, response, session);
-        const companyMatch = pathname.match(/^\/api\/admin\/companies\/([\w-]+)$/);
-        if (companyMatch && request.method === 'PATCH') return handleAdminCompanyUpdate(request, response, session, companyMatch[1]);
         const userPasswordMatch = pathname.match(/^\/api\/admin\/users\/([\w-]+)\/password$/);
         if (userPasswordMatch && request.method === 'POST') return handleAdminPassword(request, response, session, userPasswordMatch[1]);
         const userMfaMatch = pathname.match(/^\/api\/admin\/users\/([\w-]+)\/two-factor$/);
