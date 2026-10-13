@@ -234,6 +234,14 @@ describe('r1-07 customer authorization and live pricing', { concurrency: 1 }, ()
         assert.equal(app.db.prepare('SELECT COUNT(*) AS count FROM company_margins').get().count, before);
         const stillNone = await call(app.baseUrl, actor['user-none'], 'GET', '/api/rates');
         assert.equal(stillNone.json.rates.some(rate => rate.id === 'rate-a'), false);
+        const legacy = await call(app.baseUrl, actor['owner-admin'], 'PATCH', '/api/admin/companies/cust-none', {
+            marginPercent: 10,
+            marginNumber: 25
+        });
+        assert.equal(legacy.status, 404);
+        assert.equal(legacy.json.error, 'Company was not found in your administration scope.');
+        assert.equal(marginRow(app.db, 'owner-a', 'cust-none'), undefined);
+        assert.equal(app.db.prepare('SELECT COUNT(*) AS count FROM company_margins').get().count, before);
     });
 
     it('does not authorize a customer when only the margin is saved', async () => {

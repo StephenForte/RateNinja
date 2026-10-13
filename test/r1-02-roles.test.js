@@ -101,6 +101,14 @@ describe('r1-02 roles and company isolation', { concurrency: 1 }, () => {
             INSERT INTO company_margins (id, owner_company_id, customer_company_id, margin_percent, margin_number, created_at, updated_at)
             VALUES ('margin-c', 'owner-a', 'customer-c', 0.1, 0, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')
         `).run();
+        db.prepare(`
+            INSERT INTO company_margins (id, owner_company_id, customer_company_id, margin_percent, margin_number, created_at, updated_at)
+            VALUES ('margin-d-a', 'owner-a', 'customer-d', 0, 0, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')
+        `).run();
+        db.prepare(`
+            INSERT INTO company_margins (id, owner_company_id, customer_company_id, margin_percent, margin_number, created_at, updated_at)
+            VALUES ('margin-d-b', 'owner-b', 'customer-d', 0, 0, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')
+        `).run();
         actor = {};
         for (const id of ['member', 'customer-admin', 'owner-admin', 'system-admin', 'departing']) {
             actor[id] = await login(app.baseUrl, id, PASSWORD);
@@ -286,7 +294,8 @@ describe('r1-02 roles and company isolation', { concurrency: 1 }, () => {
         const margin = await call(app.baseUrl, actor['owner-admin'], 'PATCH', '/api/admin/companies/customer-d', { marginPercent: 2, marginNumber: 5 });
         assert.equal(margin.status, 200);
         const saved = app.db.prepare(`
-            SELECT owner_company_id, margin_percent FROM company_margins WHERE customer_company_id = 'customer-d'
+            SELECT owner_company_id, margin_percent FROM company_margins
+            WHERE owner_company_id = 'owner-a' AND customer_company_id = 'customer-d'
         `).get();
         assert.equal(saved.owner_company_id, 'owner-a');
         assert.equal(saved.margin_percent, 2);
