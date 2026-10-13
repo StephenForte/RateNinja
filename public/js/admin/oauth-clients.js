@@ -127,10 +127,12 @@ export async function mount(container) {
 
     async function reload() {
         const { clients } = await request('/api/admin/oauth-clients');
+        errors.hide();
         render(clients);
     }
 
     async function updateClient(client, patch) {
+        errors.hide();
         try {
             await request(`/api/admin/oauth-clients/${client.id}`, {
                 method: 'PATCH',
@@ -143,6 +145,7 @@ export async function mount(container) {
     }
 
     async function rotateSecret(clientId) {
+        errors.hide();
         try {
             const result = await request(`/api/admin/oauth-clients/${clientId}/rotate-secret`, {
                 method: 'POST',
