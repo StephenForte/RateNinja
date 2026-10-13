@@ -63,7 +63,7 @@ const {
     requireCsrf
 } = require('./lib/http');
 const routeModules = require('./lib/routes');
-const { setPasswordById, setEmailById, setDisabled } = require('./lib/accounts');
+const { setPasswordById, setEmailById, setDisabled, markTemporaryPassword, passwordChangeRequired } = require('./lib/accounts');
 const permissions = require('./lib/permissions');
 const { requestPasswordReset, completePasswordReset } = require('./lib/password-reset');
 const { resendSettings } = require('./lib/resend');
@@ -537,6 +537,7 @@ async function handleAdminPassword(request, response, session, userId) {
         sendError(response, result.status, result.error);
         return;
     }
+    markTemporaryPassword(userId, session.user.id);
     sendJson(response, 200, { ok: true, signedOut: userId === session.user.id }, securityHeaders());
 }
 
@@ -1078,6 +1079,15 @@ const server = http.createServer(async (request, response) => {
 
         const session = pathname.startsWith('/api/') || pathname.startsWith('/oauth/') ? requireSession(request, response) : null;
         if ((pathname.startsWith('/api/') || pathname.startsWith('/oauth/')) && !session) return;
+        // One gate for the legacy chain and module routes. Read the live row, not the login snapshot.
+        // GET /api/session and POST /api/auth/logout are handled above and stay open.
+        if (session && passwordChangeRequired(session.user.id) && !findModuleRoute(pathname, request.method, ['session-unrestricted'])) {
+            sendJson(response, 403, {
+                error: 'Change your password before continuing.',
+                code: 'password_change_required'
+            }, securityHeaders());
+            return;
+        }
         if (pathname === '/oauth/consents' && request.method === 'GET') return handleConsents(request, response, session);
         const consentMatch = pathname.match(/^\/oauth\/consents\/([\w-]+)$/);
         if (consentMatch && request.method === 'DELETE') return handleConsentDelete(request, response, session, consentMatch[1]);

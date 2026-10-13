@@ -5,6 +5,7 @@ import { isClientRoute, resolveRoute } from './router.js';
 import { menuFor } from './menu.js';
 import { mountPlaceholder } from './placeholder.js';
 import { showRates } from './rates/browse.js';
+import { mount as mountPasswordRequired, unmount as unmountPasswordRequired } from './password-required.js';
 
 const ICONS = {
     rates: 'fa-ship',
@@ -30,6 +31,7 @@ let activeSection = null;
 let sectionBlocked = false;
 let activeUnmount = null;
 let renderGeneration = 0;
+let passwordGateMounted = false;
 
 const app = () => document.getElementById('app');
 const menuButton = () => document.getElementById('menuButton');
@@ -40,6 +42,11 @@ export async function boot() {
     try {
         const payload = await request('/api/session', { allowUnauthenticated: true });
         rememberAuth(payload);
+        if (user?.mustChangePassword) {
+            app().hidden = false;
+            await renderPasswordGate();
+            return;
+        }
         if (followOauthNext()) return;
         permissions = permissionsFromUser(user);
         if (permissions.systemAdmin && !(permissions.companyContext && permissions.companyContext.id)) {
@@ -288,7 +295,29 @@ export function navigate(path) {
     return renderRoute();
 }
 
+async function renderPasswordGate() {
+    welcome();
+    app().classList.add('password-change-required');
+    setMenuOpen(false);
+    hideViews();
+    document.title = 'Rate Ninja | Change password';
+    document.getElementById('sectionView').hidden = false;
+    if (passwordGateMounted) return;
+    clearSection();
+    const slot = document.createElement('div');
+    slot.id = 'passwordRequired';
+    document.getElementById('sectionMount').append(slot);
+    passwordGateMounted = true;
+    activeUnmount = unmountPasswordRequired;
+    activeSection = 'password-required';
+    mountPasswordRequired(slot);
+}
+
 async function renderRoute(options = {}) {
+    if (user?.mustChangePassword) {
+        await renderPasswordGate();
+        return;
+    }
     const generation = ++renderGeneration;
     welcome();
     renderIndicator();

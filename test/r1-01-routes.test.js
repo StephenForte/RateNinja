@@ -146,7 +146,12 @@ describe('r1-01 routes and exact documents', { concurrency: 1 }, () => {
                 assert.equal(mod.routes[0].access, 'public');
             } else if (name === 'admin-context') {
                 assert.equal(mod.routes.length, 3);
-            } else if (name !== 'account') {
+            } else if (name === 'account') {
+                const owned = mod.routes.filter(route => route.path === '/api/account' || route.path === '/api/account/password');
+                assert.equal(owned.length, 2);
+                assert.equal(owned.find(route => route.path === '/api/account').access, 'session');
+                assert.equal(owned.find(route => route.path === '/api/account/password').access, 'session-unrestricted');
+            } else {
                 assert.equal(mod.routes.length, 0);
             }
         }
