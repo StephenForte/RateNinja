@@ -200,7 +200,7 @@ describe('r1-02 migration 001', { concurrency: 1 }, () => {
             first.close();
         }
         const firstBackups = listBackups(dbPath);
-        assert.deepEqual(firstMigrations.map(row => row.id), ['001', '002']);
+        assert.deepEqual(firstMigrations.map(row => row.id), ['001', '002', '005']);
         assert.equal(firstBackups.length, 1);
         assert.match(firstBackups[0], /^rateninja-\d{8}T\d{9}Z-pre-001\.db$/);
         assert.deepEqual(firstCounts, before);
@@ -262,7 +262,7 @@ describe('r1-02 migration 001', { concurrency: 1 }, () => {
             assert.equal(row.company_role, 'company_admin');
             assert.equal(row.is_system_admin, 1);
             assert.equal(row.display_name, 'Already');
-            assert.deepEqual(opened.prepare('SELECT id FROM schema_migrations ORDER BY id').all().map(row => row.id), ['001', '002']);
+            assert.deepEqual(opened.prepare('SELECT id FROM schema_migrations ORDER BY id').all().map(row => row.id), ['001', '002', '005']);
         } finally {
             opened.close();
         }
