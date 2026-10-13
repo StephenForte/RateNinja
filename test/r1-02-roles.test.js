@@ -151,6 +151,33 @@ describe('r1-02 roles and company isolation', { concurrency: 1 }, () => {
         });
     });
 
+    it('lists every company to a system admin and refuses company admins and members', async () => {
+        const listed = await call(app.baseUrl, actor['system-admin'], 'GET', '/api/admin/context/companies');
+        assert.equal(listed.status, 200);
+        assert.deepEqual(Object.keys(listed.json), ['companies']);
+        const expected = app.db.prepare(`
+            SELECT id, company_name AS name, company_type AS companyType FROM companies
+        `).all().map(row => ({
+            id: row.id,
+            name: row.name,
+            companyType: row.companyType
+        })).sort((left, right) => left.name.localeCompare(right.name) || left.id.localeCompare(right.id));
+        assert.deepEqual(listed.json.companies, expected);
+        assert.ok(expected.length > 4);
+        for (const company of listed.json.companies) {
+            assert.deepEqual(Object.keys(company).sort(), ['companyType', 'id', 'name']);
+        }
+        const customer = await call(app.baseUrl, actor['customer-admin'], 'GET', '/api/admin/context/companies');
+        assert.equal(customer.status, 403);
+        const owner = await call(app.baseUrl, actor['owner-admin'], 'GET', '/api/admin/context/companies');
+        assert.equal(owner.status, 403);
+        const member = await call(app.baseUrl, actor.member, 'GET', '/api/admin/context/companies');
+        assert.equal(member.status, 403);
+        const stillClosed = await call(app.baseUrl, actor['system-admin'], 'GET', '/api/admin/users');
+        assert.equal(stillClosed.status, 409);
+        assert.equal(stillClosed.json.code, 'company_context_required');
+    });
+
     it('lets every role browse, including a system admin whose context is another company', async () => {
         const selected = await call(app.baseUrl, actor['system-admin'], 'POST', '/api/admin/context', { companyId: 'owner-b' });
         assert.equal(selected.status, 200);
@@ -187,6 +214,7 @@ describe('r1-02 roles and company isolation', { concurrency: 1 }, () => {
             ['PATCH', '/api/admin/oauth-clients/missing', { redirectUris: ['http://127.0.0.1:9/nope'] }],
             ['POST', '/api/admin/oauth-clients/missing/rotate-secret', {}],
             ['GET', '/api/admin/context'],
+            ['GET', '/api/admin/context/companies'],
             ['POST', '/api/admin/context', { companyId: 'owner-a' }]
         ];
         for (const [method, path, body] of paths) {
