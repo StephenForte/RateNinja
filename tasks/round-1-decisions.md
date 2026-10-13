@@ -145,3 +145,24 @@ Server-side call to the Anthropic Messages API; key in `ANTHROPIC_API_KEY`; mode
 `IMPORT_MAPPING_MODEL` (default `claude-sonnet-5-5`). Sends headers + a bounded sample only;
 response must validate against a fixed JSON schema of target fields or it is discarded and manual
 mapping continues. R1-10 confirms limits and parser choices; R1-11 implements.
+
+### D-017 — Import formats: CSV, Excel, and PDF (2026-10-12)
+
+Product decision (operator, 2026-10-12): all three formats are in P1 scope. This resolves the
+PRD's remaining open decision.
+
+- CSV and Excel (`.xlsx`; `.xls` only if R1-10 finds it in representative files) go through
+  the PRD workflow unchanged: deterministic parse → Claude-suggested column mapping on headers +
+  bounded sample → deterministic validation → commit.
+- PDF is **delivered as a separate task (R1-11b) after CSV/Excel (R1-11a)**. Reason: a PDF has no
+  column structure to map. Getting rows out of it needs either deterministic text-layer table
+  extraction (fails on scanned or irregular sheets) or model extraction. Model extraction
+  conflicts with PRD FR 8: "Parsing … remain[s] deterministic" and "the model receives only
+  … headers and a bounded representative sample".
+- **Open product question (blocks R1-11b only):** if deterministic extraction fails on the
+  representative PDFs, may Claude extract the rows from the whole PDF? Every extracted row would
+  then be shown for review before validation and commit, the whole document would be sent to
+  Claude, and no missing value would ever be filled in. R1-10 measures both approaches on real
+  files before this is asked.
+- R1-10 needs representative files of each format from the operator (real rate sheets and
+  sailing schedules, redacted if needed).
