@@ -57,7 +57,7 @@ Model names are the planner's proposal; operator overrides recorded in the Run c
 | --- | --- | --- | --- | --- | --- |
 | R1-00 | Static serving lockdown (hotfix) | — | — | M / Sonnet 5.5 | approved 2026-10-12, PR #12 |
 | R1-01 | Scaffolding: migration runner, route modules, test harness, limits | §Data | R1-00 | S / Opus 5.5 | merged 2026-10-13, PR #14 |
-| R1-02 | Roles and company isolation | Roles, Delivery 1 | R1-01 | S / Opus 5.5 | briefed 2026-10-13 (W1) |
+| R1-02 | Roles and company isolation | Roles, Delivery 1 | R1-01 | S / Opus 5.5 | changes requested 2026-10-13, PR #17 (D-021) |
 | R1-03 | App shell: addressable pages and menu | FR1 | R1-01 | M / Sonnet 5.5 | briefed 2026-10-13 (W1) |
 | R1-04 | Profile and password lifecycle | FR4 | R1-02, R1-03 | S / Opus 5.5 | not dispatched |
 | R1-05 | Saved queries and saved views | FR2, FR3 | R1-03 | M / Sonnet 5.5 | not dispatched |
@@ -67,7 +67,7 @@ Model names are the planner's proposal; operator overrides recorded in the Run c
 | R1-09 | Pull-forward wizard and operation undo | FR9 | R1-08 | S / Opus 5.5 | not dispatched |
 | R1-10 | Imports discovery spike, CSV + Excel (no product code) | FR8 | representative files from operator | M / Sonnet 5.5 | awaiting files |
 | R1-11a | Imports implementation: CSV + Excel | FR8 | R1-08, R1-10 | S / Opus 5.5 | not dispatched |
-| R1-12 | MCP / partner API parity incl. predictive | FR11 | R1-01 | S / Opus 5.5 | briefed 2026-10-13 (W1) |
+| R1-12 | MCP / partner API parity incl. predictive | FR11 | R1-01 | S / Opus 5.5 | approved 2026-10-13, PR #19 (`2797c08`) |
 | R1-13 | API and MCP instructions + docs alignment | FR10 | R1-07, R1-12 | M / Sonnet 5.5 | not dispatched |
 | R1-14 | Integrated release acceptance | §Validation | all P1 | M / Sonnet 5.5 + operator | not dispatched |
 | R1-15 | P2: bulk price adjustment | FR12 | R1-09 | S | not planned in detail |
@@ -132,6 +132,7 @@ Every migration task must also prove: fresh DB, prod-shaped copy, and re-run (id
 
 - **R1-02:** delete the R1-01 assertion in `test/r1-01-migrations.test.js` that `lib/migrations/` has no `NNN-*.js` file (it must, once `001-roles.js` lands); keep the count and second-start checks. Declare it under EXISTING CHECKS MODIFIED.
 - **Every migration task:** `up(db)` already runs inside `BEGIN IMMEDIATE`; do not open a transaction (or call `db.js` `transaction()`) inside it.
+- **Every task that fills a pre-registered route module:** `test/r1-01-routes.test.js` asserts per-module route counts, so it conflicts whenever two tasks fill modules in parallel. Resolve by keeping both counts; assert your own routes in your own test file.
 - **R1-06:** migration 001 installs `users` triggers that keep `admin_screen` and `company_role` in sync (an insert with `admin_screen = 1` becomes `company_admin`). Set `company_role` directly when creating users; never rely on `admin_screen`.
 - **R1-11a:** the route dispatcher JSON-parses every unsafe-method session body (1 MB cap) before CSRF. File upload needs a route-level opt-out (for example `body: 'raw'` with header-only CSRF) and its own size limit; that change to `server.js` is in R1-11a's scope.
 
@@ -149,6 +150,7 @@ Every migration task must also prove: fresh DB, prod-shaped copy, and re-run (id
 
 _(planner appends: task, PR, verdict, what was independently verified and how)_
 
+- 2026-10-13 · **R1-12, PR #19: approved at `2797c08`.** Base `d264f95` = main; scope clean. Fresh clone: 74/0/0. The golden test, run against a clean main checkout, passes 2/2, so the captured predictive bytes really are main's. The parity test covers cross-owner `not_found`, scope, schema rejection without an audit row, 90/91 days, the MCP audit channel, revocation, the deployment gate, and demo-key rejection, all over real HTTP. Real client: Inspector 2.10.1 with OAuth; revocation made the next call fail. **Trial merge #19 + #17 + #18:** one textual conflict in `test/r1-01-routes.test.js` (module-count check), plus a semantic one: the R1-12 parity setup creates OAuth clients as a company admin, which D-008 now forbids. With both fixed (one line sets `is_system_admin` in setup), the combined suite is 96/96, 0 cancelled. **Merge order: #19, then #17 (rebased, carrying both fixes), then #18 immediately after (D-021).**
 - 2026-10-13 · **R1-02, PR #17: changes requested (one item, a planning gap).** Base `d264f95` = main; scope clean. Fresh clone gate 84/0/0, matching the handoff. Live probes (startApp + direct DB edits): a demoted admin's existing session gets 403 on its next request (permissions read live); a company admin's PATCH on another company's user returns 404 and leaves it unchanged; the user list is limited to their own company. **Blocker:** a system admin with no context gets 409 on users and companies, and nothing lists companies to select, so production admin screens are locked once 001 makes SteveF a system admin. The fix is D-021 (company-list endpoint in R1-02, selector in R1-03, back-to-back merge).
 - 2026-10-13 · **R1-01, PR #14: approved at `5be291c`.** The fix changed only `.gitignore` (`data/`) and added one test. Fresh clone: 71/0/0. With the fix reverted, the new ignore test fails, so it can catch the problem. Approval posted on #14.
 - 2026-10-13 · **R1-01, PR #14: changes requested (one item).** Base `323b4aa` = main; scope clean. Gate re-run in a fresh clone: 70/0/0, matching the handoff. Probes with fixture migrations via `MIGRATIONS_DIR` on the default file DB: no-pending start makes no backup; pending `001` is applied once and backed up once, and the second start is a no-op; a throwing `002` exits 1 with its id in the message, is not recorded, and its partial table is rolled back. Doc routes are an exact map. **Blocker:** `.gitignore` has `data/*.db` but backups go to `data/backups/`, and the repo is **public**, so a full DB copy (hashes, TOTP secrets) shows as untracked and one `git add -A` would publish it. Fix (replace with `data/` + a `git check-ignore` test) proven in the clone; posted on #14.
