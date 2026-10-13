@@ -97,6 +97,48 @@ describe('r1-05 grouping, sort, and query application', () => {
         assert.equal(closed.items.filter(item => item.type === 'row' && item.rate.carrier === 'CMA').length, 10);
     });
 
+    it('keeps a collapsed header when earlier groups fill the page', () => {
+        const rates = [
+            rate('a1', { carrier: 'CMA' }),
+            rate('a2', { carrier: 'CMA' }),
+            rate('b1', { carrier: 'MSC' })
+        ];
+        const msc = grouping.groupRates(rates, ['carrier']).groups.find(group => group.label === 'MSC');
+        const closed = grouping.layoutPage(rates, {
+            groupBy: ['carrier'],
+            page: 1,
+            pageSize: 2,
+            collapsed: [msc.pathKey]
+        });
+        const collapsed = closed.items.find(item => item.type === 'header' && item.label === 'MSC');
+        assert.equal(closed.pageCount, 1);
+        assert.equal(collapsed.collapsed, true);
+        assert.equal(collapsed.count, 1);
+        assert.equal(closed.items.filter(item => item.type === 'row').length, 2);
+    });
+
+    it('keeps the parent header when every nested group is collapsed', () => {
+        const rates = [
+            rate('a', { carrier: 'MSC', originPort: 'SHA' }),
+            rate('b', { carrier: 'MSC', originPort: 'NGB' })
+        ];
+        const open = grouping.layoutPage(rates, { groupBy: ['carrier', 'originPort'], pageSize: 20 });
+        const children = open.items.filter(item => item.type === 'header' && item.depth === 1);
+        const closed = grouping.layoutPage(rates, {
+            groupBy: ['carrier', 'originPort'],
+            pageSize: 20,
+            collapsed: children.map(item => item.pathKey)
+        });
+        assert.deepEqual(
+            closed.items.filter(item => item.type === 'header').map(item => item.label),
+            ['MSC', 'NGB', 'SHA']
+        );
+        assert.equal(closed.items.find(item => item.label === 'MSC').collapsed, false);
+        assert.equal(closed.items.find(item => item.label === 'MSC').count, 2);
+        assert.equal(closed.items.filter(item => item.type === 'row').length, 0);
+        assert.equal(closed.matchedTotal, 2);
+    });
+
     it('sorts missing values last and breaks ties on rate id', () => {
         const rates = [
             rate('b', { rate20D: null }),

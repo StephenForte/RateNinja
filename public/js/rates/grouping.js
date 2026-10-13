@@ -163,7 +163,7 @@ function flatten(nodes, collapsed, events, cursor, ancestors) {
             pathKey: node.pathKey,
             collapsed: collapsed.has(node.pathKey)
         };
-        events.push({ kind: 'header', header, atRow: cursor.index });
+        events.push({ kind: 'header', header, atRow: cursor.index, ancestors });
         if (header.collapsed) continue;
         const chain = ancestors.concat(header);
         if (node.children) {
@@ -233,8 +233,16 @@ export function layoutPage(rates, options = {}) {
         }
         for (const event of events) {
             if (event.kind === 'header' && event.header.collapsed) {
-                if (event.atRow >= start && event.atRow < end) emitHeader(event.header, false);
-                else if (visibleRowCount === 0 && page === 1) emitHeader(event.header, false);
+                const at = event.atRow;
+                const onThisPage = at >= start && at < end;
+                const afterLastRow = at >= visibleRowCount && page === pageCount;
+                if (onThisPage || afterLastRow || (visibleRowCount === 0 && page === 1)) {
+                    for (const ancestor of event.ancestors || []) {
+                        const first = firstRow.get(ancestor.pathKey);
+                        emitHeader(ancestor, first !== undefined && first < start);
+                    }
+                    emitHeader(event.header, false);
+                }
                 continue;
             }
             if (event.kind === 'row' && event.index >= start && event.index < end) {
