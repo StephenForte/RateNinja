@@ -57,13 +57,13 @@ Model names are the planner's proposal; operator overrides recorded in the Run c
 | --- | --- | --- | --- | --- | --- |
 | R1-00 | Static serving lockdown (hotfix) | — | — | M / Sonnet 5.5 | approved 2026-10-12, PR #12 |
 | R1-01 | Scaffolding: migration runner, route modules, test harness, limits | §Data | R1-00 | S / Opus 5.5 | merged 2026-10-13, PR #14 |
-| R1-02 | Roles and company isolation | Roles, Delivery 1 | R1-01 | S / Opus 5.5 | approved 2026-10-13, PR #17 (`c45a0cb`) |
-| R1-03 | App shell: addressable pages and menu | FR1 | R1-01 | M / Sonnet 5.5 | approved 2026-10-13, PR #18 (`dc572ef`) |
-| R1-04 | Profile and password lifecycle | FR4 | R1-02, R1-03 | S / Opus 5.5 | not dispatched |
-| R1-05 | Saved queries and saved views | FR2, FR3 | R1-03 | M / Sonnet 5.5 | not dispatched |
+| R1-02 | Roles and company isolation | Roles, Delivery 1 | R1-01 | S / Opus 5.5 | merged 2026-10-13, PR #17 |
+| R1-03 | App shell: addressable pages and menu | FR1 | R1-01 | M / Sonnet 5.5 | merged 2026-10-13, PR #18 |
+| R1-04 | Profile and password lifecycle | FR4 | R1-02, R1-03 | S / Opus 5.5 | briefed 2026-10-13 (W2) |
+| R1-05 | Saved queries and saved views | FR2, FR3 | R1-03 | M / Sonnet 5.5 | briefed 2026-10-13 (W2) |
 | R1-06 | Company and user onboarding | FR5, FR6 | R1-04 | S / Opus 5.5 | not dispatched |
-| R1-07 | Customer authorization and live preview | FR7 | R1-02, R1-03 | S / Opus 5.5 | not dispatched |
-| R1-08 | Data workspace core: soft delete, versions, edit, delete/restore, history | FR9 | R1-02, R1-03 | S / Opus 5.5 | not dispatched |
+| R1-07 | Customer authorization and live preview | FR7 | R1-02, R1-03 | S / Opus 5.5 | briefed 2026-10-13 (W2) |
+| R1-08 | Data workspace core: soft delete, versions, edit, delete/restore, history | FR9 | R1-02, R1-03 | S / Opus 5.5 | briefed 2026-10-13 (W2) |
 | R1-09 | Pull-forward wizard and operation undo | FR9 | R1-08 | S / Opus 5.5 | not dispatched |
 | R1-10 | Imports discovery spike, CSV + Excel (no product code) | FR8 | representative files from operator | M / Sonnet 5.5 | awaiting files |
 | R1-11a | Imports implementation: CSV + Excel | FR8 | R1-08, R1-10 | S / Opus 5.5 | not dispatched |
@@ -77,7 +77,7 @@ Model names are the planner's proposal; operator overrides recorded in the Run c
 
 - **W0** (serial, one worker): R1-00 → R1-01.
 - **W1** (parallel, after R1-01 merges): R1-02, R1-03, R1-12. Merge order: any order, except R1-03 after R1-02 (it consumes D-009). R1-12 must merge before R1-07/R1-08 start (`lib/visibility.js`).
-- **W2** (parallel): R1-05 (needs R1-03 only — can start as soon as it lands); R1-04, R1-07, R1-08 (need R1-02 + R1-03).
+- **W2** (parallel): R1-05 (needs R1-03 only — can start as soon as it lands); R1-04, R1-07, R1-08 (need R1-02 + R1-03). Merge order: any, except R1-07 before R1-08 (both edit `lib/store.js`; R1-08's preview-exclusion test needs R1-07's preview). Expect `test/r1-01-routes.test.js` and `public/styles.css` conflicts on every merge after the first: keep both sides.
 - **W3**: R1-06 (after R1-04), R1-09 (after R1-08), R1-11a (after R1-08 + R1-10). R1-10 can run any time once representative files are supplied.
 - **W4**: R1-13, then R1-14.
 
@@ -94,10 +94,10 @@ Peak concurrency is 4 (W2). If the operator runs fewer agents, drop R1-05 to W3 
 | R1-02 | `lib/permissions.js`, `lib/migrations/001-roles.js`, `lib/routes/admin-context.js`, `test/r1-02-*` | `lib/foundation.js`, `server.js` (session payload, existing admin handlers), `lib/store.js` (`listUsersForAdmin`, user mutators), `lib/session.js` (session-context setter only), `lib/accounts.js` (scope and last-admin guards only), `test/r1-01-migrations.test.js` (delete the no-`NNN` assertion only) |
 | R1-03 | `public/index.html`, `public/styles.css`, `public/js/**` (split of `public/script.js`, which is deleted), **stub for every admin/profile section below**, `test/r1-03-*` | `server.js` page-path fallback only |
 | R1-04 | `lib/migrations/002-*`, `lib/routes/account.js`, `public/js/profile/account.js`, `public/js/password-required.js`, `test/r1-04-*` | `lib/accounts.js`, `lib/password-reset.js`, `lib/session.js`, `lib/oauth.js` (authorize gate only), `server.js` (restricted-session gate, admin password handler) |
-| R1-05 | `lib/migrations/003-*`, `lib/preferences.js`, `lib/view-fields.js`, `lib/routes/preferences.js`, `public/js/rates/queries.js`, `public/js/rates/views.js`, `public/js/rates/grouping.js`, `public/js/profile/preferences.js`, `test/r1-05-*` | `public/js/rates/*.js` existing files (wire-up only) |
+| R1-05 | `lib/migrations/003-*`, `lib/preferences.js`, `lib/view-fields.js`, `lib/routes/preferences.js`, `public/js/rates/queries.js`, `public/js/rates/views.js`, `public/js/rates/grouping.js`, `public/js/profile/preferences.js`, `test/r1-05-*` | `public/js/rates/*.js` existing files (wire-up only), `public/index.html` (rates table header region only) |
 | R1-06 | `lib/migrations/004-*`, `lib/onboarding.js`, `lib/routes/onboarding.js`, `lib/routes/users.js`, `public/js/admin/users.js`, `public/js/admin/companies.js`, `test/r1-06-*` | `lib/store.js` (user queries), `lib/permissions.js` (add predicates only) |
-| R1-07 | `lib/migrations/005-*`, `lib/pricing.js`, `lib/customer-access.js`, `lib/routes/customer-access.js`, `public/js/admin/customers.js`, `test/r1-07-*` | `lib/visibility.js` (call `lib/pricing.js`; filter revoked links), `lib/domain.js` (`calculateRate` delegates), `lib/store.js` (margin functions only) |
-| R1-08 | `lib/migrations/006-*`, `lib/data-ops.js`, `lib/record-validation.js`, `lib/routes/data-ops.js`, `public/js/admin/data.js`, `test/r1-08-*` | `lib/store.js` + `lib/visibility.js` (deleted-row filter on every rate/sailing read), `server.js` (remove legacy pull-forward routes only when R1-09 replaces them — not in R1-08) |
+| R1-07 | `lib/migrations/005-*`, `lib/pricing.js`, `lib/customer-access.js`, `lib/routes/customer-access.js`, `public/js/admin/customers.js`, `test/r1-07-*` | `lib/visibility.js` (call `lib/pricing.js`; filter revoked links), `lib/domain.js` (`calculateRate` delegates), `lib/store.js` (margin functions only), `server.js` (move `handleAdminCompanies`/`handleAdminCompanyUpdate` into `lib/routes/customer-access.js`) |
+| R1-08 | `lib/migrations/006-*`, `lib/data-ops.js`, `lib/record-validation.js`, `lib/routes/data-ops.js`, `public/js/admin/data.js`, `test/r1-08-*` | `lib/store.js` + `lib/visibility.js` (deleted-row filter on every rate/sailing read), `server.js` (remove legacy pull-forward routes only when R1-09 replaces them — not in R1-08), `test/r1-12-parity.test.js` (append deleted-row cases only) |
 | R1-09 | `lib/pull-forward.js`, `public/js/admin/pull-forward.js`, `test/r1-09-*` | `lib/data-ops.js`, `lib/routes/data-ops.js`, `server.js` (delete legacy pull-forward handlers), `lib/store.js` (pull-forward functions) |
 | R1-10 | `docs/imports-discovery.md`, `test/fixtures/imports/**` | — |
 | R1-11a | `lib/migrations/008-*`, `lib/imports/**`, `lib/routes/imports.js`, `public/js/admin/imports.js`, `public/templates/*`, `test/r1-11-*` | `package.json`/lockfile (parser + Anthropic deps), `lib/config.js` (import/Claude settings), `lib/data-ops.js` (undo hook), `lib/record-validation.js` |
@@ -130,6 +130,8 @@ Every migration task must also prove: fresh DB, prod-shaped copy, and re-run (id
 
 ## Notes for later briefs (from reviews)
 
+- **All W2 tasks:** `public/styles.css` is append-only for everyone; add a block headed by your task id.
+
 - **R1-02:** delete the R1-01 assertion in `test/r1-01-migrations.test.js` that `lib/migrations/` has no `NNN-*.js` file (it must, once `001-roles.js` lands); keep the count and second-start checks. Declare it under EXISTING CHECKS MODIFIED.
 - **Every migration task:** `up(db)` already runs inside `BEGIN IMMEDIATE`; do not open a transaction (or call `db.js` `transaction()`) inside it.
 - **Every task that fills a pre-registered route module:** `test/r1-01-routes.test.js` asserts per-module route counts, so it conflicts whenever two tasks fill modules in parallel. Resolve by keeping both counts; assert your own routes in your own test file.
@@ -138,7 +140,8 @@ Every migration task must also prove: fresh DB, prod-shaped copy, and re-run (id
 
 ## Open items
 
-- **Operator question (D-020):** do system admins need to browse rates as another company in P1? Default: no.
+- ~~D-020~~ resolved 2026-10-13: no cross-company browsing for system admins.
+- **Production fact (2026-10-13):** `GET https://rate-ninja.onrender.com/api/health` reports `partnerOauthEnabled: true`, so `PARTNER_OAUTH_ENABLED=true` is set in the Render dashboard, overriding `render.yaml` (`"false"`). Partner OAuth and `/mcp` are live in production. Operator to confirm it's intended.
 
 - ~~Import formats~~ resolved 2026-10-12 (D-017), narrowed by D-018: Round 1 imports CSV + Excel; PDF deferred.
 - **Deferred past Round 1 (D-018):** Claude extraction of unstructured files, and with it PDF import. Guardrails recorded; no Round 1 task. Target: P3 or P4 (operator, 2026-10-12).
