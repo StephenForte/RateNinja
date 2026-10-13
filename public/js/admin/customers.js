@@ -4,6 +4,7 @@ import { adminFailureMessage } from '../permissions.js';
 import { errorBox, fieldLabel, heading, paragraph, textCell } from '../dom.js';
 
 let previewCustomerId = '';
+let previewToken = 0;
 
 function companyIdOf(permissions) {
     return permissions && permissions.companyContext && permissions.companyContext.id
@@ -184,9 +185,11 @@ export async function mount(container, ctx) {
     }
 
     function draft(customer, percent, dollars) {
-        const marginPercent = Number(percent.value);
-        const marginNumber = Number(dollars.value);
-        if (!Number.isFinite(marginPercent) || !Number.isFinite(marginNumber)) {
+        const percentText = percent.value.trim();
+        const dollarText = dollars.value.trim();
+        const marginPercent = Number(percentText);
+        const marginNumber = Number(dollarText);
+        if (percentText === '' || dollarText === '' || !Number.isFinite(marginPercent) || !Number.isFinite(marginNumber)) {
             return { ok: false, error: 'Enter a margin percent and a dollar amount.' };
         }
         return {
@@ -241,7 +244,11 @@ export async function mount(container, ctx) {
             button.disabled = true;
             try {
                 await request(`/api/admin/customers/${customer.id}/revoke`, { method: 'POST', body: payload() });
-                await load();
+                const customers = await load();
+                if (previewCustomerId === customer.id && !previewPanel.hidden) {
+                    const revoked = customers.find(item => item.id === customer.id);
+                    if (revoked) await showPreview(revoked, null, null, { proposed: false });
+                }
             } catch (error) {
                 showError(error, `Failed to revoke access: ${error.message}`);
             } finally {
@@ -274,7 +281,6 @@ export async function mount(container, ctx) {
     }
 
     async function showPreview(customer, percent, dollars, options = {}) {
-        previewCustomerId = customer.id;
         const margins = percent && dollars ? draft(customer, percent, dollars) : { ok: true, dirty: false };
         if (!margins.ok) {
             errors.show(margins.error);
@@ -286,14 +292,18 @@ export async function mount(container, ctx) {
             body.marginPercent = margins.marginPercent;
             body.marginNumber = margins.marginNumber;
         }
+        const token = ++previewToken;
+        previewCustomerId = customer.id;
         previewPanel.hidden = false;
         try {
             const preview = await request(`/api/admin/customers/${customer.id}/preview`, {
                 method: 'POST',
                 body: payload(body)
             });
+            if (token !== previewToken) return;
             renderPreview(customer, preview);
         } catch (error) {
+            if (token !== previewToken) return;
             showError(error, `Failed to preview prices: ${error.message}`);
         }
     }
@@ -376,4 +386,5 @@ export async function mount(container, ctx) {
 
 export function unmount() {
     previewCustomerId = '';
+    previewToken += 1;
 }
