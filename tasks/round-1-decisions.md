@@ -199,3 +199,40 @@ R1-10 covers CSV and Excel only.
   keeps metadata and outcomes only, never document contents or model output.
 - **Cost:** model spend scales with document size. The later task measures cost per
   representative file and proposes per-file and per-day limits before dispatch.
+
+### D-019 — Owner-scoped predictive pricing parameters (2026-10-13)
+
+`GET /api/partner/v1/me/predictive-pricing` and MCP `rateninja_get_my_predictive_pricing` take:
+`after` (required, `YYYY-MM-DD`, more than 90 days in the future, same check as the demo),
+`carrier` and `originPort` (optional exact-match filters, same matching as partner rates),
+`page` and `pageSize` (same defaults and bounds as partner rates).
+
+They differ from the demo, which requires carrier and originPort, because the owner-scoped
+dataset is already bounded and an AI client should not need to know port names before asking.
+Output is base contract pricing only (no customer margin), marked as an estimate. It carries the
+input date, the basis (the D-015 formula), the owner company, and `partnerListMeta` pagination.
+
+### D-020 — System-admin browsing context is not in R1-02 (2026-10-13)
+
+The PRD role table lists system-admin browsing "in selected company context". R1-02 scopes
+**administration** endpoints to the selected context (D-007). Rate and sailing browsing stays on
+the system admin's own company. Whether system admins need to browse as another company in P1 is
+an open operator question. Until it is answered, no task implements it.
+
+### D-021 — System admins pick a company context from the UI (2026-10-13, amends D-007)
+
+D-007 made company context fail closed (409) but gave the UI no way to pick a company. The R1-02
+review (PR #17) showed the effect: SteveF, the only admin in production, becomes a system admin
+under migration 001. Every company-scoped admin endpoint then returns 409, and nothing lists
+companies to choose from. This was a planning gap in the R1-02 and R1-03 briefs, not a worker error.
+
+- `GET /api/admin/context/companies` (R1-02, `lib/routes/admin-context.js`): system admin only,
+  403 for anyone else. Returns `{ companies: [{ id, name, companyType }] }` for every company,
+  sorted by name. No users, margins, or other configuration.
+- R1-03's system-admin indicator becomes a selector. It loads that list, POSTs
+  `/api/admin/context` with `{ companyId }`, then refetches `/api/session` and re-renders the
+  current admin section. With no context, admin sections show "Select a company" instead of a
+  409 error.
+- Fail-closed behaviour is unchanged. There is still no fallback to the admin's own company.
+- Release rule: R1-02 (#17) and R1-03 (#18) merge back to back, R1-02 first, and only once both
+  are approved. Render deploys each merge, and R1-02 alone leaves production without admin screens.
