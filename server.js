@@ -14,7 +14,7 @@ const {
     partnerOauthEnabled,
     oauthSigningKey
 } = require('./lib/config');
-const { COMPANY_TYPE_CONTRACT_OWNER, COMPANY_TYPE_CUSTOMER } = require('./lib/constants');
+const { COMPANY_TYPE_CONTRACT_OWNER } = require('./lib/constants');
 const { db } = require('./lib/db');
 const {
     getRatesByCarrierOrigin,
@@ -64,6 +64,7 @@ const {
 } = require('./lib/http');
 const routeModules = require('./lib/routes');
 const { setPasswordById, setEmailById, setDisabled } = require('./lib/accounts');
+const permissions = require('./lib/permissions');
 const { requestPasswordReset, completePasswordReset } = require('./lib/password-reset');
 const { resendSettings } = require('./lib/resend');
 const {
@@ -154,21 +155,30 @@ function presentSession(record) {
         companyRecordId: company?.id || '',
         companyName: company?.fields?.CompanyName || '',
         companyType,
-        isAdmin: record.adminScreen === true,
+        isAdmin: permissions.isCompanyAdmin(permissions.loadActor(record.id)),
         isContractOwner: companyType === COMPANY_TYPE_CONTRACT_OWNER,
         sessionEpoch: record.sessionEpoch,
         csrfToken: crypto.randomBytes(32).toString('base64url')
     };
 }
 
-function publicUser(user) {
-    return {
-        username: user.username,
-        isAdmin: Boolean(user.isAdmin),
-        isContractOwner: Boolean(user.isContractOwner),
-        companyName: user.companyName || '',
-        companyType: user.companyType || ''
-    };
+function publicUser(userId, companyContextId = null) {
+    return permissions.publicSessionUser(userId, companyContextId);
+}
+
+function sendPermissionResult(response, result) {
+    if (result.code) {
+        sendJson(response, result.status, { error: result.error, code: result.code }, securityHeaders());
+        return;
+    }
+    sendError(response, result.status, result.error);
+}
+
+function rejectCompanyMismatch(response, body, company) {
+    const mismatch = permissions.companyContextMismatch(body, company);
+    if (!mismatch) return false;
+    sendPermissionResult(response, mismatch);
+    return true;
 }
 
 function liveSession(request) {
@@ -192,15 +202,31 @@ function requireSession(request, response) {
 }
 
 function requireAdmin(response, session) {
-    if (session.user.isAdmin) return true;
-    sendError(response, 403, 'Administrator access is required.');
-    return false;
+    const result = permissions.resolveCompanyContext(session);
+    if (!result.ok) {
+        sendPermissionResult(response, result);
+        return null;
+    }
+    return result;
 }
 
 function requireContractAdmin(response, session) {
-    if (session.user.isAdmin && session.user.isContractOwner) return true;
-    sendError(response, 403, 'A contract-owner administrator is required.');
-    return false;
+    const result = requireAdmin(response, session);
+    if (!result) return null;
+    if (!permissions.canAdministerOwnerData(result.actor, result)) {
+        sendError(response, 403, 'A contract-owner administrator is required.');
+        return null;
+    }
+    return result;
+}
+
+function requireSystemAdmin(response, session) {
+    const actor = permissions.loadActor(session.user.id);
+    if (!permissions.isSystemAdmin(actor)) {
+        sendError(response, 403, 'Administrator access is required.');
+        return null;
+    }
+    return actor;
 }
 
 function publicApiKeyIsValid(request) {
@@ -275,7 +301,7 @@ function finishLogin(response, record, loginName) {
     const user = presentSession(record);
     const token = createSession(user);
     recordAudit('login_success', { actorUserId: user.id, detail: { username: loginName } });
-    sendJson(response, 200, { user: publicUser(user), csrfToken: user.csrfToken }, {
+    sendJson(response, 200, { user: publicUser(user.id), csrfToken: user.csrfToken }, {
         'Set-Cookie': sessionCookie(token),
         ...securityHeaders()
     });
@@ -408,33 +434,38 @@ async function handleSailings(request, response, session, url) {
 }
 
 async function handleAdminCompanies(request, response, session) {
-    if (!requireContractAdmin(response, session)) return;
-    sendJson(response, 200, { companies: listCustomerMarginTargets(session.user.companyRecordId) }, securityHeaders());
+    const scope = requireContractAdmin(response, session);
+    if (!scope) return;
+    sendJson(response, 200, { companies: listCustomerMarginTargets(scope.company.id) }, securityHeaders());
 }
 
 async function handleAdminCompanyUpdate(request, response, session, recordId) {
-    if (!requireContractAdmin(response, session)) return;
     const body = await readJson(request);
     if (!requireCsrf(request, response, session, body)) return;
+    const scope = requireContractAdmin(response, session);
+    if (!scope) return;
+    if (rejectCompanyMismatch(response, body, scope.company)) return;
     const { marginPercent, marginNumber } = body;
     if (![marginPercent, marginNumber].every(value => Number.isFinite(value) && value >= 0 && value <= 1_000_000)) {
         sendError(response, 400, 'Margins must be non-negative numbers no greater than 1,000,000.');
         return;
     }
     const company = getCompanyByRecordId(recordId);
-    if (!company || company.fields.CompanyType !== COMPANY_TYPE_CUSTOMER || company.id === session.user.companyRecordId) {
+    if (!permissions.marginTargetInScope(scope, company)) {
         sendError(response, 404, 'Company was not found in your administration scope.');
         return;
     }
-    upsertCompanyMargin(session.user.companyRecordId, recordId, { marginPercent, marginNumber });
+    upsertCompanyMargin(scope.company.id, recordId, { marginPercent, marginNumber });
     recordAudit('margin_updated', { actorUserId: session.user.id, detail: { customerCompanyId: recordId } });
     sendJson(response, 200, { ok: true }, securityHeaders());
 }
 
 async function handlePullForwardRates(request, response, session) {
-    if (!requireContractAdmin(response, session)) return;
     const body = await readJson(request);
     if (!requireCsrf(request, response, session, body)) return;
+    const scope = requireContractAdmin(response, session);
+    if (!scope) return;
+    if (rejectCompanyMismatch(response, body, scope.company)) return;
     const validation = validatePullForwardRange(body);
     if (validation.error) {
         sendError(response, 400, validation.error);
@@ -453,15 +484,17 @@ async function handlePullForwardRates(request, response, session) {
         offsetDays: validation.offsetDays,
         priceIncreasePercent,
         deleteExisting: body.deleteExisting === true,
-        ownerCompanyId: session.user.companyRecordId
+        ownerCompanyId: scope.company.id
     });
     sendJson(response, 200, { ok: true, copied: result.copied, deleted: result.deleted }, securityHeaders());
 }
 
 async function handlePullForwardSailings(request, response, session) {
-    if (!requireContractAdmin(response, session)) return;
     const body = await readJson(request);
     if (!requireCsrf(request, response, session, body)) return;
+    const scope = requireContractAdmin(response, session);
+    if (!scope) return;
+    if (rejectCompanyMismatch(response, body, scope.company)) return;
     const validation = validatePullForwardRange(body);
     if (validation.error) {
         sendError(response, 400, validation.error);
@@ -474,21 +507,32 @@ async function handlePullForwardSailings(request, response, session) {
         targetEnd: body.targetEnd,
         offsetDays: validation.offsetDays,
         deleteExisting: body.deleteExisting === true,
-        ownerCompanyId: session.user.companyRecordId
+        ownerCompanyId: scope.company.id
     });
     sendJson(response, 200, { ok: true, copied: result.copied, deleted: result.deleted }, securityHeaders());
 }
 
 async function handleAdminUsers(request, response, session) {
-    if (!requireAdmin(response, session)) return;
-    sendJson(response, 200, { users: listUsersForAdmin() }, securityHeaders());
+    const scope = requireAdmin(response, session);
+    if (!scope) return;
+    sendJson(response, 200, { users: listUsersForAdmin(scope.company.id) }, securityHeaders());
+}
+
+function userInAdminScope(scope, userId) {
+    return permissions.canManageUser(scope.actor, getUserById(userId), scope);
 }
 
 async function handleAdminPassword(request, response, session, userId) {
-    if (!requireAdmin(response, session)) return;
     const body = await readJson(request);
     if (!requireCsrf(request, response, session, body)) return;
-    const result = setPasswordById(userId, body.password, session.user.id);
+    const scope = requireAdmin(response, session);
+    if (!scope) return;
+    if (rejectCompanyMismatch(response, body, scope.company)) return;
+    if (!userInAdminScope(scope, userId)) {
+        sendError(response, 404, 'User was not found.');
+        return;
+    }
+    const result = setPasswordById(userId, body.password, session.user.id, scope.company.id);
     if (!result.ok) {
         sendError(response, result.status, result.error);
         return;
@@ -497,9 +541,15 @@ async function handleAdminPassword(request, response, session, userId) {
 }
 
 async function handleAdminUserUpdate(request, response, session, userId) {
-    if (!requireAdmin(response, session)) return;
     const body = await readJson(request);
     if (!requireCsrf(request, response, session, body)) return;
+    const scope = requireAdmin(response, session);
+    if (!scope) return;
+    if (rejectCompanyMismatch(response, body, scope.company)) return;
+    if (!userInAdminScope(scope, userId)) {
+        sendError(response, 404, 'User was not found.');
+        return;
+    }
     const hasEmail = Object.prototype.hasOwnProperty.call(body, 'email');
     const hasDisabled = typeof body.disabled === 'boolean';
     if (!hasEmail && !hasDisabled) {
@@ -507,14 +557,14 @@ async function handleAdminUserUpdate(request, response, session, userId) {
         return;
     }
     if (hasEmail) {
-        const emailResult = setEmailById(userId, body.email, session.user.id);
+        const emailResult = setEmailById(userId, body.email, session.user.id, scope.company.id);
         if (!emailResult.ok) {
             sendError(response, emailResult.status, emailResult.error);
             return;
         }
     }
     if (hasDisabled) {
-        const result = setDisabled(userId, body.disabled, session.user.id);
+        const result = setDisabled(userId, body.disabled, session.user.id, scope.company.id);
         if (!result.ok) {
             sendError(response, result.status, result.error);
             return;
@@ -524,9 +574,15 @@ async function handleAdminUserUpdate(request, response, session, userId) {
 }
 
 async function handleAdminClearMfa(request, response, session, userId) {
-    if (!requireAdmin(response, session)) return;
     const body = await readJson(request);
     if (!requireCsrf(request, response, session, body)) return;
+    const scope = requireAdmin(response, session);
+    if (!scope) return;
+    if (rejectCompanyMismatch(response, body, scope.company)) return;
+    if (!userInAdminScope(scope, userId)) {
+        sendError(response, 404, 'User was not found.');
+        return;
+    }
     const result = clearMfa(userId, session.user.id);
     if (!result.ok) {
         sendError(response, result.status, result.error);
@@ -573,12 +629,12 @@ async function handleSecurityDisable(request, response, session) {
 }
 
 async function handleAdminClients(request, response, session) {
-    if (!requireAdmin(response, session)) return;
+    if (!requireSystemAdmin(response, session)) return;
     sendJson(response, 200, { clients: oauth.listClientsAdmin() }, securityHeaders());
 }
 
 async function handleAdminClientCreate(request, response, session) {
-    if (!requireAdmin(response, session)) return;
+    if (!requireSystemAdmin(response, session)) return;
     const body = await readJson(request);
     if (!requireCsrf(request, response, session, body)) return;
     const result = oauth.registerClient(body, session.user.id);
@@ -590,7 +646,7 @@ async function handleAdminClientCreate(request, response, session) {
 }
 
 async function handleAdminClientUpdate(request, response, session, clientId) {
-    if (!requireAdmin(response, session)) return;
+    if (!requireSystemAdmin(response, session)) return;
     const body = await readJson(request);
     if (!requireCsrf(request, response, session, body)) return;
     const result = oauth.updateClient(clientId, body, session.user.id);
@@ -602,7 +658,7 @@ async function handleAdminClientUpdate(request, response, session, clientId) {
 }
 
 async function handleAdminClientRotate(request, response, session, clientId) {
-    if (!requireAdmin(response, session)) return;
+    if (!requireSystemAdmin(response, session)) return;
     const body = await readJson(request);
     if (!requireCsrf(request, response, session, body)) return;
     const result = oauth.rotateClientSecret(clientId, session.user.id);
@@ -974,7 +1030,7 @@ const server = http.createServer(async (request, response) => {
         if (pathname === '/api/session' && request.method === 'GET') {
             const session = requireSession(request, response);
             if (!session) return;
-            sendJson(response, 200, { user: publicUser(session.user), csrfToken: session.user.csrfToken }, securityHeaders());
+            sendJson(response, 200, { user: publicUser(session.user.id, session.companyContextId), csrfToken: session.user.csrfToken }, securityHeaders());
             return;
         }
         if (pathname === '/.well-known/oauth-authorization-server' && request.method === 'GET') {

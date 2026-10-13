@@ -14,7 +14,9 @@ describe('r1-01 test harness', { concurrency: 1 }, () => {
         const directory = app.directory;
         const dbPath = app.dbPath;
         try {
-            assert.equal(fs.existsSync(pathToBackups(dbPath)), false);
+            const backups = fs.readdirSync(pathToBackups(dbPath)).filter(name => name.endsWith('.db'));
+            assert.equal(backups.length, 1);
+            assert.match(backups[0], /^rateninja-\d{8}T\d{9}Z-pre-001\.db$/);
             const user = app.db.prepare(`SELECT admin_screen, company_record_id, pwd FROM users WHERE username = ?`).get('r101-customer-admin');
             assert.equal(user.admin_screen, 1);
             assert.equal(user.pwd, null);

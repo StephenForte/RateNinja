@@ -371,9 +371,8 @@ describe('r1-01 migration runner', { concurrency: 1 }, () => {
     it('applies every shipped migration once on a fresh database and does not back up again', () => {
         const shipped = fs.readdirSync(path.join(repoRoot, 'lib', 'migrations'))
             .filter(name => /^\d{3}-.+\.js$/.test(name));
-        // R1-01 ships none. A later task that adds a file should delete this one
-        // assertion and keep the count and second-startup checks below.
-        assert.deepEqual(shipped, []);
+        // R1-02 removed the assertion that this list was empty. 001-roles.js is the
+        // first shipped migration. The count and second-startup checks stay.
         const dir = fs.mkdtempSync(path.join(root, 'shipped-'));
         const dbPath = path.join(dir, 'shipped.db');
         const first = startDatabase(dbPath);

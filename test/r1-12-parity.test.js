@@ -69,6 +69,8 @@ describe('partner and MCP parity', { concurrency: 1 }, () => {
         insertSailing(db, { id: 'a-sail-2', departure: '2026-08-01T00:00:00.000Z', carrier: 'MSC', origin: 'SHA', owner, vessel: 'Late' });
         insertSailing(db, { id: 'b-sail-1', departure: '2026-08-01T00:00:00.000Z', carrier: 'MSC', origin: 'SHA', owner: 'owner-b', vessel: 'Other' });
 
+        app.db.prepare('UPDATE users SET is_system_admin = 1 WHERE username = ?').run(app.username);
+
         const created = await app.request('/api/admin/oauth-clients', {
             method: 'POST',
             headers: { 'content-type': 'application/json' },

@@ -112,6 +112,17 @@ describe('partner http', () => {
         await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
         baseUrl = `http://127.0.0.1:${server.address().port}`;
         steve = await login('SteveF');
+        const kings = db.prepare(`SELECT id FROM companies WHERE company_name = 'Kings'`).get();
+        const context = await fetch(`${baseUrl}/api/admin/context`, {
+            method: 'POST',
+            headers: {
+                cookie: steve.cookie,
+                'content-type': 'application/json',
+                'x-csrf-token': steve.csrf
+            },
+            body: JSON.stringify({ companyId: kings.id })
+        });
+        assert.equal(context.status, 200, JSON.stringify(await context.clone().json()));
         const created = await fetch(`${baseUrl}/api/admin/oauth-clients`, {
             method: 'POST',
             headers: {

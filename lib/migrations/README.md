@@ -1,6 +1,6 @@
 # Migrations
 
-`lib/db.js` applies the frozen baseline schema, then calls `runMigrations`. This directory ships no numbered migration. Later tasks add only the id assigned to them in `tasks/round-1-plan.md`.
+`lib/db.js` applies the frozen baseline schema, then calls `runMigrations`. This directory ships `001-roles.js`. Later tasks add only the id assigned to them in `tasks/round-1-plan.md`.
 
 ## File shape
 
