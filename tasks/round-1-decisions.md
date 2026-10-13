@@ -159,10 +159,43 @@ PRD's remaining open decision.
   extraction (fails on scanned or irregular sheets) or model extraction. Model extraction
   conflicts with PRD FR 8: "Parsing … remain[s] deterministic" and "the model receives only
   … headers and a bounded representative sample".
-- **Open product question (blocks R1-11b only):** if deterministic extraction fails on the
+- **Open product question — resolved 2026-10-12 by D-018: yes in principle, deferred out of Round 1.** Original text: if deterministic extraction fails on the
   representative PDFs, may Claude extract the rows from the whole PDF? Every extracted row would
   then be shown for review before validation and commit, the whole document would be sent to
   Claude, and no missing value would ever be filled in. R1-10 measures both approaches on real
   files before this is asked.
 - R1-10 needs representative files of each format from the operator (real rate sheets and
   sailing schedules, redacted if needed).
+
+### D-018 — Claude-assisted extraction of unstructured import sources: deferred (2026-10-12)
+
+Product decision (operator, 2026-10-12): Claude may eventually turn unstructured source
+documents into candidate rows, but this is **deferred well past Round 1** ("keep for way later").
+It is not part of P1 or P2. The guardrails below are recorded now so the later work starts from
+them; model, prompt, limits, and chunking are decided then.
+
+Round 1 consequence: imports are CSV + Excel only (R1-11a). PDF import, which needs extraction
+in practice (D-017), moves out of Round 1 with it. R1-11b is removed from the Round 1 plan.
+R1-10 covers CSV and Excel only.
+
+- **Scope:** PDFs, plus Excel sheets that R1-10 finds have no usable header/column structure.
+  CSV and structured Excel keep the D-016 mapping-only path. Extraction is never used when
+  deterministic parsing succeeds.
+- **One client:** a single server-side Claude module (`lib/imports/claude.js`) serves both
+  mapping (D-016) and extraction. Key in `ANTHROPIC_API_KEY`; never sent to the browser.
+- **Consent:** before sending, the UI states that the whole document (not a sample) will go to
+  Claude. Declining ends the import for that file; nothing is sent.
+- **Provenance:** every extracted row carries its source location (page or sheet, and line or
+  region). Rows without provenance are rejected.
+- **No invention:** values absent from the source stay empty. The model must not infer prices,
+  dates, ports, carriers, or currency. Output must validate against a fixed schema of target
+  fields or the whole response is discarded.
+- **Same pipeline after extraction:** extracted rows go through the same deterministic
+  conversion and validation as CSV rows (FR 8 rate/sailing rules, USD only), then the same
+  review and atomic commit. The user reviews every extracted row before commit.
+- **Failure:** if Claude is unavailable, times out, or returns invalid output, the import stops
+  cleanly with nothing written, and the user is told plainly.
+- **Retention:** the D-016 / FR 8 retention rules apply to the full document. Operation history
+  keeps metadata and outcomes only, never document contents or model output.
+- **Cost:** model spend scales with document size. The later task measures cost per
+  representative file and proposes per-file and per-day limits before dispatch.
