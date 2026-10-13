@@ -1891,3 +1891,33 @@ body {
     background: var(--brand-dark);
     box-shadow: 0 8px 18px rgba(11, 114, 133, 0.2);
 }
+
+/* R1-04 */
+.password-change-required .hamburger-btn,
+.password-change-required #appMenu,
+.password-change-required #companyContext {
+    display: none;
+}
+
+.account-details {
+    display: grid;
+    grid-template-columns: 10rem 1fr;
+    gap: 8px 16px;
+    max-width: 40rem;
+    margin: 0 0 24px;
+}
+
+.account-details dt {
+    color: var(--muted);
+    font-weight: 600;
+}
+
+.account-details dd {
+    margin: 0;
+}
+
+.field-error {
+    color: #9b1c1c;
+    margin: -4px 0 8px;
+    font-size: 0.9rem;
+}
