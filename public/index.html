@@ -94,50 +94,9 @@
                     <span id="errorMessage">Failed to load data</span>
                 </div>
 
+                <div id="ratesPreferenceBar" class="rates-preference-bar"></div>
                 <table class="rates-table" id="ratesTable">
-                    <thead>
-                        <tr>
-                            <th class="sortable" data-column="rateType">
-                                Rate Type <i class="fas fa-sort" aria-hidden="true"></i>
-                            </th>
-                            <th class="sortable" data-column="originPort">
-                                Origin Port <i class="fas fa-sort" aria-hidden="true"></i>
-                            </th>
-                            <th class="sortable" data-column="destinationPort">
-                                Destination Port/Via Port <i class="fas fa-sort" aria-hidden="true"></i>
-                            </th>
-                            <th class="sortable" data-column="inlandDeliveryLocation">
-                                Inland Delivery Location <i class="fas fa-sort" aria-hidden="true"></i>
-                            </th>
-                            <th class="sortable" data-column="commodityType">
-                                Commodity Type <i class="fas fa-sort" aria-hidden="true"></i>
-                            </th>
-                            <th class="sortable" data-column="carrier">
-                                Carrier <i class="fas fa-sort" aria-hidden="true"></i>
-                            </th>
-                            <th class="sortable" data-column="contractOwner">
-                                Contract Owner <i class="fas fa-sort" aria-hidden="true"></i>
-                            </th>
-                            <th class="sortable" data-column="rate20D">
-                                20D Rate (USD) <i class="fas fa-sort" aria-hidden="true"></i>
-                            </th>
-                            <th class="sortable" data-column="rate40D">
-                                40D Rate (USD) <i class="fas fa-sort" aria-hidden="true"></i>
-                            </th>
-                            <th class="sortable" data-column="rate40HC">
-                                40HC Rate (USD) <i class="fas fa-sort" aria-hidden="true"></i>
-                            </th>
-                            <th class="sortable" data-column="rateEffectiveDate">
-                                Rate Effective Date <i class="fas fa-sort" aria-hidden="true"></i>
-                            </th>
-                            <th class="sortable" data-column="rateExpirationDate">
-                                Rate Expiration Date <i class="fas fa-sort" aria-hidden="true"></i>
-                            </th>
-                            <th class="sortable" data-column="notes1">
-                                Notes 1 <i class="fas fa-sort" aria-hidden="true"></i>
-                            </th>
-                        </tr>
-                    </thead>
+                    <thead id="ratesTableHead"></thead>
                     <tbody id="ratesTableBody">
                     </tbody>
                 </table>

@@ -1,16 +1,36 @@
 import { fullDaysUntil, parseIsoDate } from '../dates.js';
 import { request } from '../api.js';
+import {
+    RATE_FIELDS,
+    FILTER_FIELDS,
+    availableValues,
+    applySavedQuery,
+    emptyCriteria,
+    headerText,
+    layoutPage,
+    standardView,
+    summarizeView
+} from './grouping.js';
+import { loadQueries, mountQueries } from './queries.js';
+import { loadViews, mountViews, refreshViewControls } from './views.js';
 
 const state = {
     rates: [],
     filteredRates: [],
     currentPage: 1,
-    perPage: 20,
-    sortColumn: 'rateEffectiveDate',
-    sortDirection: 'desc',
+    pageCount: 1,
     predictive: false,
     predictiveAfter: '',
-    loaded: false
+    loaded: false,
+    viewReady: false,
+    preferenceError: '',
+    criteria: emptyCriteria(),
+    view: standardView(),
+    fields: RATE_FIELDS,
+    collapsed: new Set(),
+    activeViewId: '',
+    viewIsDefault: false,
+    viewAttention: false
 };
 
 const filterDefinitions = [
@@ -39,6 +59,82 @@ const searchFields = [
 let elements;
 let bound = false;
 
+const host = {
+    criteria() {
+        return { ...state.criteria };
+    },
+    commitCriteria() {
+        state.criteria = readCriteriaFromControls();
+    },
+    applySaved(criteria) {
+        const applied = applySavedQuery({
+            criteria,
+            available: availableValues(state.rates),
+            predictive: state.predictive,
+            predictiveAfter: state.predictiveAfter
+        });
+        state.criteria = applied.criteria;
+        state.currentPage = applied.page;
+        writeCriteriaToControls(applied.criteria);
+        applyFilters();
+    },
+    view() {
+        return {
+            columnOrder: state.view.columnOrder.slice(),
+            hiddenColumns: state.view.hiddenColumns.slice(),
+            groupBy: state.view.groupBy.slice(),
+            sort: state.view.sort.map(rule => ({ ...rule })),
+            pageSize: state.view.pageSize
+        };
+    },
+    setView(next, meta = {}) {
+        state.view = {
+            columnOrder: next.columnOrder.slice(),
+            hiddenColumns: next.hiddenColumns.slice(),
+            groupBy: next.groupBy.slice(),
+            sort: next.sort.map(rule => ({ ...rule })),
+            pageSize: next.pageSize
+        };
+        state.collapsed = new Set();
+        state.currentPage = 1;
+        if (Object.prototype.hasOwnProperty.call(meta, 'id')) {
+            state.activeViewId = meta.id || '';
+            state.viewIsDefault = Boolean(meta.isDefault);
+            state.viewAttention = Boolean(meta.needsAttention);
+        }
+        renderTable();
+    },
+    setSummary(text) {
+        const summary = document.getElementById('ratesViewSummary');
+        if (summary) summary.textContent = text;
+    },
+    restoreStandard() {
+        state.view = standardView(state.fields);
+        state.activeViewId = '';
+        state.viewIsDefault = false;
+        state.viewAttention = false;
+        state.collapsed = new Set();
+        state.currentPage = 1;
+        renderTable();
+    },
+    activeViewId() {
+        return state.activeViewId;
+    },
+    setActiveView(id, isDefault) {
+        state.activeViewId = id || '';
+        state.viewIsDefault = Boolean(isDefault);
+    },
+    viewAttention() {
+        return state.viewAttention;
+    },
+    noteAttention(needsAttention) {
+        state.viewAttention = Boolean(needsAttention);
+    },
+    clearPreferenceError() {
+        state.preferenceError = '';
+    }
+};
+
 export function mount() {
     if (bound) return;
     bound = true;
@@ -61,31 +157,49 @@ export function mount() {
         contractModal: document.getElementById('contractModal')
     };
     elements.predictiveDate.min = predictiveMinDate();
+    mountPreferences();
     bindEvents();
+    renderHeader();
 }
 
 export async function showRates() {
     mount();
-    if (state.loaded) return;
+    if (state.loaded) {
+        await refreshSavedLists();
+        return;
+    }
     await loadRates();
 }
 
 export function unmount() {}
 
+function mountPreferences() {
+    const bar = document.getElementById('ratesPreferenceBar');
+    const querySlot = document.createElement('div');
+    const viewSlot = document.createElement('div');
+    const summary = document.createElement('p');
+    summary.id = 'ratesViewSummary';
+    summary.setAttribute('aria-live', 'polite');
+    const warning = document.createElement('p');
+    warning.id = 'ratesQueryWarning';
+    warning.className = 'rates-query-warning';
+    warning.hidden = true;
+    bar.replaceChildren(querySlot, viewSlot, summary, warning);
+    mountQueries(querySlot, host);
+    mountViews(viewSlot, host);
+    host.setSummary(summarizeView(state.view, state.fields));
+}
+
 function bindEvents() {
-    elements.search.addEventListener('input', debounce(resetAndApplyFilters, 250));
-    filterDefinitions.forEach(([id]) => document.getElementById(id).addEventListener('change', resetAndApplyFilters));
+    elements.search.addEventListener('input', debounce(onCriteriaEdited, 250));
+    filterDefinitions.forEach(([id]) => document.getElementById(id).addEventListener('change', onCriteriaEdited));
     elements.refresh.addEventListener('click', () => loadRates());
     elements.predictiveToggle.addEventListener('change', onPredictiveToggle);
     elements.predictiveDate.addEventListener('change', () => {
-        if (state.predictive) loadPredictiveRates();
+        if (state.predictive) loadPredictiveRates(nextPredictiveGeneration());
     });
     elements.previous.addEventListener('click', () => changePage(-1));
     elements.next.addEventListener('click', () => changePage(1));
-    document.querySelectorAll('#ratesTable .sortable').forEach(header => {
-        header.addEventListener('click', () => setSort(header.dataset.column));
-    });
-    syncSortHeaders();
     document.getElementById('closeModal').addEventListener('click', closeSailingsModal);
     document.getElementById('closeContractModal').addEventListener('click', closeContractModal);
     window.addEventListener('click', event => {
@@ -94,19 +208,63 @@ function bindEvents() {
     });
 }
 
+function onCriteriaEdited() {
+    state.criteria = readCriteriaFromControls();
+    state.currentPage = 1;
+    applyFilters();
+}
+
+async function ensureView() {
+    if (state.viewReady) return;
+    try {
+        const catalog = await request('/api/preferences/fields');
+        const { views } = await request('/api/preferences/views');
+        state.fields = catalog.fields;
+        if (!state.activeViewId) {
+            const preferred = views.find(view => view.isDefault);
+            if (preferred) {
+                state.view = preferred.view;
+                state.activeViewId = preferred.id;
+                state.viewIsDefault = true;
+                state.viewAttention = Boolean(preferred.needsAttention);
+            } else {
+                state.view = standardView(state.fields);
+            }
+        }
+        state.viewReady = true;
+        state.preferenceError = '';
+    } catch (error) {
+        state.preferenceError = error.message || 'Saved views could not be loaded.';
+        const status = document.getElementById('viewStatus');
+        if (status) {
+            status.textContent = state.preferenceError;
+            status.hidden = false;
+            status.classList.add('rates-preference-error');
+        }
+    }
+}
+
+async function refreshSavedLists() {
+    await Promise.all([loadQueries(), loadViews()]);
+}
+
 async function loadRates() {
     if (state.predictive) {
-        await loadPredictiveRates();
+        await loadPredictiveRates(nextPredictiveGeneration());
         return;
     }
     hidePredictiveBanner();
     showLoading();
     try {
+        await ensureView();
+        const preferenceLoad = Promise.all([loadQueries(), loadViews()]);
         const { rates } = await request('/api/rates');
         state.rates = rates;
         state.loaded = true;
+        state.currentPage = 1;
+        await preferenceLoad;
         populateFilters();
-        resetAndApplyFilters();
+        applyFilters();
     } catch (error) {
         showError(`Failed to load shipping rates: ${error.message}`);
         elements.tableBody.replaceChildren();
@@ -128,6 +286,13 @@ function validatePredictiveDate(value) {
     return null;
 }
 
+let predictiveGeneration = 0;
+
+function nextPredictiveGeneration() {
+    predictiveGeneration += 1;
+    return predictiveGeneration;
+}
+
 function onPredictiveToggle() {
     const on = elements.predictiveToggle.checked;
     elements.predictiveDate.disabled = !on;
@@ -135,8 +300,9 @@ function onPredictiveToggle() {
     if (on) {
         state.predictive = true;
         if (!elements.predictiveDate.value) elements.predictiveDate.value = predictiveMinDate();
-        loadPredictiveRates();
+        loadPredictiveRates(nextPredictiveGeneration());
     } else {
+        nextPredictiveGeneration();
         state.predictive = false;
         state.predictiveAfter = '';
         hidePredictiveBanner();
@@ -144,30 +310,39 @@ function onPredictiveToggle() {
     }
 }
 
-async function loadPredictiveRates() {
+async function loadPredictiveRates(generation) {
     const after = elements.predictiveDate.value;
     const validationError = validatePredictiveDate(after);
+    if (generation !== predictiveGeneration) return;
     if (validationError) {
         showPredictiveDateError(validationError);
         hidePredictiveBanner();
+        hideLoading();
         elements.tableBody.replaceChildren();
         return;
     }
     hidePredictiveDateError();
     showLoading();
     try {
+        await ensureView();
+        const lists = refreshSavedLists();
         const { rates } = await request(`/api/rates/predictive?after=${encodeURIComponent(after)}`);
+        await lists;
+        if (generation !== predictiveGeneration || !elements.predictiveToggle.checked) return;
         state.rates = rates;
+        state.predictive = true;
         state.predictiveAfter = after;
+        state.currentPage = 1;
         populateFilters();
-        resetAndApplyFilters();
+        applyFilters();
         showPredictiveBanner(after);
     } catch (error) {
+        if (generation !== predictiveGeneration) return;
         hidePredictiveBanner();
         showError(`Failed to load predictive rates: ${error.message}`);
         elements.tableBody.replaceChildren();
     } finally {
-        hideLoading();
+        if (generation === predictiveGeneration) hideLoading();
     }
 }
 
@@ -204,132 +379,209 @@ function showError(message) {
     elements.error.hidden = false;
 }
 
+function readCriteriaFromControls() {
+    const criteria = emptyCriteria();
+    criteria.search = elements.search.value;
+    filterDefinitions.forEach(([id, field]) => {
+        criteria[field] = document.getElementById(id).value;
+    });
+    return criteria;
+}
+
+function writeCriteriaToControls(criteria) {
+    elements.search.value = criteria.search;
+    filterDefinitions.forEach(([id, field, label]) => {
+        const select = document.getElementById(id);
+        const value = criteria[field] || '';
+        const exists = [...select.options].some(option => option.value === value);
+        if (value && !exists) select.add(new Option(`${value} (unavailable)`, value));
+        if (!value || [...select.options].some(option => option.value === value)) select.value = value;
+        if (!value) select.value = '';
+        if (!select.options.length) select.add(new Option(label, ''));
+    });
+}
+
 function populateFilters() {
     filterDefinitions.forEach(([id, field, label]) => {
         const select = document.getElementById(id);
-        const currentValue = select.value;
         const values = [...new Set(state.rates.map(rate => String(rate[field] || '')).filter(Boolean))]
-            .sort((left, right) => left.localeCompare(right));
+            .sort((left, right) => left < right ? -1 : left > right ? 1 : 0);
         select.replaceChildren(new Option(label, ''));
         values.forEach(value => select.add(new Option(value, value)));
-        if (values.includes(currentValue)) select.value = currentValue;
+        const wanted = state.criteria[field] || '';
+        if (wanted && values.includes(wanted)) select.value = wanted;
+        else if (wanted) {
+            select.add(new Option(`${wanted} (unavailable)`, wanted));
+            select.value = wanted;
+        } else select.value = '';
     });
-}
-
-function resetAndApplyFilters() {
-    state.currentPage = 1;
-    applyFilters();
-}
-
-function rateMatchesSearch(rate, searchTerm) {
-    if (!searchTerm) return true;
-    if (searchFields.some(field => String(rate[field] ?? '').toLowerCase().includes(searchTerm))) {
-        return true;
-    }
-    const displayValues = [
-        `$${formatNumber(rate.rate20D)}`,
-        `$${formatNumber(rate.rate40D)}`,
-        `$${formatNumber(rate.rate40HC)}`,
-        formatNumber(rate.rate20D),
-        formatNumber(rate.rate40D),
-        formatNumber(rate.rate40HC),
-        formatDate(rate.rateEffectiveDate),
-        formatDate(rate.rateExpirationDate)
-    ];
-    return displayValues.some(value => String(value).toLowerCase().includes(searchTerm));
 }
 
 function applyFilters() {
-    const searchTerm = elements.search.value.trim().toLowerCase();
-    const selected = Object.fromEntries(filterDefinitions.map(([id, field]) => [field, document.getElementById(id).value]));
-    state.filteredRates = state.rates.filter(rate => {
-        const matchesSearch = rateMatchesSearch(rate, searchTerm);
-        const matchesFilters = Object.entries(selected).every(([field, value]) => !value || rate[field] === value);
-        return matchesSearch && matchesFilters;
+    const applied = applySavedQuery({
+        criteria: state.criteria,
+        available: availableValues(state.rates),
+        predictive: state.predictive,
+        predictiveAfter: state.predictiveAfter
     });
-    sortRates();
+    state.queryUnavailable = Boolean(applied.warning);
+    const warning = document.getElementById('ratesQueryWarning');
+    if (warning) {
+        warning.textContent = applied.warning || '';
+        warning.hidden = !applied.warning;
+    }
+    if (!applied.ok) {
+        state.filteredRates = [];
+    } else {
+        const searchTerm = state.criteria.search.trim().toLowerCase();
+        state.filteredRates = state.rates.filter(rate => {
+            const matchesSearch = rateMatchesSearch(rate, searchTerm);
+            const matchesFilters = FILTER_FIELDS.every(field => !state.criteria[field] || rate[field] === state.criteria[field]);
+            return matchesSearch && matchesFilters;
+        });
+    }
     renderTable();
 }
 
-function syncSortHeaders() {
-    document.querySelectorAll('#ratesTable .sortable').forEach(header => {
-        const active = header.dataset.column === state.sortColumn;
-        header.classList.toggle('active', active);
-        header.classList.toggle('asc', active && state.sortDirection === 'asc');
-        header.classList.toggle('desc', active && state.sortDirection === 'desc');
-    });
+function visibleColumns() {
+    const hidden = new Set(state.view.hiddenColumns || []);
+    const known = new Set(state.fields.map(field => field.id));
+    return (state.view.columnOrder || []).filter(id => known.has(id) && !hidden.has(id));
 }
 
-function setSort(column) {
-    if (state.sortColumn === column) {
-        state.sortDirection = state.sortDirection === 'asc' ? 'desc' : 'asc';
-    } else {
-        state.sortColumn = column;
-        state.sortDirection = 'asc';
-    }
-    syncSortHeaders();
-    resetAndApplyFilters();
-}
-
-function sortRates() {
-    if (!state.sortColumn) return;
-    const numericColumns = new Set(['rate20D', 'rate40D', 'rate40HC']);
-    const dateColumns = new Set(['rateEffectiveDate', 'rateExpirationDate']);
-    state.filteredRates.sort((left, right) => {
-        let leftValue = left[state.sortColumn];
-        let rightValue = right[state.sortColumn];
-        if (numericColumns.has(state.sortColumn)) {
-            leftValue = Number(leftValue) || 0;
-            rightValue = Number(rightValue) || 0;
-        } else if (dateColumns.has(state.sortColumn)) {
-            leftValue = Date.parse(leftValue) || 0;
-            rightValue = Date.parse(rightValue) || 0;
+function renderHeader() {
+    const head = document.getElementById('ratesTableHead');
+    if (!head) return;
+    const row = document.createElement('tr');
+    visibleColumns().forEach(id => {
+        const field = state.fields.find(item => item.id === id);
+        const cell = document.createElement('th');
+        const rule = (state.view.sort || []).find(item => item.field === id);
+        if (field && field.sortable) {
+            cell.className = 'sortable';
+            cell.dataset.column = id;
+            if (rule) cell.classList.add('active', rule.direction);
+            const icon = document.createElement('i');
+            icon.className = 'fas fa-sort';
+            icon.setAttribute('aria-hidden', 'true');
+            cell.append(document.createTextNode(`${field.label} `), icon);
+            cell.addEventListener('click', () => onHeaderSort(id));
         } else {
-            leftValue = String(leftValue).toLowerCase();
-            rightValue = String(rightValue).toLowerCase();
+            cell.textContent = field ? field.label : id;
         }
-        const result = leftValue < rightValue ? -1 : leftValue > rightValue ? 1 : 0;
-        return state.sortDirection === 'asc' ? result : -result;
+        row.append(cell);
     });
+    head.replaceChildren(row);
+}
+
+function onHeaderSort(column) {
+    const current = state.view.sort || [];
+    const direction = current.length === 1 && current[0].field === column && current[0].direction === 'asc' ? 'desc' : 'asc';
+    state.view = { ...state.view, sort: [{ field: column, direction }] };
+    state.currentPage = 1;
+    renderTable();
+    refreshViewControls();
 }
 
 function renderTable() {
-    const start = (state.currentPage - 1) * state.perPage;
-    const pageRates = state.filteredRates.slice(start, start + state.perPage);
+    renderHeader();
+    const summary = document.getElementById('ratesViewSummary');
+    if (summary) {
+        const text = summarizeView(state.view, state.fields);
+        summary.textContent = state.viewAttention ? `Needs attention. ${text}` : text;
+    }
+    const layout = layoutPage(state.filteredRates, {
+        fields: state.fields,
+        groupBy: state.view.groupBy,
+        sort: state.view.sort,
+        page: state.currentPage,
+        pageSize: state.view.pageSize,
+        collapsed: [...state.collapsed]
+    });
+    state.currentPage = layout.page;
+    state.pageCount = layout.pageCount;
     elements.tableBody.replaceChildren();
-    if (!pageRates.length) {
+    if (!layout.items.length) {
         const row = document.createElement('tr');
-        const cell = textCell('No shipping rates found matching your criteria', 'td');
-        cell.colSpan = 13;
+        const cell = textCell(state.queryUnavailable
+            ? 'This saved query is unavailable. No rates are shown.'
+            : 'No shipping rates found matching your criteria', 'td');
+        cell.colSpan = Math.max(1, visibleColumns().length);
         cell.className = 'empty-table-message';
         row.append(cell);
         elements.tableBody.append(row);
     } else {
-        pageRates.forEach(rate => elements.tableBody.append(createRateRow(rate)));
+        layout.items.forEach(item => {
+            elements.tableBody.append(item.type === 'header' ? createGroupRow(item) : createRateRow(item.rate));
+        });
     }
-    updatePagination();
+    updatePagination(layout);
+}
+
+function createGroupRow(item) {
+    const row = document.createElement('tr');
+    row.className = 'group-header';
+    row.dataset.depth = String(item.depth || 0);
+    const cell = document.createElement('td');
+    cell.colSpan = Math.max(1, visibleColumns().length);
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'group-toggle';
+    toggle.setAttribute('aria-expanded', item.collapsed ? 'false' : 'true');
+    toggle.textContent = headerText(item);
+    const count = document.createElement('span');
+    count.className = 'group-count';
+    count.textContent = String(item.count);
+    toggle.addEventListener('click', () => {
+        if (state.collapsed.has(item.pathKey)) state.collapsed.delete(item.pathKey);
+        else state.collapsed.add(item.pathKey);
+        renderTable();
+    });
+    cell.append(toggle, count);
+    row.append(cell);
+    return row;
 }
 
 function createRateRow(rate) {
     const row = document.createElement('tr');
-    row.append(
-        textCell(rate.rateType),
-        textCell(rate.originPort),
-        textCell(rate.destinationPort),
-        textCell(rate.inlandDeliveryLocation),
-        textCell(rate.commodityType),
-        rateLink(rate.carrier, 'carrier-link', event => { event.preventDefault(); openSailingsModal(rate); }),
-        rateLink(rate.ownerCompanyName && rate.ownerCompanyName !== rate.contractOwner
-            ? `${rate.contractOwner} · ${rate.ownerCompanyName}`
-            : rate.contractOwner, 'contract-link', event => { event.preventDefault(); openContractModal(rate); }),
-        rateCell(rate.rate20D),
-        rateCell(rate.rate40D),
-        rateCell(rate.rate40HC),
-        textCell(formatDate(rate.rateEffectiveDate), 'td', 'validity-date'),
-        textCell(formatDate(rate.rateExpirationDate), 'td', 'validity-date'),
-        textCell(rate.notes1, 'td', 'notes')
-    );
+    if (rate.predictive) row.classList.add('predictive-rate');
+    const columns = visibleColumns();
+    const cells = columns.map(id => rateCellFor(id, rate));
+    if (rate.predictive) {
+        const badge = document.createElement('span');
+        badge.className = 'predictive-indicator';
+        badge.textContent = 'Predictive';
+        if (cells[0]) cells[0].prepend(badge);
+        else {
+            const cell = document.createElement('td');
+            cell.append(badge);
+            cells.push(cell);
+        }
+    }
+    row.append(...cells);
     return row;
+}
+
+function rateCellFor(id, rate) {
+    if (id === 'carrier') {
+        return rateLink(rate.carrier, 'carrier-link', event => {
+            event.preventDefault();
+            openSailingsModal(rate);
+        });
+    }
+    if (id === 'contractOwner') {
+        const label = rate.ownerCompanyName && rate.ownerCompanyName !== rate.contractOwner
+            ? `${rate.contractOwner} · ${rate.ownerCompanyName}`
+            : rate.contractOwner;
+        return rateLink(label, 'contract-link', event => {
+            event.preventDefault();
+            openContractModal(rate);
+        });
+    }
+    if (id === 'rate20D' || id === 'rate40D' || id === 'rate40HC') return rateCell(rate[id]);
+    if (id === 'rateEffectiveDate' || id === 'rateExpirationDate') return textCell(formatDate(rate[id]), 'td', 'validity-date');
+    if (id === 'notes1') return textCell(rate.notes1, 'td', 'notes');
+    return textCell(rate[id]);
 }
 
 function textCell(value, tagName = 'td', className = '') {
@@ -353,23 +605,37 @@ function rateLink(value, className, listener) {
     const link = document.createElement('a');
     link.href = '#';
     link.className = className;
-    link.textContent = value;
+    link.textContent = value ?? '';
     link.addEventListener('click', listener);
     cell.append(link);
     return cell;
 }
 
-function updatePagination() {
-    const totalPages = Math.max(1, Math.ceil(state.filteredRates.length / state.perPage));
-    elements.previous.disabled = state.currentPage === 1;
-    elements.next.disabled = state.currentPage === totalPages;
-    elements.pageInfo.textContent = `Page ${state.currentPage} of ${totalPages}`;
+function rateMatchesSearch(rate, searchTerm) {
+    if (!searchTerm) return true;
+    if (searchFields.some(field => String(rate[field] ?? '').toLowerCase().includes(searchTerm))) return true;
+    const displayValues = [
+        `$${formatNumber(rate.rate20D)}`,
+        `$${formatNumber(rate.rate40D)}`,
+        `$${formatNumber(rate.rate40HC)}`,
+        formatNumber(rate.rate20D),
+        formatNumber(rate.rate40D),
+        formatNumber(rate.rate40HC),
+        formatDate(rate.rateEffectiveDate),
+        formatDate(rate.rateExpirationDate)
+    ];
+    return displayValues.some(value => String(value).toLowerCase().includes(searchTerm));
+}
+
+function updatePagination(layout) {
+    elements.previous.disabled = layout.page <= 1;
+    elements.next.disabled = layout.page >= layout.pageCount;
+    elements.pageInfo.textContent = `Page ${layout.page} of ${layout.pageCount}`;
 }
 
 function changePage(direction) {
-    const totalPages = Math.max(1, Math.ceil(state.filteredRates.length / state.perPage));
     const page = state.currentPage + direction;
-    if (page >= 1 && page <= totalPages) {
+    if (page >= 1 && page <= state.pageCount) {
         state.currentPage = page;
         renderTable();
     }

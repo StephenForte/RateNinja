@@ -155,6 +155,8 @@ describe('r1-01 routes and exact documents', { concurrency: 1 }, () => {
                 assert.equal(mod.routes.length, 8);
             } else if (name === 'data-ops') {
                 assert.equal(mod.routes.length, 8);
+            } else if (name === 'preferences') {
+                assert.equal(mod.routes.length, 12);
             } else {
                 assert.equal(mod.routes.length, 0);
             }
