@@ -42,7 +42,7 @@ Owner of this file and the decisions log: the planner. **Workers never edit eith
 | 005 | `lib/migrations/005-customer-authorization.js` | R1-07 |
 | 006 | `lib/migrations/006-data-operations.js` | R1-08 |
 | 007 | reserved | R1-09 (use only if needed) |
-| 008 | `lib/migrations/008-import-jobs.js` | R1-11 |
+| 008 | `lib/migrations/008-import-jobs.js` | R1-11a (R1-11b reuses it) |
 | 009 | reserved | R1-12 (use only if needed) |
 | 010+ | unassigned | ask the planner |
 
@@ -55,7 +55,7 @@ Model names are the planner's proposal; operator overrides recorded in the Run c
 
 | Task | Title | PRD | Depends on | Tier / model | Status |
 | --- | --- | --- | --- | --- | --- |
-| R1-00 | Static serving lockdown (hotfix) | — | — | M / Sonnet 5.5 | not dispatched |
+| R1-00 | Static serving lockdown (hotfix) | — | — | M / Sonnet 5.5 | dispatched 2026-10-12 |
 | R1-01 | Scaffolding: migration runner, route modules, test harness, limits | §Data | R1-00 | S / Opus 5.5 | not dispatched |
 | R1-02 | Roles and company isolation | Roles, Delivery 1 | R1-01 | S / Opus 5.5 | not dispatched |
 | R1-03 | App shell: addressable pages and menu | FR1 | R1-01 | M / Sonnet 5.5 | not dispatched |
@@ -65,20 +65,21 @@ Model names are the planner's proposal; operator overrides recorded in the Run c
 | R1-07 | Customer authorization and live preview | FR7 | R1-02, R1-03 | S / Opus 5.5 | not dispatched |
 | R1-08 | Data workspace core: soft delete, versions, edit, delete/restore, history | FR9 | R1-02, R1-03 | S / Opus 5.5 | not dispatched |
 | R1-09 | Pull-forward wizard and operation undo | FR9 | R1-08 | S / Opus 5.5 | not dispatched |
-| R1-10 | Imports discovery spike (no product code) | FR8 | **format decision** | M / Sonnet 5.5 | blocked |
-| R1-11 | Imports implementation | FR8 | R1-08, R1-10 | S / Opus 5.5 | not dispatched |
+| R1-10 | Imports discovery spike, CSV/Excel/PDF (no product code) | FR8 | representative files from operator | M / Sonnet 5.5 | awaiting files |
+| R1-11a | Imports implementation: CSV + Excel | FR8 | R1-08, R1-10 | S / Opus 5.5 | not dispatched |
+| R1-11b | Imports: PDF extraction | FR8, D-017 | R1-11a + D-017 open question | S / Opus 5.5 | blocked on decision |
 | R1-12 | MCP / partner API parity incl. predictive | FR11 | R1-01 | S / Opus 5.5 | not dispatched |
 | R1-13 | API and MCP instructions + docs alignment | FR10 | R1-07, R1-12 | M / Sonnet 5.5 | not dispatched |
 | R1-14 | Integrated release acceptance | §Validation | all P1 | M / Sonnet 5.5 + operator | not dispatched |
 | R1-15 | P2: bulk price adjustment | FR12 | R1-09 | S | not planned in detail |
-| R1-16 | P2: duplicate handling | FR13 | R1-11 | S | not planned in detail |
+| R1-16 | P2: duplicate handling | FR13 | R1-11a | S | not planned in detail |
 
 ### Run order (waves)
 
 - **W0** (serial, one worker): R1-00 → R1-01.
 - **W1** (parallel, after R1-01 merges): R1-02, R1-03, R1-12.
 - **W2** (parallel): R1-05 (needs R1-03 only — can start as soon as it lands); R1-04, R1-07, R1-08 (need R1-02 + R1-03).
-- **W3**: R1-06 (after R1-04), R1-09 (after R1-08), R1-11 (after R1-08 + R1-10). R1-10 can run any time once the format decision is made.
+- **W3**: R1-06 (after R1-04), R1-09 (after R1-08), R1-11a (after R1-08 + R1-10), then R1-11b. R1-10 can run any time once representative files are supplied.
 - **W4**: R1-13, then R1-14.
 
 Peak concurrency is 4 (W2). If the operator runs fewer agents, drop R1-05 to W3 first.
@@ -100,7 +101,7 @@ Peak concurrency is 4 (W2). If the operator runs fewer agents, drop R1-05 to W3 
 | R1-08 | `lib/migrations/006-*`, `lib/data-ops.js`, `lib/record-validation.js`, `lib/routes/data-ops.js`, `public/js/admin/data.js`, `test/r1-08-*` | `lib/store.js` + `lib/visibility.js` (deleted-row filter on every rate/sailing read), `server.js` (remove legacy pull-forward routes only when R1-09 replaces them — not in R1-08) |
 | R1-09 | `lib/pull-forward.js`, `public/js/admin/pull-forward.js`, `test/r1-09-*` | `lib/data-ops.js`, `lib/routes/data-ops.js`, `server.js` (delete legacy pull-forward handlers), `lib/store.js` (pull-forward functions) |
 | R1-10 | `docs/imports-discovery.md`, `test/fixtures/imports/**` | — |
-| R1-11 | `lib/migrations/008-*`, `lib/imports/**`, `lib/routes/imports.js`, `public/js/admin/imports.js`, `public/templates/*`, `test/r1-11-*` | `package.json`/lockfile (parser + Anthropic deps), `lib/config.js` (import/Claude settings), `lib/data-ops.js` (undo hook), `lib/record-validation.js` |
+| R1-11a/b | `lib/migrations/008-*`, `lib/imports/**`, `lib/routes/imports.js`, `public/js/admin/imports.js`, `public/templates/*`, `test/r1-11-*` | `package.json`/lockfile (parser + Anthropic deps), `lib/config.js` (import/Claude settings), `lib/data-ops.js` (undo hook), `lib/record-validation.js` |
 | R1-12 | `lib/predictive.js`, `lib/mcp-schema.js`, `lib/routes/partner.js`, `test/r1-12-*` | `lib/mcp.js`, `lib/visibility.js` (predictive helpers move out), `server.js` (predictive handlers delegate; MCP audit), `lib/audit.js` |
 | R1-13 | `public/js/admin/integrations.js` | `public/api-docs.html`, `API-README.md`, `docs/partner-integration.md` |
 | R1-14 | `test/r1-14-*`, `docs/release-acceptance-r1.md` | — |
@@ -130,10 +131,14 @@ Every migration task must also prove: fresh DB, prod-shaped copy, and re-run (id
 
 ## Open items
 
-- **Product decision needed:** import formats (CSV+Excel vs CSV+Excel+PDF). Blocks R1-10 → R1-11 only.
+- ~~Import formats~~ resolved 2026-10-12: CSV + Excel + PDF (D-017). PDF split into R1-11b.
+- **Product decision needed (D-017):** whether Claude may extract rows from a whole PDF. Blocks R1-11b only; asked after R1-10 measures.
+- **Operator input needed:** representative rate/sailing files in each format for R1-10.
 - PRD defaults (temp-password replacement, 2 group levels, 3 sorts, 30-day window) adopted as D-011 pending product review.
 - Real MCP client check (R1-12, R1-14) needs the operator: production has `PARTNER_OAUTH_ENABLED=false`; run locally.
 
 ## Review log
 
 _(planner appends: task, PR, verdict, what was independently verified and how)_
+
+- 2026-10-12 · docs PR #9 merged (`98bd634`). Verified: both files on main byte-identical to the reviewed drafts (`git show | diff`).
