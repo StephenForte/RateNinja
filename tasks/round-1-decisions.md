@@ -218,3 +218,21 @@ The PRD role table lists system-admin browsing "in selected company context". R1
 **administration** endpoints to the selected context (D-007). Rate and sailing browsing stays on
 the system admin's own company. Whether system admins need to browse as another company in P1 is
 an open operator question. Until it is answered, no task implements it.
+
+### D-021 — System admins pick a company context from the UI (2026-10-13, amends D-007)
+
+D-007 made company context fail closed (409) but gave the UI no way to pick a company. The R1-02
+review (PR #17) showed the effect: SteveF, the only admin in production, becomes a system admin
+under migration 001. Every company-scoped admin endpoint then returns 409, and nothing lists
+companies to choose from. This was a planning gap in the R1-02 and R1-03 briefs, not a worker error.
+
+- `GET /api/admin/context/companies` (R1-02, `lib/routes/admin-context.js`): system admin only,
+  403 for anyone else. Returns `{ companies: [{ id, name, companyType }] }` for every company,
+  sorted by name. No users, margins, or other configuration.
+- R1-03's system-admin indicator becomes a selector. It loads that list, POSTs
+  `/api/admin/context` with `{ companyId }`, then refetches `/api/session` and re-renders the
+  current admin section. With no context, admin sections show "Select a company" instead of a
+  409 error.
+- Fail-closed behaviour is unchanged. There is still no fallback to the admin's own company.
+- Release rule: R1-02 (#17) and R1-03 (#18) merge back to back, R1-02 first, and only once both
+  are approved. Render deploys each merge, and R1-02 alone leaves production without admin screens.
