@@ -12,8 +12,10 @@
  *
  * options.companyType: 'Contract Owner' (default) or 'Freight Forwarder/Customer'.
  *   'owner' and 'customer' are accepted aliases.
- * options.role: 'admin' (default) or 'member'. This sets users.admin_screen.
- *   company_role and is_system_admin arrive in R1-02; this helper does not set them.
+ * options.role: 'admin' (default) or 'member'. This sets users.admin_screen only.
+ *   companies.admin follows company type (1 for Contract Owner, 0 otherwise), the
+ *   same rule as ensureCompany. It is not the user's role. company_role and
+ *   is_system_admin arrive in R1-02; this helper does not set them.
  * options.username: login name. Default 'r101-admin' or 'r101-member'.
  * options.password: default 'sail-the-ocean' (must be 12–200 characters).
  * options.migrationsDir: fixture directory. Omit it to use lib/migrations.
@@ -66,10 +68,11 @@ function seed(db, options) {
     const username = options.username || (adminScreen ? 'r101-admin' : 'r101-member');
     const companyId = `r101-${cryptoId()}`;
     const userId = `r101-${cryptoId()}`;
+    const companyAdmin = companyType.typeId === COMPANY_TYPE_CONTRACT_OWNER_ID ? 1 : 0;
     db.prepare(`
         INSERT INTO companies (id, company_id, company_name, company_type, company_type_id, rate_view, admin)
         VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(companyId, companyId, options.companyName || 'R1 Test Company', companyType.typeName, companyType.typeId, companyId, adminScreen);
+    `).run(companyId, companyId, options.companyName || 'R1 Test Company', companyType.typeName, companyType.typeId, companyId, companyAdmin);
     db.prepare(`
         INSERT INTO users (
             id, username, pwd, display_name, rate_view, company_id, company_reference, admin_screen,
