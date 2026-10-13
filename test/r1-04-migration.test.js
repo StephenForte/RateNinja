@@ -106,15 +106,16 @@ describe('r1-04 migration 002', { concurrency: 1 }, () => {
     it('adds the password columns to a populated pre-002 database and is a no-op the second time', () => {
         const dir = fs.mkdtempSync(path.join(root, 'populated-'));
         const dbPath = path.join(dir, 'rateninja.db');
-        const only001 = fs.mkdtempSync(path.join(root, 'only-001-'));
-        fs.copyFileSync(path.join(repoRoot, 'lib', 'migrations', '001-roles.js'), path.join(only001, '001-roles.js'));
+        const partial = fs.mkdtempSync(path.join(root, 'partial-'));
+        fs.copyFileSync(path.join(repoRoot, 'lib', 'migrations', '001-roles.js'), path.join(partial, '001-roles.js'));
+        fs.copyFileSync(path.join(repoRoot, 'lib', 'migrations', '006-data-operations.js'), path.join(partial, '006-data-operations.js'));
         createBaseline(dbPath);
         const seeded = new DatabaseSync(dbPath);
         seed(seeded);
         seeded.close();
 
-        const first = boot(dbPath, only001);
-        assert.deepEqual(first.ids, ['001']);
+        const first = boot(dbPath, partial);
+        assert.deepEqual(first.ids, ['001', '006']);
         const after001 = new DatabaseSync(dbPath, { readOnly: true });
         let beforeCounts;
         let beforeUsers;
@@ -131,7 +132,7 @@ describe('r1-04 migration 002', { concurrency: 1 }, () => {
         assert.match(backupsAfter001[0], /-pre-001\.db$/);
 
         const second = boot(dbPath);
-        assert.deepEqual(second.ids, ['001', '002', '005']);
+        assert.deepEqual(second.ids, ['001', '002', '005', '006']);
         const migrated = new DatabaseSync(dbPath, { readOnly: true });
         let flags;
         let afterCounts;
@@ -160,7 +161,7 @@ describe('r1-04 migration 002', { concurrency: 1 }, () => {
         assert.equal(backupsAfter002.some(name => name.endsWith('-pre-002.db')), true);
 
         const third = boot(dbPath);
-        assert.deepEqual(third.ids, ['001', '002', '005']);
+        assert.deepEqual(third.ids, ['001', '002', '005', '006']);
         const again = new DatabaseSync(dbPath, { readOnly: true });
         let appliedAgain;
         try {

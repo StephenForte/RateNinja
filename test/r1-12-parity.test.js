@@ -569,5 +569,80 @@ describe('partner and MCP parity', { concurrency: 1 }, () => {
         });
         assert.equal(allowed.status, 200);
     });
+
+    await step('hides a deleted rate and sailing from partner and MCP list, detail, and predictive', async () => {
+        const owner = app.company.id;
+        app.db.prepare(`
+            INSERT INTO rates (
+                id, origin_port, destination_port, carrier, rate_20d, rate_40d, rate_40hc,
+                rate_effective_date, rate_expiration_date, owner_company_id, contract_owner
+            ) VALUES ('deleted-rate', 'SHA', 'LAX', 'MSC', 99999, 99999, 99999, '2026-01-01', '2028-06-01', ?, 'Owner A')
+        `).run(owner);
+        app.db.prepare(`
+            INSERT INTO sailings (id, departure, carrier, departure_port, vessel, owner_company_id)
+            VALUES ('deleted-sailing', '2026-09-01T00:00:00.000Z', 'MSC', 'SHA', 'Gone', ?)
+        `).run(owner);
+        app.db.prepare(`UPDATE rates SET deleted_at = '2026-10-01T00:00:00.000Z', row_version = 2 WHERE id = 'deleted-rate'`).run();
+        app.db.prepare(`UPDATE sailings SET deleted_at = '2026-10-01T00:00:00.000Z', row_version = 2 WHERE id = 'deleted-sailing'`).run();
+        const login = await fetch(`${app.baseUrl}/api/auth/login`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ username: 'owner-a', password: PASSWORD })
+        });
+        const loggedIn = await login.json();
+        const cookie = cookieHeader(login);
+        const created = await fetch(`${app.baseUrl}/api/admin/oauth-clients`, {
+            method: 'POST',
+            headers: { cookie, 'content-type': 'application/json', 'x-csrf-token': loggedIn.csrfToken },
+            body: JSON.stringify({
+                displayName: 'Deleted Row Partner',
+                clientType: 'confidential',
+                redirectUris: [REDIRECT_URI],
+                allowedScopes: ['profile:read', 'rates:read', 'sailings:read']
+            })
+        });
+        const createdBody = await created.json();
+        assert.equal(created.status, 201, JSON.stringify(createdBody));
+        const token = (await authorizeAndToken({
+            baseUrl: app.baseUrl,
+            cookie,
+            csrf: loggedIn.csrfToken,
+            clientId: createdBody.client.id,
+            clientSecret: createdBody.clientSecret
+        })).access_token;
+        const rates = await assertPair('/api/partner/v1/me/rates?carrier=MSC&originPort=SHA', 'rateninja_list_my_rates', {
+            carrier: 'MSC', originPort: 'SHA'
+        }, token);
+        assert.equal(rates.data.some(rate => rate.id === 'deleted-rate' || rate.rate20D === 99999), false);
+        const rate = await partnerGet(app.baseUrl, token, '/api/partner/v1/me/rates/deleted-rate');
+        assert.equal(rate.status, 404);
+        const rateMcp = await mcpCall(app.baseUrl, token, 'tools/call', {
+            name: 'rateninja_get_my_rate',
+            arguments: { rateId: 'deleted-rate' }
+        });
+        assert.equal(rateMcp.body.result.structuredContent.error, 'not_found');
+        const sailings = await assertPair(
+            '/api/partner/v1/me/sailings?carrier=MSC&originPort=SHA&after=2026-06-01',
+            'rateninja_list_my_sailings',
+            { carrier: 'MSC', originPort: 'SHA', after: '2026-06-01' },
+            token
+        );
+        assert.equal(sailings.data.some(sailing => sailing.id === 'deleted-sailing'), false);
+        const sailing = await partnerGet(app.baseUrl, token, '/api/partner/v1/me/sailings/deleted-sailing');
+        assert.equal(sailing.status, 404);
+        const sailingMcp = await mcpCall(app.baseUrl, token, 'tools/call', {
+            name: 'rateninja_get_my_sailing',
+            arguments: { sailingId: 'deleted-sailing' }
+        });
+        assert.equal(sailingMcp.body.result.structuredContent.error, 'not_found');
+        const predictive = await assertPair(
+            '/api/partner/v1/me/predictive-pricing?after=2027-07-13&carrier=MSC&originPort=SHA',
+            'rateninja_get_my_predictive_pricing',
+            { after: '2027-07-13', carrier: 'MSC', originPort: 'SHA' },
+            token
+        );
+        assert.equal(predictive.data.some(rate => rate.id === 'deleted-rate' || rate.rate20D === 99999), false);
+        assert.equal(predictive.data.some(rate => rate.id === 'pred-new'), true);
+    });
     });
 });
