@@ -55,7 +55,7 @@ Model names are the planner's proposal; operator overrides recorded in the Run c
 
 | Task | Title | PRD | Depends on | Tier / model | Status |
 | --- | --- | --- | --- | --- | --- |
-| R1-00 | Static serving lockdown (hotfix) | — | — | M / Sonnet 5.5 | dispatched 2026-10-12 |
+| R1-00 | Static serving lockdown (hotfix) | — | — | M / Sonnet 5.5 | approved 2026-10-12, PR #12 |
 | R1-01 | Scaffolding: migration runner, route modules, test harness, limits | §Data | R1-00 | S / Opus 5.5 | not dispatched |
 | R1-02 | Roles and company isolation | Roles, Delivery 1 | R1-01 | S / Opus 5.5 | not dispatched |
 | R1-03 | App shell: addressable pages and menu | FR1 | R1-01 | M / Sonnet 5.5 | not dispatched |
@@ -90,7 +90,7 @@ Peak concurrency is 4 (W2). If the operator runs fewer agents, drop R1-05 to W3 
 | Task | Owns | Appends / narrow edits |
 | --- | --- | --- |
 | R1-00 | `public/` (git mv of `index.html`, `login.html`, `login.js`, `script.js`, `styles.css`, `favicon.svg`, `api-docs.html`, `api-testbed.*`); `test/r1-00-*.test.js` | `server.js` `serveStatic` + page routes only; `README.md` path mentions |
-| R1-01 | `lib/migrations/index.js`, `lib/migrations/README.md`, `lib/http.js`, `lib/routes/index.js` + **empty stub for every route module below**, `lib/limits.js`, `test/helpers/app.js`, `test/r1-01-*.test.js` | `lib/db.js` (call runner after baseline DDL; baseline frozen after this), `server.js` (dispatch to route modules; move shared helpers to `lib/http.js`) |
+| R1-01 | `lib/migrations/index.js`, `lib/migrations/README.md`, `lib/http.js`, `lib/routes/index.js` + **empty stub for every route module below**, `lib/limits.js`, `test/helpers/app.js`, `test/r1-01-*.test.js` | `lib/db.js` (call runner after baseline DDL; baseline frozen after this), `server.js` (dispatch to route modules; move shared helpers to `lib/http.js`; exact-path routes for `/docs/partner-integration.md` and `/API-README.md`, from the R1-00 review) |
 | R1-02 | `lib/permissions.js`, `lib/migrations/001-roles.js`, `lib/routes/admin-context.js`, `test/r1-02-*` | `lib/foundation.js`, `server.js` (session payload, existing admin handlers), `lib/store.js` (`listUsersForAdmin`, user mutators) |
 | R1-03 | `public/index.html`, `public/styles.css`, `public/js/**` (split of `public/script.js`, which is deleted), **stub for every admin/profile section below**, `test/r1-03-*` | `server.js` page-path fallback only |
 | R1-04 | `lib/migrations/002-*`, `lib/routes/account.js`, `public/js/profile/account.js`, `public/js/password-required.js`, `test/r1-04-*` | `lib/accounts.js`, `lib/password-reset.js`, `lib/session.js`, `lib/oauth.js` (authorize gate only), `server.js` (restricted-session gate, admin password handler) |
@@ -131,7 +131,7 @@ Every migration task must also prove: fresh DB, prod-shaped copy, and re-run (id
 ## Open items
 
 - ~~Import formats~~ resolved 2026-10-12 (D-017), narrowed by D-018: Round 1 imports CSV + Excel; PDF deferred.
-- **Deferred past Round 1 (D-018):** Claude extraction of unstructured files, and with it PDF import. Guardrails recorded; no Round 1 task.
+- **Deferred past Round 1 (D-018):** Claude extraction of unstructured files, and with it PDF import. Guardrails recorded; no Round 1 task. Target: P3 or P4 (operator, 2026-10-12).
 - **Operator input needed:** representative rate/sailing files in each format for R1-10.
 - PRD defaults (temp-password replacement, 2 group levels, 3 sorts, 30-day window) adopted as D-011 pending product review.
 - Real MCP client check (R1-12, R1-14) needs the operator: production has `PARTNER_OAUTH_ENABLED=false`; run locally.
@@ -140,5 +140,6 @@ Every migration task must also prove: fresh DB, prod-shaped copy, and re-run (id
 
 _(planner appends: task, PR, verdict, what was independently verified and how)_
 
+- 2026-10-12 · **R1-00, PR #12: approved, merge as-is.** Base `af1bee5` = main; scope clean. Gate re-run in a fresh clone (Node 26): 55/0/0, matching the handoff. Probes (`curl --path-as-is` against my own server): source, `public/` prefix, a planted `data/x.db`, encoded and double-encoded traversal, `%00`, `/./`, trailing slash, a planted symlink, and an absolute-form request line all return non-200 with no body leak. Pages still 200. The probes can fail: old main returned 200 for `/lib/db.js` and for a `data/` DB. **Regression:** `/docs/partner-integration.md` (advertised in OAuth metadata, `lib/oauth.js:755,765`) and `/API-README.md` (linked from `api-docs.html`) now 404. The fix is folded into R1-01 (exact-path routes). `/api/health` 503 without secrets is also true on main, so it's environmental. Review posted on #12.
 - 2026-10-12 · docs PR #10 merged (`93b5d61`): D-017, import split. D-018 then deferred PDF/unstructured past Round 1.
 - 2026-10-12 · docs PR #9 merged (`98bd634`). Verified: both files on main byte-identical to the reviewed drafts (`git show | diff`).
