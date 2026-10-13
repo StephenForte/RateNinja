@@ -92,6 +92,11 @@ describe('r1-01 migration runner', { concurrency: 1 }, () => {
         assert.equal(fs.existsSync(repoBackupDir), repoBackupsBefore);
     });
 
+    it('ignores a pre-migration backup under data/', () => {
+        const result = spawnSync('git', ['check-ignore', '-q', '--', 'data/backups/x.db'], { cwd: repoRoot });
+        assert.equal(result.status, 0, 'data/backups/x.db must stay gitignored; it is a full database copy');
+    });
+
     it('publishes the D-011 limits and keeps that many backups', () => {
         const limits = require('../lib/limits');
         assert.equal(limits.MAX_GROUP_FIELDS, 2);
