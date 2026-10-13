@@ -23,6 +23,7 @@ const state = {
     predictiveAfter: '',
     loaded: false,
     viewReady: false,
+    preferenceError: '',
     criteria: emptyCriteria(),
     view: standardView(),
     fields: RATE_FIELDS,
@@ -61,6 +62,9 @@ let bound = false;
 const host = {
     criteria() {
         return { ...state.criteria };
+    },
+    commitCriteria() {
+        state.criteria = readCriteriaFromControls();
     },
     applySaved(criteria) {
         const applied = applySavedQuery({
@@ -122,6 +126,9 @@ const host = {
     },
     viewAttention() {
         return state.viewAttention;
+    },
+    noteAttention(needsAttention) {
+        state.viewAttention = Boolean(needsAttention);
     }
 };
 
@@ -154,7 +161,10 @@ export function mount() {
 
 export async function showRates() {
     mount();
-    if (state.loaded) return;
+    if (state.loaded) {
+        await refreshSavedLists();
+        return;
+    }
     await loadRates();
 }
 
@@ -183,7 +193,7 @@ function bindEvents() {
     elements.refresh.addEventListener('click', () => loadRates());
     elements.predictiveToggle.addEventListener('change', onPredictiveToggle);
     elements.predictiveDate.addEventListener('change', () => {
-        if (state.predictive) loadPredictiveRates();
+        if (state.predictive) loadPredictiveRates(nextPredictiveGeneration());
     });
     elements.previous.addEventListener('click', () => changePage(-1));
     elements.next.addEventListener('click', () => changePage(1));
@@ -203,7 +213,6 @@ function onCriteriaEdited() {
 
 async function ensureView() {
     if (state.viewReady) return;
-    state.viewReady = true;
     try {
         const catalog = await request('/api/preferences/fields');
         state.fields = catalog.fields;
@@ -214,20 +223,22 @@ async function ensureView() {
             state.view = preferred.view;
             state.activeViewId = preferred.id;
             state.viewIsDefault = true;
-            state.viewAttention = preferred.needsAttention;
+            state.viewAttention = Boolean(preferred.needsAttention);
         }
+        state.viewReady = true;
+        state.preferenceError = '';
     } catch (error) {
-        const warning = document.getElementById('ratesQueryWarning');
-        if (warning) {
-            warning.hidden = false;
-            warning.textContent = error.message;
-        }
+        state.preferenceError = error.message || 'Saved views could not be loaded.';
     }
+}
+
+async function refreshSavedLists() {
+    await Promise.all([loadQueries(), loadViews()]);
 }
 
 async function loadRates() {
     if (state.predictive) {
-        await loadPredictiveRates();
+        await loadPredictiveRates(nextPredictiveGeneration());
         return;
     }
     hidePredictiveBanner();
@@ -263,6 +274,13 @@ function validatePredictiveDate(value) {
     return null;
 }
 
+let predictiveGeneration = 0;
+
+function nextPredictiveGeneration() {
+    predictiveGeneration += 1;
+    return predictiveGeneration;
+}
+
 function onPredictiveToggle() {
     const on = elements.predictiveToggle.checked;
     elements.predictiveDate.disabled = !on;
@@ -270,8 +288,9 @@ function onPredictiveToggle() {
     if (on) {
         state.predictive = true;
         if (!elements.predictiveDate.value) elements.predictiveDate.value = predictiveMinDate();
-        loadPredictiveRates();
+        loadPredictiveRates(nextPredictiveGeneration());
     } else {
+        nextPredictiveGeneration();
         state.predictive = false;
         state.predictiveAfter = '';
         hidePredictiveBanner();
@@ -279,9 +298,10 @@ function onPredictiveToggle() {
     }
 }
 
-async function loadPredictiveRates() {
+async function loadPredictiveRates(generation) {
     const after = elements.predictiveDate.value;
     const validationError = validatePredictiveDate(after);
+    if (generation !== predictiveGeneration) return;
     if (validationError) {
         showPredictiveDateError(validationError);
         hidePredictiveBanner();
@@ -292,7 +312,10 @@ async function loadPredictiveRates() {
     showLoading();
     try {
         await ensureView();
+        const lists = refreshSavedLists();
         const { rates } = await request(`/api/rates/predictive?after=${encodeURIComponent(after)}`);
+        await lists;
+        if (generation !== predictiveGeneration || !elements.predictiveToggle.checked) return;
         state.rates = rates;
         state.predictive = true;
         state.predictiveAfter = after;
@@ -301,11 +324,12 @@ async function loadPredictiveRates() {
         applyFilters();
         showPredictiveBanner(after);
     } catch (error) {
+        if (generation !== predictiveGeneration) return;
         hidePredictiveBanner();
         showError(`Failed to load predictive rates: ${error.message}`);
         elements.tableBody.replaceChildren();
     } finally {
-        hideLoading();
+        if (generation === predictiveGeneration) hideLoading();
     }
 }
 
@@ -389,8 +413,9 @@ function applyFilters() {
     });
     const warning = document.getElementById('ratesQueryWarning');
     if (warning) {
-        warning.textContent = applied.warning;
-        warning.hidden = !applied.warning;
+        const message = applied.warning || state.preferenceError || '';
+        warning.textContent = message;
+        warning.hidden = !message;
     }
     if (!applied.ok) {
         state.filteredRates = [];

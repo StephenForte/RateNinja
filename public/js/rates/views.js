@@ -165,7 +165,11 @@ async function reload(selectedId) {
 }
 
 function applyRecord(view) {
-    host.setView(view.view, { id: view.id, isDefault: view.isDefault });
+    host.setView(view.view, {
+        id: view.id,
+        isDefault: view.isDefault,
+        needsAttention: view.needsAttention
+    });
     syncViewControls(view.view);
     host.setSummary(summarizeView(view.view, fields));
     if (view.needsAttention) setStatus('This view needs attention. A column is no longer available and was removed.', true);
@@ -298,6 +302,9 @@ export async function loadViews() {
         const blocks = options.querySelectorAll('.rates-rule-block');
         buildSlots(blocks[0] || groupBlock, blocks[1]);
         await reload(host.activeViewId());
+        const current = views.find(view => view.id === host.activeViewId());
+        if (host.activeViewId() && !current) host.restoreStandard();
+        else if (current && host.noteAttention) host.noteAttention(current.needsAttention);
         syncViewControls(host.view());
         host.setSummary(summarizeView(host.view(), fields));
         if (host.viewAttention()) setStatus('This view needs attention. A column is no longer available and was removed.', true);

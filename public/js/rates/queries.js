@@ -83,6 +83,7 @@ export function mountQueries(container, nextHost) {
 async function storeQuery(overwrite) {
     const query = selected();
     const name = nameInput.value.trim();
+    if (host.commitCriteria) host.commitCriteria();
     const criteria = host.criteria();
     try {
         if (overwrite) {
