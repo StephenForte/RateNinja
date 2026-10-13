@@ -56,7 +56,7 @@ Model names are the planner's proposal; operator overrides recorded in the Run c
 | Task | Title | PRD | Depends on | Tier / model | Status |
 | --- | --- | --- | --- | --- | --- |
 | R1-00 | Static serving lockdown (hotfix) | — | — | M / Sonnet 5.5 | approved 2026-10-12, PR #12 |
-| R1-01 | Scaffolding: migration runner, route modules, test harness, limits | §Data | R1-00 | S / Opus 5.5 | changes requested 2026-10-13, PR #14 |
+| R1-01 | Scaffolding: migration runner, route modules, test harness, limits | §Data | R1-00 | S / Opus 5.5 | approved 2026-10-13, PR #14 (`5be291c`) |
 | R1-02 | Roles and company isolation | Roles, Delivery 1 | R1-01 | S / Opus 5.5 | not dispatched |
 | R1-03 | App shell: addressable pages and menu | FR1 | R1-01 | M / Sonnet 5.5 | not dispatched |
 | R1-04 | Profile and password lifecycle | FR4 | R1-02, R1-03 | S / Opus 5.5 | not dispatched |
@@ -146,6 +146,7 @@ Every migration task must also prove: fresh DB, prod-shaped copy, and re-run (id
 
 _(planner appends: task, PR, verdict, what was independently verified and how)_
 
+- 2026-10-13 · **R1-01, PR #14: approved at `5be291c`.** The fix changed only `.gitignore` (`data/`) and added one test. Fresh clone: 71/0/0. With the fix reverted, the new ignore test fails, so it can catch the problem. Approval posted on #14.
 - 2026-10-13 · **R1-01, PR #14: changes requested (one item).** Base `323b4aa` = main; scope clean. Gate re-run in a fresh clone: 70/0/0, matching the handoff. Probes with fixture migrations via `MIGRATIONS_DIR` on the default file DB: no-pending start makes no backup; pending `001` is applied once and backed up once, and the second start is a no-op; a throwing `002` exits 1 with its id in the message, is not recorded, and its partial table is rolled back. Doc routes are an exact map. **Blocker:** `.gitignore` has `data/*.db` but backups go to `data/backups/`, and the repo is **public**, so a full DB copy (hashes, TOTP secrets) shows as untracked and one `git add -A` would publish it. Fix (replace with `data/` + a `git check-ignore` test) proven in the clone; posted on #14.
 - 2026-10-12 · **R1-00, PR #12: approved, merge as-is.** Base `af1bee5` = main; scope clean. Gate re-run in a fresh clone (Node 26): 55/0/0, matching the handoff. Probes (`curl --path-as-is` against my own server): source, `public/` prefix, a planted `data/x.db`, encoded and double-encoded traversal, `%00`, `/./`, trailing slash, a planted symlink, and an absolute-form request line all return non-200 with no body leak. Pages still 200. The probes can fail: old main returned 200 for `/lib/db.js` and for a `data/` DB. **Regression:** `/docs/partner-integration.md` (advertised in OAuth metadata, `lib/oauth.js:755,765`) and `/API-README.md` (linked from `api-docs.html`) now 404. The fix is folded into R1-01 (exact-path routes). `/api/health` 503 without secrets is also true on main, so it's environmental. Review posted on #12.
 - 2026-10-12 · docs PR #10 merged (`93b5d61`): D-017, import split. D-018 then deferred PDF/unstructured past Round 1.
