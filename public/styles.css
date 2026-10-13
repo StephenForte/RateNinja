@@ -2002,3 +2002,124 @@ body {
 .data-dialog { border: 1px solid var(--line); border-radius: 12px; padding: 16px; max-width: 640px; }
 .data-dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
 #dataDatasetRates[aria-pressed="true"], #dataDatasetSailings[aria-pressed="true"] { background: var(--brand); color: #fff; }
+
+/* R1-05 */
+.rates-preference-bar {
+    display: grid;
+    gap: 10px;
+    margin: 0 0 14px;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--surface);
+}
+
+.rates-preference-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.rates-preference-row label,
+.rates-rule-block label,
+.preference-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+
+.rates-preference-row input,
+.rates-preference-row select,
+.rates-rule-block select,
+.preference-row input {
+    min-height: 36px;
+    padding: 6px 8px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--ink);
+}
+
+.rates-preference-btn {
+    min-height: 36px;
+    padding: 6px 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface-muted);
+    color: var(--ink);
+    cursor: pointer;
+}
+
+.rates-preference-btn:hover { background: #e7eef5; }
+
+.rates-preference-status,
+.rates-query-warning {
+    margin: 0;
+    color: var(--muted);
+}
+
+.rates-preference-error,
+.rates-query-warning { color: #9b2c2c; }
+
+#ratesViewSummary {
+    margin: 0;
+    font-weight: 600;
+}
+
+.rates-column-list,
+.rates-rule-block,
+.preference-list {
+    display: grid;
+    gap: 8px;
+}
+
+#viewOptions {
+    display: grid;
+    gap: 10px;
+}
+
+.rates-column-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.group-header td {
+    background: #e8f3f5;
+    font-weight: 600;
+}
+
+.group-header[data-depth="1"] .group-toggle { margin-left: 16px; }
+
+.group-toggle {
+    border: 0;
+    background: transparent;
+    color: var(--ink);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.group-count {
+    margin-left: 8px;
+    color: var(--muted);
+    font-weight: 500;
+}
+
+.predictive-indicator {
+    display: inline-block;
+    margin-right: 6px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: #f3e8ff;
+    color: #6b21a8;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+.preference-section { margin-top: 18px; }
+
+.preference-note { color: var(--muted); }
