@@ -38,6 +38,8 @@
         </tbody>
     </table>
     <p>A customer account (company type <code>Freight Forwarder/Customer</code>) cannot authorize the partner API or MCP. Only a contract owner (company type <code>Contract Owner</code>) can. Partner OAuth, the partner routes, and MCP run only when <code>PARTNER_OAUTH_ENABLED</code> allows them: <code>true</code> is on, <code>false</code> is off, and unset is on unless <code>NODE_ENV</code> is <code>production</code>. On 2026-10-13 the operator confirmed that production is running with the gate open.</p>
+    <p><code>rate20D</code> is number or null (no price on file). <code>rate40D</code> is number or null (no price on file). <code>rate40HC</code> is number or null (no price on file). A stored 0 stays 0. A missing base stays null on a predictive estimate.</p>
+    <pre><code>{ "rate20D": 1000, "rate40D": null, "rate40HC": null }</code></pre>
 
     <h2>Session endpoints</h2>
     <table>

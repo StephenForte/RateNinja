@@ -41,11 +41,17 @@ An account that still has to change a temporary password gets 403 HTML and no gr
 
 ## Prices
 
-Base contract price is the stored container amount, rounded to a whole dollar, with no customer margin. Partner rate and sailing payloads set `source` to `base_contract`. `currency` and `updatedAt` are `null` because those columns are not stored. `allocationEvidence` is false and `capacityQuantity` is `null`. The list `notice` is: "Rate and sailing records are not evidence of allocatable or transferable capacity."
+Base contract price is the stored container amount, rounded to a whole dollar, with no customer margin. `rate20D` is number or null (no price on file). `rate40D` is number or null (no price on file). `rate40HC` is number or null (no price on file). A stored 0 stays 0. A missing container price is null, on a stored rate and on a predictive estimate.
+
+```json
+{ "rate20D": 1000, "rate40D": null, "rate40HC": null }
+```
+
+Partner rate and sailing payloads set `source` to `base_contract`. `currency` and `updatedAt` are `null` because those columns are not stored. `allocationEvidence` is false and `capacityQuantity` is `null`. The list `notice` is: "Rate and sailing records are not evidence of allocatable or transferable capacity."
 
 Customer margin price is the session browsing price for a customer. `customerPrice` applies the active link's margin: a stored `margin_percent` greater than 1 is a whole percent, and a stored value of 1 or less is a fraction (so 1 means 100%). It then adds `margin_number` and rounds to a whole dollar. Only an active link is visible. Partner, MCP, and demo responses do not apply this margin.
 
-Predictive estimate is not a saved price. The shared rule is: the `after` date must be more than 90 UTC days ahead, or the error is `Departing after must be more than 90 days in the future.` The period count is `floor(daysUntil / 30)`. Each container amount becomes `round(base * (1 + periods * 0.05))`, using the latest rate for that route (latest expiration date; the route key is carrier, origin, destination, and arrival). Nothing is written to the database.
+Predictive estimate is not a saved price. The shared rule is: the `after` date must be more than 90 UTC days ahead, or the error is `Departing after must be more than 90 days in the future.` The period count is `floor(daysUntil / 30)`. A container price on file becomes `round(base * (1 + periods * 0.05))`. A missing base stays null. The latest rate for that route is used (latest expiration date; the route key is carrier, origin, destination, and arrival). Nothing is written to the database.
 
 Owner-scoped predictive calls (partner and MCP) follow that formula on the token's owner only. Optional `carrier` and `originPort` are case-insensitive exact matches, the same match as partner rates. Output is base contract pricing marked `estimate: true`. `meta` includes `after`, `basis.formula` (`5_percent_per_full_30_day_period`), `basis.fullThirtyDayPeriods`, `basis.selection` (`latest_expiration_per_route`), `owner.companyId`, `owner.companyName`, and the usual list fields. `owner.companyId` is the company row id. No customer margin is applied.
 

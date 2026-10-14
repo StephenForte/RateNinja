@@ -12,6 +12,12 @@ There are three ways to read rates. The partner guide, `docs/partner-integration
 
 A customer account cannot authorize the partner API or MCP. Partner OAuth, the partner routes, and `POST /mcp` run only when `PARTNER_OAUTH_ENABLED` allows them: `true` is on, `false` is off, and unset is on unless `NODE_ENV` is `production`. On 2026-10-13 the operator confirmed that production is running with the gate open.
 
+`rate20D` is number or null (no price on file). `rate40D` is number or null (no price on file). `rate40HC` is number or null (no price on file). Each present price is a whole dollar. A stored 0 stays 0. A missing base stays null on a predictive estimate.
+
+```json
+{ "rate20D": 1000, "rate40D": null, "rate40HC": null }
+```
+
 ## Authentication
 
 `POST /api/auth/login` accepts JSON `username` and `password`. Success sets `rate_ninja_session` and returns `csrfToken` plus the public user (`username`, `companyName`, `companyType`, `permissions`, `companyContext`). Send `X-CSRF-Token` on later state-changing requests.
