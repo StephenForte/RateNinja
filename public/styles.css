@@ -2123,3 +2123,66 @@ body {
 .preference-section { margin-top: 18px; }
 
 .preference-note { color: var(--muted); }
+
+/* R1-06 */
+.onboarding-wizard,
+#userEditor {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-width: 40rem;
+    margin: 0 0 20px;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--surface);
+}
+
+.onboarding-fields,
+.onboarding-types {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    border: 0;
+    margin: 0;
+    padding: 0;
+}
+
+.onboarding-fields label,
+.onboarding-types label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 14px;
+}
+
+.onboarding-step {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.onboarding-actions,
+.user-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.onboarding-warning {
+    margin: 0;
+    padding: 8px 12px;
+    border: 1px solid #e0b84a;
+    border-radius: 8px;
+    background: #fff4d6;
+    color: #8a5a00;
+}
+
+.onboarding-summary {
+    margin: 0 0 16px;
+    padding: 12px;
+    border: 1px solid #8dcea8;
+    border-radius: 8px;
+    background: #e7f6ee;
+}
