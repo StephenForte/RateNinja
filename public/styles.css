@@ -2262,3 +2262,30 @@ body {
     border-radius: 8px;
     background: #e7f6ee;
 }
+
+/* R1-13 */
+.integration-instructions {
+    max-width: 46rem;
+}
+
+.integration-instructions ul {
+    margin: 0 0 18px;
+    padding-left: 1.2rem;
+}
+
+.integration-instructions li {
+    margin: 0 0 8px;
+}
+
+.integration-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    list-style: none;
+    padding-left: 0;
+}
+
+.integration-links a {
+    color: #0b6e4f;
+    font-weight: 600;
+}

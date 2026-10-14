@@ -10,6 +10,10 @@ function ownerOrSystem(permissions) {
     return permissions.systemAdmin === true || ownerAdmin(permissions);
 }
 
+function anyAdmin(permissions) {
+    return permissions.systemAdmin === true || permissions.companyAdmin === true;
+}
+
 // OAuth client registration is system-admin only once the session carries D-009
 // permissions. Until then it stays on the old admin screen, which any company
 // admin could open.
@@ -124,7 +128,7 @@ export const sections = [
         label: 'Integrations',
         group: 'Admin',
         path: '/admin/integrations',
-        allow: ownerOrSystem,
+        allow: anyAdmin,
         load: () => import('./admin/integrations.js')
     },
     {

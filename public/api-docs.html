@@ -7,29 +7,78 @@
     <style>
         body { font-family: system-ui, sans-serif; line-height: 1.5; color: #1f2937; max-width: 900px; margin: 3rem auto; padding: 0 1.5rem; }
         code { background: #f3f4f6; border-radius: .25rem; padding: .15rem .3rem; }
-        table { border-collapse: collapse; width: 100%; }
+        table { border-collapse: collapse; width: 100%; margin: 1rem 0 1.5rem; }
         th, td { border: 1px solid #d1d5db; padding: .75rem; text-align: left; vertical-align: top; }
         th { background: #f9fafb; }
     </style>
 </head>
 <body>
     <h1>Rate Ninja API</h1>
-    <p>The browser uses same-origin endpoints. Rate data is served from SQLite on the server and is not exposed as a raw database file.</p>
+    <p>The browser uses same-origin session endpoints. Rate data is served from SQLite on the server and is not exposed as a raw database file. Copy-paste requests, with placeholders, are the example blocks in <a href="/docs/partner-integration.md">the partner and MCP guide</a> and <a href="/API-README.md">API-README.md</a>. This page does not contain a key, client secret, token, or password.</p>
+
+    <h2>Three ways to read rates</h2>
+    <table>
+        <thead><tr><th>Access</th><th>Credential</th><th>Prices</th></tr></thead>
+        <tbody>
+            <tr>
+                <td>Same-origin session</td>
+                <td>HTTP-only cookie <code>rate_ninja_session</code></td>
+                <td>A contract owner sees base contract prices. A customer sees each active linked owner's rates with that customer's margin.</td>
+            </tr>
+            <tr>
+                <td>Demo API <code>/api/v1/*</code></td>
+                <td>Shared <code>X-API-Key</code>. The server variable is <code>RATE_NINJA_API_KEY</code>. Send <code>X-API-Key: YOUR_DEMO_API_KEY</code>.</td>
+                <td>Base contract prices for the demo database. This is not a company's private credential and it is not accepted on the partner API or MCP.</td>
+            </tr>
+            <tr>
+                <td>Partner API and <code>POST /mcp</code></td>
+                <td>OAuth bearer token from a contract-owner approval. Header <code>Authorization: Bearer YOUR_ACCESS_TOKEN</code>.</td>
+                <td>That owner's base contract prices. Predictive results are estimates of the base price, not a customer margin and not a stored rate.</td>
+            </tr>
+        </tbody>
+    </table>
+    <p>A customer account (company type <code>Freight Forwarder/Customer</code>) cannot authorize the partner API or MCP. Only a contract owner (company type <code>Contract Owner</code>) can. Partner OAuth, the partner routes, and MCP run only when <code>PARTNER_OAUTH_ENABLED</code> allows them: <code>true</code> is on, <code>false</code> is off, and unset is on unless <code>NODE_ENV</code> is <code>production</code>. On 2026-10-13 the operator confirmed that production is running with the gate open.</p>
+
+    <h2>Session endpoints</h2>
     <table>
         <thead><tr><th>Endpoint</th><th>Access</th><th>Purpose</th></tr></thead>
         <tbody>
-            <tr><td><code>POST /api/auth/login</code></td><td>Public</td><td>Creates an HTTP-only session from a username and password.</td></tr>
-            <tr><td><code>POST /api/auth/logout</code></td><td>Signed in</td><td>Ends the current session.</td></tr>
-            <tr><td><code>GET /api/session</code></td><td>Signed in</td><td>Returns the signed-in user's display name and administrator status.</td></tr>
-            <tr><td><code>GET /api/rates</code></td><td>Signed in</td><td>Returns rates available to the user's RateView with the appropriate margin applied.</td></tr>
-            <tr><td><code>GET /api/sailings</code></td><td>Signed in</td><td>Returns sailings for carrier, origin port, and effective-date query parameters.</td></tr>
-            <tr><td><code>GET /api/admin/companies</code></td><td>Administrator</td><td>Returns editable companies in the administrator's RateView.</td></tr>
-            <tr><td><code>PATCH /api/admin/companies/:recordId</code></td><td>Administrator</td><td>Updates a company's margin percent and fixed margin.</td></tr>
-            <tr><td><code>GET /api/v1/rates</code></td><td>Demo API key</td><td>Returns base rates with optional carrier, originPort, destinationPort, page, and pageSize filters.</td></tr>
-            <tr><td><code>GET /api/v1/sailings</code></td><td>Demo API key</td><td>Returns sailings for carrier, originPort, and after query parameters.</td></tr>
-            <tr><td><code>GET /api/v1/predictive-pricing</code></td><td>Demo API key</td><td>Returns stub predictive prices for carrier, originPort, and an after date more than 90 days out.</td></tr>
+            <tr><td><code>POST /api/auth/login</code></td><td>Public</td><td>Creates an HTTP-only session from a username and password and returns a CSRF token.</td></tr>
+            <tr><td><code>POST /api/auth/logout</code></td><td>Signed in</td><td>Ends the current session. Requires <code>X-CSRF-Token</code>.</td></tr>
+            <tr><td><code>GET /api/session</code></td><td>Signed in</td><td>Returns the signed-in user, company type, permissions, and a CSRF token.</td></tr>
+            <tr><td><code>GET /api/rates</code></td><td>Signed in</td><td>Owners: own base rates. Customers: active linked owners, with that margin. Body <code>{ "rates": [...] }</code>.</td></tr>
+            <tr><td><code>GET /api/rates/predictive?after=</code></td><td>Signed in</td><td>Estimate. <code>after</code> must be <code>YYYY-MM-DD</code> more than 90 UTC days ahead. 5% per full 30-day period on the latest rate per route, then the customer margin when the caller is a customer. Not stored.</td></tr>
+            <tr><td><code>GET /api/sailings</code></td><td>Signed in</td><td>Requires <code>carrier</code>, <code>originPort</code>, and <code>after</code>. Case-insensitive exact match.</td></tr>
+            <tr><td><code>GET /api/admin/customers</code></td><td>Contract-owner administrator</td><td>Customers linked for this owner, and the margin fields.</td></tr>
+            <tr><td><code>PATCH /api/admin/customers/{id}/margins</code></td><td>Contract-owner administrator</td><td>Sets this owner's margin for that customer. Requires <code>X-CSRF-Token</code>.</td></tr>
         </tbody>
     </table>
-    <p>The v1 demo API requires <code>X-API-Key</code>, returns base rates only, and is limited to 60 requests per minute per running server instance. See <a href="API-README.md">API-README.md</a> for examples. Keep <code>SESSION_SECRET</code> and <code>RATE_NINJA_API_KEY</code> out of the browser and source control.</p>
+
+    <h2>Demo API</h2>
+    <p>The limit on the three data routes is 60 requests per 60-second window for the whole server process. <code>GET /api/v1</code> returns the endpoint list and does not check the key. Open <a href="/api-testbed.html">the testbed</a> to call the demo routes locally.</p>
+    <table>
+        <thead><tr><th>Endpoint</th><th>Access</th><th>Purpose</th></tr></thead>
+        <tbody>
+            <tr><td><code>GET /api/v1/rates</code></td><td>Demo API key</td><td>Base rates. Optional <code>carrier</code>, <code>originPort</code>, <code>destinationPort</code> are case-insensitive substrings. <code>page</code> defaults to 1 (ceiling 10000). <code>pageSize</code> defaults to 50 (ceiling 100).</td></tr>
+            <tr><td><code>GET /api/v1/sailings</code></td><td>Demo API key</td><td>Requires <code>carrier</code>, <code>originPort</code>, and <code>after</code>. Carrier and departure port are case-sensitive exact matches. No pagination.</td></tr>
+            <tr><td><code>GET /api/v1/predictive-pricing</code></td><td>Demo API key</td><td>Requires <code>carrier</code>, <code>originPort</code>, and <code>after</code> more than 90 days ahead. Base-price estimate. Not stored. No pagination.</td></tr>
+        </tbody>
+    </table>
+
+    <h2>Partner API and MCP</h2>
+    <p>Connection, revocation, rate limits, and every tool argument are in the <a href="/docs/partner-integration.md">partner and MCP guide</a>. Revoke a grant on <a href="/profile/connected-apps">Connected apps</a> or with <code>POST /oauth/revoke</code>. Sample calls use <code>YOUR_ACCESS_TOKEN</code>, <code>YOUR_CLIENT_ID</code>, and <code>YOUR_CLIENT_SECRET</code> as placeholders.</p>
+    <table>
+        <thead><tr><th>Capability</th><th>API</th><th>MCP tool</th><th>Scope</th></tr></thead>
+        <tbody>
+            <tr><td>Current subject and company</td><td><code>GET /oauth/userinfo</code></td><td><code>rateninja_get_my_profile</code></td><td><code>profile:read</code></td></tr>
+            <tr><td>Rate search and pagination</td><td><code>GET /api/partner/v1/me/rates</code></td><td><code>rateninja_list_my_rates</code></td><td><code>rates:read</code></td></tr>
+            <tr><td>One authorized rate</td><td><code>GET /api/partner/v1/me/rates/{rateId}</code></td><td><code>rateninja_get_my_rate</code></td><td><code>rates:read</code></td></tr>
+            <tr><td>Sailing search and pagination</td><td><code>GET /api/partner/v1/me/sailings</code></td><td><code>rateninja_list_my_sailings</code></td><td><code>sailings:read</code></td></tr>
+            <tr><td>One authorized sailing</td><td><code>GET /api/partner/v1/me/sailings/{sailingId}</code></td><td><code>rateninja_get_my_sailing</code></td><td><code>sailings:read</code></td></tr>
+            <tr><td>Predictive pricing</td><td><code>GET /api/partner/v1/me/predictive-pricing</code></td><td><code>rateninja_get_my_predictive_pricing</code></td><td><code>rates:read</code></td></tr>
+        </tbody>
+    </table>
+    <p>Partner list filters are case-insensitive exact matches. <code>page</code> defaults to 1 and <code>pageSize</code> defaults to 50, with ceilings 10000 and 100. Predictive <code>after</code> is required and must be more than 90 days ahead; <code>carrier</code> and <code>originPort</code> are optional. MCP protocol versions are <code>2025-11-25</code> (default) and <code>2025-03-26</code>. The demo key is not a bearer token.</p>
+    <p>Keep <code>SESSION_SECRET</code> and <code>RATE_NINJA_API_KEY</code> out of the browser and source control.</p>
 </body>
 </html>
