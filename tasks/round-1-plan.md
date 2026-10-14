@@ -61,14 +61,14 @@ Model names are the planner's proposal; operator overrides recorded in the Run c
 | R1-03 | App shell: addressable pages and menu | FR1 | R1-01 | M / Sonnet 5.5 | merged 2026-10-13, PR #18 |
 | R1-04 | Profile and password lifecycle | FR4 | R1-02, R1-03 | S / Opus 5.5 | merged 2026-10-13, PR #24 |
 | R1-05 | Saved queries and saved views | FR2, FR3 | R1-03 | M / Sonnet 5.5 | merged 2026-10-13, PR #29 |
-| R1-06 | Company and user onboarding | FR5, FR6 | R1-04 | S / Opus 5.5 | briefed 2026-10-13 (W3) |
+| R1-06 | Company and user onboarding | FR5, FR6 | R1-04 | S / Opus 5.5 | approved 2026-10-13, PR #34 (`afe269f`) |
 | R1-07 | Customer authorization and live preview | FR7 | R1-02, R1-03 | S / Opus 5.5 | merged 2026-10-13, PR #22 |
 | R1-08 | Data workspace core: soft delete, versions, edit, delete/restore, history | FR9 | R1-02, R1-03 | S / Opus 5.5 | merged 2026-10-13, PR #23 |
-| R1-09 | Pull-forward wizard and operation undo | FR9 | R1-08 | S / Opus 5.5 | approved 2026-10-13, PR #35 (`4b489fb`) |
+| R1-09 | Pull-forward wizard and operation undo | FR9 | R1-08 | S / Opus 5.5 | merged 2026-10-13, PR #35 |
 | R1-10 | Imports discovery spike, CSV + Excel (no product code) | FR8 | representative files from operator | M / Sonnet 5.5 | merged 2026-10-13, PR #33 |
 | R1-11a | Imports implementation: CSV + Excel | FR8 | R1-08, R1-10 | S / Opus 5.5 | briefed 2026-10-13 (after #35 merges) |
 | R1-12 | MCP / partner API parity incl. predictive | FR11 | R1-01 | S / Opus 5.5 | merged 2026-10-13, PR #19 |
-| R1-13 | API and MCP instructions + docs alignment | FR10 | R1-07, R1-12 | M / Sonnet 5.5 | briefed 2026-10-13 (W3) |
+| R1-13 | API and MCP instructions + docs alignment | FR10 | R1-07, R1-12 | M / Sonnet 5.5 | changes requested 2026-10-13, PR #32 (registry gate) |
 | R1-14 | Integrated release acceptance | §Validation | all P1 | M / Sonnet 5.5 + operator | not dispatched |
 | R1-15 | P2: bulk price adjustment | FR12 | R1-09 | S | not planned in detail |
 | R1-16 | P2: duplicate handling | FR13 | R1-11a | S | not planned in detail |
@@ -160,6 +160,9 @@ Every migration task must also prove: fresh DB, prod-shaped copy, and re-run (id
 
 _(planner appends: task, PR, verdict, what was independently verified and how)_
 
+- 2026-10-13 · **R1-06, PR #34: approved at `afe269f`.** Trial merge onto `6e6b8fc`: no conflicts, 182/0. The OAuth revival test fails with `revokeAllCredentialsForUser` removed and passes with it, driving grant → deactivate → reactivate → refresh. Escalation probe as a company admin: another company's id → 409, `isSystemAdmin` → 400, `role: system_admin` → 400, onboarding → 403; no rows written and no system admin created. D-022 reading (no index on collision; the submissions table is still created) is correct.
+- 2026-10-13 · **R1-13, PR #32: changes requested.** FR 10 requires the integrations section for both company types; `registry.js` gates it `ownerOrSystem`. The fix (an `anyAdmin` predicate plus one navigation-test expectation) was proven in scratch at 155/0. This was a gap in the R1-03 plan. The docs' 46 runnable examples returned the expected codes.
+- 2026-10-13 · **Process fix:** workers pushed and stopped without opening PRs or printing the return block. The dispatch-worker skill now requires hand-back steps H1–H5, and the repo `AGENTS.md` (PR #37) carries the same rule for briefs already running.
 - 2026-10-13 · **R1-09, PR #35: approved at `4b489fb`.** Scope clean; `DELETE FROM rates|sailings` grep is empty; fresh clone 164/0. Probe: replace with a carrier filter soft-deleted only the matching target row; a different-carrier row, another owner's row, and an already-deleted row (kept `earlier-op`) were untouched. Undo removed the created rate and restored the replaced one. A second undo returned 409. The worker's browser run showed an undo refused with the conflict id after an edit.
 - 2026-10-13 · **R1-10, PR #33: approved at `2e7f052`.** Scope: doc, fixtures, generator only; 152/0. **Leak check (D-023), done independently:** the worker's commit grep can't see inside `.xlsx` zips, so I unzipped all fixtures and checked them, the CSV, the doc and the generator against all 3,009 distinctive values from the real workbooks. The only hits are column headers, `Source`, and the filename date. No leak. Parser `read-excel-file@9.3.12` (MIT, current). The live Claude trial wasn't run (no API key).
 - 2026-10-13 · **R1-05, PR #29: approved at `9552cc1`.** Base `01f5244` = main; scope clean; fresh clone 152/0/0; CI and Bugbot green. Probe: a second user (system admin, same company) gets 404 on read, patch, delete and set-default of another user's query or view, and sees an empty list; date and page criteria keys, a third group field, and an unknown column each return 400. Browser on a scratch DB (45 rates), after the Bugbot fixes: with no view the standard table shows 20 rows, Page 1 of 3; the default grouped view is restored on reload, and group headers count the full set (CMA 15, MSC 15).
