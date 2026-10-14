@@ -227,6 +227,12 @@ describe('r1-11a imports', { concurrency: 1 }, () => {
         }));
         assert.equal(replay.status, 200, replay.text);
         assert.equal(replay.body.operationId, committed.body.operationId);
+        const cancelled = await readJson(await app.request(`/api/admin/imports/${uploaded.body.jobId}/cancel`, {
+            method: 'POST',
+            body: JSON.stringify({ companyId: app.company.id })
+        }));
+        assert.equal(cancelled.status, 409, cancelled.text);
+        assert.equal(app.db.prepare(`SELECT status FROM import_jobs WHERE id = ?`).get(uploaded.body.jobId).status, 'committed');
         assert.equal(app.db.prepare(`SELECT COUNT(*) AS count FROM rates WHERE carrier = 'Fixture Line'`).get().count, 5);
         assert.equal(app.db.prepare(`SELECT COUNT(*) AS count FROM data_operations WHERE submission_id = ?`).get(submissionId).count, 1);
 

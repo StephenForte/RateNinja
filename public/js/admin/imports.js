@@ -266,14 +266,20 @@ function mappingSelect(header, targets, selected) {
     return select;
 }
 
+function pairsFrom(headers, source) {
+    return headers.map(header => {
+        const found = source.find(item => item.source === header);
+        return { source: header, target: found ? found.target : null };
+    });
+}
+
 function drawMapping(panel) {
     const detail = state.detail;
-    const pairs = state.suggestions
-        ? detail.headers.map(header => {
-            const found = state.suggestions.find(item => item.source === header);
-            return { source: header, target: found ? found.target : null };
-        })
-        : seedMapping(detail.headers, detail.targets);
+    const pairs = state.mapping
+        ? pairsFrom(detail.headers, state.mapping)
+        : state.suggestions
+            ? pairsFrom(detail.headers, state.suggestions)
+            : seedMapping(detail.headers, detail.targets);
     panel.append(el('p', '', 'Map each header yourself, or ask Claude after you confirm the sample below. Claude only proposes header-to-field pairs. It cannot fill a cell.'));
     const table = el('table', 'import-table');
     for (const pair of pairs) {
@@ -317,6 +323,7 @@ function drawMapping(panel) {
                 return;
             }
             state.suggestions = result.suggestions;
+            state.mapping = null;
             render();
         } catch (error) {
             fail(error);
