@@ -93,7 +93,7 @@ describe('r1-05 saved preference API', { concurrency: 1 }, () => {
     it('serves the field allowlist from the shared limits', async () => {
         const { status, json } = await call(app.baseUrl, { cookie: app.cookie, csrf: app.csrf }, 'GET', '/api/preferences/fields');
         assert.equal(status, 200);
-        assert.equal(json.fields.length, 13);
+        assert.equal(json.fields.length, 14);
         assert.deepEqual(json.fields.map(field => field.id), FIELDS.map(field => field.id));
         assert.deepEqual(json.pageSizes, PAGE_SIZES.slice());
         assert.equal(json.maxGroupFields, MAX_GROUP_FIELDS);

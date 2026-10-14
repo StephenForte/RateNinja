@@ -161,6 +161,8 @@ describe('r1-01 routes and exact documents', { concurrency: 1 }, () => {
                 assert.equal(mod.routes.length, 2);
             } else if (name === 'users') {
                 assert.equal(mod.routes.length, 6);
+            } else if (name === 'imports') {
+                assert.equal(mod.routes.length, 7);
             } else {
                 assert.equal(mod.routes.length, 0);
             }

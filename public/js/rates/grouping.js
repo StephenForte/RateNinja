@@ -9,6 +9,7 @@ export const RATE_FIELDS = Object.freeze([
     { id: 'commodityType', label: 'Commodity Type', shortLabel: 'Commodity', groupable: true, sortable: true, type: 'text' },
     { id: 'carrier', label: 'Carrier', shortLabel: 'Carrier', groupable: true, sortable: true, type: 'text' },
     { id: 'contractOwner', label: 'Contract Owner', shortLabel: 'Owner', groupable: true, sortable: true, type: 'text' },
+    { id: 'contractNumber', label: 'Contract Number', shortLabel: 'Contract', groupable: true, sortable: true, type: 'text', defaultHidden: true },
     { id: 'rate20D', label: '20D Rate (USD)', shortLabel: "20'", groupable: true, sortable: true, type: 'number' },
     { id: 'rate40D', label: '40D Rate (USD)', shortLabel: "40'", groupable: true, sortable: true, type: 'number' },
     { id: 'rate40HC', label: '40HC Rate (USD)', shortLabel: "40HC", groupable: true, sortable: true, type: 'number' },
@@ -29,7 +30,7 @@ const FILTER_LABELS = {
 export function standardView(fields = RATE_FIELDS) {
     return {
         columnOrder: fields.map(field => field.id),
-        hiddenColumns: [],
+        hiddenColumns: fields.filter(field => field.defaultHidden).map(field => field.id),
         groupBy: [],
         sort: [{ field: 'rateEffectiveDate', direction: 'desc' }],
         pageSize: 20

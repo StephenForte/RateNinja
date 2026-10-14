@@ -32,7 +32,8 @@ function rate(id, extras = {}) {
 describe('r1-05 grouping, sort, and query application', () => {
     it('keeps the client field list identical to the server allowlist', () => {
         assert.deepEqual(grouping.RATE_FIELDS, FIELDS);
-        assert.equal(FIELDS.length, 13);
+        assert.equal(FIELDS.length, 14);
+        assert.equal(FIELDS.some(field => field.id === 'contractNumber' && field.defaultHidden === true), true);
         assert.equal(MAX_GROUP_FIELDS, 2);
         assert.equal(MAX_SORT_RULES, 3);
     });

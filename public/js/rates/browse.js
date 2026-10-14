@@ -595,7 +595,7 @@ function rateCell(value) {
     const cell = document.createElement('td');
     const span = document.createElement('span');
     span.className = 'rate-value';
-    span.textContent = `$${formatNumber(value)}`;
+    span.textContent = priceText(value);
     cell.append(span);
     return cell;
 }
@@ -615,9 +615,9 @@ function rateMatchesSearch(rate, searchTerm) {
     if (!searchTerm) return true;
     if (searchFields.some(field => String(rate[field] ?? '').toLowerCase().includes(searchTerm))) return true;
     const displayValues = [
-        `$${formatNumber(rate.rate20D)}`,
-        `$${formatNumber(rate.rate40D)}`,
-        `$${formatNumber(rate.rate40HC)}`,
+        priceText(rate.rate20D),
+        priceText(rate.rate40D),
+        priceText(rate.rate40HC),
         formatNumber(rate.rate20D),
         formatNumber(rate.rate40D),
         formatNumber(rate.rate40HC),
@@ -641,8 +641,18 @@ function changePage(direction) {
     }
 }
 
+function priceText(value) {
+    if (value === null || value === undefined || value === '') return '—';
+    const number = Number(value);
+    if (!Number.isFinite(number)) return '—';
+    return `$${formatNumber(number)}`;
+}
+
 function formatNumber(value) {
-    return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(Number(value) || 0);
+    if (value === null || value === undefined || value === '') return '—';
+    const number = Number(value);
+    if (!Number.isFinite(number)) return '—';
+    return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(number);
 }
 
 function formatDate(value) {
@@ -663,6 +673,7 @@ function debounce(callback, wait) {
 }
 
 function openSailingsModal(rate) {
+    ensureArrivalPortColumn();
     elements.sailingsModal.hidden = false;
     document.getElementById('modalTitle').textContent = `Available Sailings - ${rate.carrier}`;
     document.getElementById('sailingsLoading').hidden = false;
@@ -699,11 +710,24 @@ async function loadSailings(rate) {
     }
 }
 
+function ensureArrivalPortColumn() {
+    const row = document.querySelector('#sailingsTable thead tr');
+    if (!row || row.querySelector('[data-column="arrivalPort"]')) return;
+    const th = document.createElement('th');
+    th.className = 'sortable';
+    th.dataset.column = 'arrivalPort';
+    th.textContent = 'Arrival port';
+    const arrival = row.querySelector('[data-column="arrival"]');
+    if (arrival) arrival.after(th);
+    else row.append(th);
+}
+
 function createSailingRow(sailing) {
     const row = document.createElement('tr');
     row.append(
         textCell(formatDate(sailing.departure)),
         textCell(formatDate(sailing.arrival)),
+        textCell(sailing.arrivalPort || '—'),
         textCell(sailing.transitTime === 'N/A' ? 'N/A' : `${sailing.transitTime} days`),
         textCell(sailing.vessel),
         textCell(sailing.voyage),
@@ -717,9 +741,9 @@ function openContractModal(rate) {
     const reference = `${String(rate.contractOwner).slice(0, 3)}${String(rate.carrier).slice(0, 2)}${String(rate.id).slice(-4)}`.toUpperCase();
     document.getElementById('contractTitle').textContent = `${rate.carrier} Annual Contract with ${rate.contractOwner} for Spot Rates`;
     document.getElementById('contractId').textContent = `Contract ID: ${reference}`;
-    document.getElementById('contract20D').textContent = `$${formatNumber(rate.rate20D)}`;
-    document.getElementById('contract40D').textContent = `$${formatNumber(rate.rate40D)}`;
-    document.getElementById('contract40HC').textContent = `$${formatNumber(rate.rate40HC)}`;
+    document.getElementById('contract20D').textContent = priceText(rate.rate20D);
+    document.getElementById('contract40D').textContent = priceText(rate.rate40D);
+    document.getElementById('contract40HC').textContent = priceText(rate.rate40HC);
     document.getElementById('contractValidity').textContent = `${formatDate(rate.rateEffectiveDate)} to ${formatDate(rate.rateExpirationDate)}`;
     document.getElementById('contractRoute').textContent = `${rate.originPort} → ${rate.destinationPort}`;
 }

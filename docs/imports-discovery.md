@@ -277,7 +277,11 @@ Configurable, and shown before upload (FR 8). Names to use: `IMPORT_MAX_BYTES` (
 
 D-016: server-side Messages API, model `IMPORT_MAPPING_MODEL`, default `claude-sonnet-5-5`, key `ANTHROPIC_API_KEY`. The model sees headers and this bounded sample only. If the response is not JSON matching the schema below, discard it and continue with manual mapping.
 
-The live call was not made. `ANTHROPIC_API_KEY` was unset in the process environment, in a login shell, and in the repo `.env` files that were checked. Spend is $0. No token counts. The failure case below was not sent.
+D-025 stores contract number and arrival port, so those headers are targets. Section 2's "no column" defaults are not what R1-11a ships. Validity, Notes 2, Notes 3, and Note 4 still have no target. The server appends the note columns. The model does not merge them and does not return cell values.
+
+The live calls used the synthetic fixture only. No customer workbook row was sent.
+
+The sample is the five `Fixture_Rates` rows. Dates in the sample are the UTC calendar dates from section 3, not the raw serials. Omitted cells are `null`. Compact JSON is 1,322 characters.
 
 The sample that would have been sent is the five `Fixture_Rates` rows. Dates in the sample are the UTC calendar dates from section 3, not the raw serials. Omitted cells are `null`. Compact JSON is 1,322 characters.
 
@@ -295,11 +299,11 @@ The sample that would have been sent is the five `Fixture_Rates` rows. Dates in 
 }
 ```
 
-The map in section 2 is what a correct response contains: each header above maps to the validation field in that table, and Contract Number, Validity, Notes 2, Notes 3, and Note 4 map to `null`. The server appends those note columns. The model does not merge them into `notes1`.
+A correct response maps each header to the validation field in section 2, with two D-025 changes: Contract Number maps to `contractNumber`, and on a sailings file Arrival Port maps to `arrivalPort`. Validity, Notes 2, Notes 3, and Note 4 map to `null`.
 
 ### Prompt
 
-Send this as the user message. Put the sample JSON where `<sample>` is. Ask for the sailings targets when the dataset is sailings; the fixture for that is `sailings.xlsx` (four rows).
+`lib/imports/schema.js` sends this as the user message. The sample JSON replaces the last line. The first live attempt, which did not show this shape, came back as an object keyed by header. That object does not match the schema, so the product discarded it. The prompt below is the one that was retried, and the one the server sends.
 
 ```text
 Map each source header onto one Rate Ninja field. Return only a JSON object, no markdown.
@@ -307,13 +311,15 @@ Map each source header onto one Rate Ninja field. Return only a JSON object, no 
 Rules:
 - Use a target at most once.
 - If no target fits, use null. Do not invent a field.
-- Do not map Contract Number, Validity, Notes 2, Notes 3, or Note 4 onto another field. They have no target.
-- Do not map Arrival Port onto another field. It has no target.
+- Do not map Validity, Notes 2, Notes 3, or Note 4 onto another field. They have no target.
 - Do not convert prices or dates. Do not fill empty cells.
 - confidence is high, medium, or low. reason is one short sentence.
+- Return header-to-field pairs only. Do not return cell values.
+- Use this JSON shape and no other keys. One mappings entry per header. target is a field id or null, never a cell value.
+{"dataset":"rates","mappings":[{"source":"Origin Port","target":"originPort","confidence":"high","reason":"The header names the origin."}]}
 
-Rate targets: rateType, originPort, destinationPort, inlandDeliveryLocation, commodityType, carrier, contractOwner, rate20D, rate40D, rate40HC, rateEffectiveDate, rateExpirationDate, notes1.
-Sailing targets: carrier, departurePort, departure, arrival, transitTime, vessel, voyage, service.
+Rate targets: rateType, originPort, destinationPort, inlandDeliveryLocation, commodityType, carrier, contractOwner, contractNumber, rate20D, rate40D, rate40HC, rateEffectiveDate, rateExpirationDate, notes1.
+Sailing targets: carrier, departurePort, arrivalPort, departure, arrival, transitTime, vessel, voyage, service.
 
 Sample:
 <sample>
@@ -342,9 +348,9 @@ Discard the response when `JSON.parse` fails or any check below fails.
             "type": ["string", "null"],
             "enum": [
               "rateType", "originPort", "destinationPort", "inlandDeliveryLocation",
-              "commodityType", "carrier", "contractOwner", "rate20D", "rate40D",
+              "commodityType", "carrier", "contractOwner", "contractNumber", "rate20D", "rate40D",
               "rate40HC", "rateEffectiveDate", "rateExpirationDate", "notes1",
-              "departurePort", "departure", "arrival", "transitTime", "vessel",
+              "departurePort", "arrivalPort", "departure", "arrival", "transitTime", "vessel",
               "voyage", "service", null
             ]
           },
@@ -359,9 +365,15 @@ Discard the response when `JSON.parse` fails or any check below fails.
 
 Also require: one mapping per sample header, `source` equal to that header, no repeated non-null `target`, and every non-null `target` legal for that dataset.
 
-### Failure case, not sent
+### Results
 
-The call to induce was going to use the same five rows with two headers renamed: `Origin Port` to `From (POL)`, and `20D Rate` to `20ft $$$`. A useful response maps `From (POL)` to `originPort` at low or medium confidence, or to `null`, and does not map `20ft $$$` to `rate20D` at high confidence. Anything that still returns high-confidence mappings for both renamed headers is a failure of the prompt. Replay this once a key is available. Do not send rows from the customer workbooks.
+Model reported by the API: `claude-sonnet-5-5`. Price used: $2 per million input tokens and $10 per million output tokens (Anthropic list price for Claude Sonnet 5.5, standard global tier). No cache tokens.
+
+Shipped prompt, fixture headers, five fixture rows. The response matched the schema. Contract Number mapped to `contractNumber` at high confidence. Validity, Notes 2, Notes 3, and Note 4 mapped to `null`. Input tokens 1,070. Output tokens 722. Cost $0.009360.
+
+Renamed-header call, same five rows, `Origin Port` renamed to `From (POL)` and `20D Rate` renamed to `20ft $$$`. The response matched the schema. Both renamed headers mapped at high confidence: `From (POL)` to `originPort`, and `20ft $$$` to `rate20D`. That is the prompt failure this section defined. The product still shows the reason and the confidence, and manual mapping stays available. Input tokens 1,071. Output tokens 745. Cost $0.009592.
+
+Two earlier calls, before the prompt stated the JSON shape, were discarded by the schema. Their combined cost was $0.041322 (input/output 976/719, 977/770, 976/756, and 977/1,106). Total spend for all six calls is $0.060274. No customer row was included.
 
 ## 6. Fixtures
 

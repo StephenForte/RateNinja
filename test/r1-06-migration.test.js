@@ -70,7 +70,7 @@ describe('r1-06 migration 004', { concurrency: 1 }, () => {
         assert.equal(second.logs.includes('CaseUser'), false);
         assert.equal(second.logs.includes('caseuser'), false);
         assert.equal(second.payload.index, null);
-        assert.deepEqual(second.payload.ids.map(row => row.id), ['001', '002', '003', '004', '005', '006']);
+        assert.deepEqual(second.payload.ids.map(row => row.id), ['001', '002', '003', '004', '005', '006', '008']);
         const appliedAt = second.payload.ids.find(row => row.id === '004').applied_at;
 
         const third = boot(dbPath);

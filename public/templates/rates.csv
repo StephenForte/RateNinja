@@ -1,0 +1,2 @@
+Rate Type,Origin Port,Destination Port/Via Port,Inland Delivery Location,Carrier,Contract Number,Contract Owner,20D Rate,40D rate,40HC Rate,Validity,Effective Date,Expiry Date,Notes 1
+FAK Base,Fixture Harbor,North Quay,Depot A,Fixture Line,FX-TEMPLATE,Example Owner,1100.50,2100.25,2200,Mar 2 - Mar 20,2026-03-02,2026-03-20,Sample note

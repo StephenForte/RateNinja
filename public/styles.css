@@ -2289,3 +2289,87 @@ body {
     color: #0b6e4f;
     font-weight: 600;
 }
+
+/* R1-11a */
+.import-wizard {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    max-width: 960px;
+}
+
+.import-steps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.import-steps li {
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: #eef2f6;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.import-steps li.is-current {
+    background: #16324f;
+    color: #fff;
+}
+
+.import-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.import-actions,
+.import-panel .button {
+    margin-right: 8px;
+}
+
+.import-note {
+    margin: 0;
+    padding: 8px 12px;
+    border: 1px solid #e0b84a;
+    border-radius: 8px;
+    background: #fff4d6;
+}
+
+.import-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.import-table th,
+.import-table td {
+    padding: 6px 8px;
+    border-bottom: 1px solid #d5dde6;
+    text-align: left;
+    vertical-align: top;
+}
+
+.import-sample {
+    width: 100%;
+    max-height: 220px;
+    overflow: auto;
+    padding: 8px;
+    border-radius: 8px;
+    background: #f4f7fa;
+    white-space: pre-wrap;
+}
+
+.import-check {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+}
+
+.import-reasons {
+    margin: 0;
+    padding-left: 18px;
+}

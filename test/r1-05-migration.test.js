@@ -75,7 +75,7 @@ describe('r1-05 migration 003', () => {
         seedPopulated(dbPath);
 
         const after003 = openDatabase(dbPath);
-        assert.deepEqual(after003.map(row => row.id), ['001', '002', '003', '004', '005', '006']);
+        assert.deepEqual(after003.map(row => row.id), ['001', '002', '003', '004', '005', '006', '008']);
         const backups = listBackups(dbPath);
         assert.equal(backups.length, 2);
         assert.match(backups[1], /pre-003\.db$/);

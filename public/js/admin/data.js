@@ -174,7 +174,7 @@ function renderHistory(operations) {
         );
         const action = document.createElement('td');
         action.append(document.createTextNode(operation.status));
-        if (operation.type === 'edit' || operation.type === 'pull-forward' || operation.type === 'delete') {
+        if (operation.type === 'edit' || operation.type === 'pull-forward' || operation.type === 'delete' || operation.type === 'import') {
             const undo = button(`dataUndo-${operation.id}`, 'Undo', 'back-btn');
             undo.addEventListener('click', () => undoOperation(operation));
             action.append(document.createTextNode(' '), undo);
@@ -329,12 +329,14 @@ function openEdit(record) {
         setDialogField('edit40', record.rate40D);
         setDialogField('edit40hc', record.rate40HC);
         setDialogField('editRateType', record.rateType);
+        setDialogField('editContractNumber', record.contractNumber);
         setDialogField('editNotes', record.notes1);
     } else {
         setDialogField('editSailingCarrier', record.carrier);
         setDialogField('editDeparturePort', record.departurePort);
         setDialogField('editDeparture', record.departure ? String(record.departure).slice(0, 10) : '');
         setDialogField('editArrival', record.arrival ? String(record.arrival).slice(0, 10) : '');
+        setDialogField('editArrivalPort', record.arrivalPort);
         setDialogField('editVessel', record.vessel);
     }
     dialog.showModal();
@@ -367,6 +369,7 @@ function editBody() {
             rate40D: priceOrNull('edit40'),
             rate40HC: priceOrNull('edit40hc'),
             rateType: document.getElementById('editRateType').value,
+            contractNumber: document.getElementById('editContractNumber').value,
             notes1: document.getElementById('editNotes').value,
             expectedRowVersion: editing.rowVersion,
             companyId: permissions.companyContext?.id
@@ -379,6 +382,7 @@ function editBody() {
         departurePort: document.getElementById('editDeparturePort').value,
         departure: withOriginalClock(editing.departure, departure) || '',
         arrival: withOriginalClock(editing.arrival, arrival),
+        arrivalPort: document.getElementById('editArrivalPort').value,
         vessel: document.getElementById('editVessel').value,
         expectedRowVersion: editing.rowVersion,
         companyId: permissions.companyContext?.id
@@ -424,6 +428,7 @@ function buildDialog() {
         ['edit40', '40D price', 'number'],
         ['edit40hc', '40HC price', 'number'],
         ['editRateType', 'Rate type', 'text'],
+        ['editContractNumber', 'Contract number', 'text'],
         ['editNotes', 'Notes', 'text']
     ];
     for (const [id, label, type] of rateInputs) {
@@ -439,6 +444,7 @@ function buildDialog() {
         ['editDeparturePort', 'Departure port', 'text'],
         ['editDeparture', 'Departure', 'date'],
         ['editArrival', 'Arrival', 'date'],
+        ['editArrivalPort', 'Arrival port', 'text'],
         ['editVessel', 'Vessel', 'text']
     ];
     for (const [id, label, type] of sailingInputs) {

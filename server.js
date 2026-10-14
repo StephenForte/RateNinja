@@ -918,15 +918,20 @@ async function dispatchModuleRoute(request, response, pathname, kind, session) {
     const hit = findModuleRoute(pathname, request.method, accessNames);
     if (!hit) return false;
     if (kind !== 'public' && !SAFE_METHODS.has(request.method)) {
-        const text = await readBody(request);
-        request._rnRawBody = text;
-        let body = {};
-        try {
-            body = text ? JSON.parse(text) : {};
-        } catch {
-            throw new Error('Request body must be valid JSON.');
+        // body: 'raw' opts out of the JSON parse and the 1 MB cap. CSRF is the header only.
+        if (hit.route.body === 'raw') {
+            if (!requireCsrf(request, response, session)) return true;
+        } else {
+            const text = await readBody(request);
+            request._rnRawBody = text;
+            let body = {};
+            try {
+                body = text ? JSON.parse(text) : {};
+            } catch {
+                throw new Error('Request body must be valid JSON.');
+            }
+            if (!requireCsrf(request, response, session, body)) return true;
         }
-        if (!requireCsrf(request, response, session, body)) return true;
     }
     await hit.route.handler(request, response, session, hit.params);
     return true;
