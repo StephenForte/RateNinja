@@ -263,3 +263,19 @@ discovery document quotes rows from the real files.
 The operator supplied a `.numbers` copy alongside the `.xlsx`. Round 1 imports accept CSV and
 Excel (`.xlsx`) only (D-017, D-018). The import screen tells users to export Numbers files to
 Excel. The operator can reopen this.
+
+### D-025 — Contract Number and Arrival Port are stored (2026-10-13)
+
+Operator decisions, answering R1-10 (PR #33):
+- **Contract Number:** "sometimes we have it, so keep". Add `rates.contract_number TEXT`.
+- **Arrival Port:** "store it". Add `sailings.arrival_port TEXT`.
+
+Both columns go in migration 008, together with the import tables, owned by R1-11a. Scope this
+round:
+- imports map them;
+- the data workspace can edit them;
+- `contract_number` joins the saved-view column allowlist (hidden by default);
+- the sailings modal shows `arrival_port`.
+The partner API and MCP responses do **not** change in Round 1. Adding a field to one and not
+the other breaks parity (FR 11), so exposing them is a later decision for both transports
+together.
