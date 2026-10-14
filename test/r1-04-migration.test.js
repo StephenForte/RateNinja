@@ -132,7 +132,7 @@ describe('r1-04 migration 002', { concurrency: 1 }, () => {
         assert.match(backupsAfter001[0], /-pre-001\.db$/);
 
         const second = boot(dbPath);
-        assert.deepEqual(second.ids, ['001', '002', '003', '004', '005', '006']);
+        assert.deepEqual(second.ids, ['001', '002', '003', '004', '005', '006', '008']);
         const migrated = new DatabaseSync(dbPath, { readOnly: true });
         let flags;
         let afterCounts;
@@ -161,7 +161,7 @@ describe('r1-04 migration 002', { concurrency: 1 }, () => {
         assert.equal(backupsAfter002.some(name => name.endsWith('-pre-002.db')), true);
 
         const third = boot(dbPath);
-        assert.deepEqual(third.ids, ['001', '002', '003', '004', '005', '006']);
+        assert.deepEqual(third.ids, ['001', '002', '003', '004', '005', '006', '008']);
         const again = new DatabaseSync(dbPath, { readOnly: true });
         let appliedAgain;
         try {

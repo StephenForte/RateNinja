@@ -177,7 +177,7 @@ describe('r1-08 migration 006', { concurrency: 1 }, () => {
         let migrations;
         try {
             migrations = opened.prepare('SELECT id, applied_at FROM schema_migrations ORDER BY id').all();
-            assert.deepEqual(migrations.map(row => row.id), ['001', '002', '003', '004', '005', '006']);
+            assert.deepEqual(migrations.map(row => row.id), ['001', '002', '003', '004', '005', '006', '008']);
             assert.deepEqual(counts(opened), before);
             for (const table of ['rates', 'sailings']) {
                 const rows = opened.prepare(`SELECT id, row_version, deleted_at FROM ${table} ORDER BY id`).all();

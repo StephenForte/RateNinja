@@ -1,0 +1,12 @@
+Sample templates use invented ports, prices, and vessels.
+
+Rates — required: Origin Port, Destination Port/Via Port, Carrier, Effective Date, Expiry Date, and at least one of 20D Rate, 40D rate, 40HC Rate.
+Rates — optional: Rate Type, Inland Delivery Location, Commodity type, Contract Number, Contract Owner, Notes 1.
+Leave a price cell empty when that container size has no rate. Do not type 0.
+Dates in a template are YYYY-MM-DD. Prices are USD. Validity is not imported.
+
+Sailings — required: Carrier, Departure Port, Departure.
+Sailings — optional: Arrival, Arrival Port, Transit Time, Vessel, Voyage, Service.
+Arrival, when present, cannot be earlier than departure.
+
+Apple Numbers files are not supported. Export the file to Excel (.xlsx). CSV and Excel (.xlsx) are the formats this screen accepts.
