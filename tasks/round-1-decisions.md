@@ -279,3 +279,28 @@ round:
 The partner API and MCP responses do **not** change in Round 1. Adding a field to one and not
 the other breaks parity (FR 11), so exposing them is a later decision for both transports
 together.
+
+### D-026 — The raw Airtable database shape is retired (2026-10-14)
+
+R1-14 found that current `main` cannot start cleanly on a database in the raw Airtable shape: one
+written by `scripts/migrate-from-airtable.js`, or a backup taken before that database ever booted
+the 2026-09-24 server (`838291a`). On such a file `companies.company_type` holds Airtable `rec…`
+ids. Since R1-02 (D-006), `ensureCompany` no longer rewrites type, so startup leaves types
+unrecognized, copies no legacy margins, and backfills no rate owners (R114-1). The startup code
+also clears plaintext `pwd` without hashing it (R114-3), and seeds `Alan`/`Bob` beside existing
+users (R114-2). R114-2 and R114-3 have done this since `838291a`.
+
+Production is unaffected. It booted the pre-R1 foundation, which normalized types, copied margins,
+and owned rates, on every deploy from 2026-09-24 until Round 1 shipped. Every production backup
+is a post-normalization image. Verified 2026-10-14: `de112e6` (pre-R1) on a copy of
+`data/backups/rateninja-20261013T143056370Z-pre-001.db` gives 3 recognized types, 2 margin
+rows, and 0 unowned rates.
+
+Decision (operator, 2026-10-14):
+- **No startup fix.** R114-1, R114-2 and R114-3 are won't-fix for Round 1.
+- `scripts/migrate-from-airtable.js` is guarded: it refuses to run and writes nothing (R1-18).
+- A database in the raw Airtable shape, including any backup from before 2026-09-24, **cannot
+  be restored** onto Round 1 code. Restore only backups taken by the D-003 runner on a
+  post-2026-09-24 database. The restore note in `lib/migrations/README.md` says this (R1-18).
+- The operator's local `data/rateninja.db` has this lineage. It is not a valid test or restore
+  baseline for Round 1.

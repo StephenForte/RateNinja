@@ -69,10 +69,11 @@ Model names are the planner's proposal; operator overrides recorded in the Run c
 | R1-11a | Imports implementation: CSV + Excel | FR8 | R1-08, R1-10 | S / Opus 5.5 | merged 2026-10-13, PR #39 |
 | R1-12 | MCP / partner API parity incl. predictive | FR11 | R1-01 | S / Opus 5.5 | merged 2026-10-13, PR #19 |
 | R1-13 | API and MCP instructions + docs alignment | FR10 | R1-07, R1-12 | M / Sonnet 5.5 | merged 2026-10-13, PR #32 |
-| R1-14 | Integrated release acceptance | §Validation | all P1 | M / Sonnet 5.5 + operator | briefed 2026-10-14 (Opus 5.5, upgraded from Sonnet: it judges coverage across all 11 FRs) |
+| R1-14 | Integrated release acceptance | §Validation | all P1 | M / Sonnet 5.5 + operator | approved 2026-10-14, PR #43 (ran on Opus 5.5) |
 | R1-15 | P2: bulk price adjustment | FR12 | R1-09 | S | not planned in detail |
 | R1-16 | P2: duplicate handling | FR13 | R1-11a | S | not planned in detail |
 | R1-17 | Partner/MCP return null for a missing price (not 0) | FR 8, FR 11 | R1-11a | M / Sonnet 5.5 | merged 2026-10-14, PR #41 |
+| R1-18 | User-create company confirmation (R114-4); guard the Airtable migration script (D-026) | FR1, FR6 | R1-14 | M / Sonnet 5.5 | briefed 2026-10-14 |
 
 ### Run order (waves)
 
@@ -82,6 +83,7 @@ Model names are the planner's proposal; operator overrides recorded in the Run c
 - **W3**: R1-06 (after R1-04), R1-09 (after R1-08), R1-11a (after R1-08 + R1-10). R1-10 can run any time once representative files are supplied.
 - **W3 dispatch (2026-10-13):** R1-06, R1-09, R1-10, R1-13 in parallel. R1-09 runs in the main checkout; the others run in clones. R1-11a follows R1-10 and R1-08 (merged).
 - **W4**: R1-13, then R1-14.
+- **W5** (one worker, main checkout): R1-18.
 
 Peak concurrency is 4 (W2). If the operator runs fewer agents, drop R1-05 to W3 first.
 
@@ -106,6 +108,7 @@ Peak concurrency is 4 (W2). If the operator runs fewer agents, drop R1-05 to W3 
 | R1-12 | `lib/predictive.js`, `lib/mcp-schema.js`, `lib/partner-http.js` (bearer/partner-access/page-arg helpers moved out of `server.js`), `lib/routes/partner.js`, `test/r1-12-*` | `lib/mcp.js`, `lib/visibility.js` (predictive helpers move out), `server.js` (predictive handlers delegate; MCP audit), `lib/audit.js` |
 | R1-13 | `public/js/admin/integrations.js` | `public/api-docs.html`, `API-README.md`, `docs/partner-integration.md` |
 | R1-14 | `test/r1-14-*`, `docs/release-acceptance-r1.md` | — |
+| R1-18 | `test/r1-18-*` | `public/js/admin/users.js` (`create` handler only), `scripts/migrate-from-airtable.js` (refusal guard at the top), `lib/migrations/README.md` (restore-limits note) |
 
 ### Pre-registered modules (so nobody edits a registry)
 
@@ -161,6 +164,8 @@ Every migration task must also prove: fresh DB, prod-shaped copy, and re-run (id
 
 _(planner appends: task, PR, verdict, what was independently verified and how)_
 
+- 2026-10-14 · **Round 1 P1 release call: accepted for production.** P1 has been live since the R1-17 deploy. The R1-14 matrix (107 PASS, 4 FAIL, 4 GAP, 3 CHANGED-BY-DECISION) has one production FAIL: R114-4 → R1-18. The other three FAIL rows (FR5 startup preservation, the FR7 migration half, the Validation migration bullet) are the raw-Airtable-shape path, retired by D-026. The 4 GAP rows are untested paths, not observed defects, and are accepted as residual (FR3 predictive marker with hidden columns, FR6 wizard retention after an error, FR8 suggestion rendering, FR11 rate-limit outcome). Round 1 closes when R1-18 merges. P2 (R1-15, R1-16) is not planned.
+- 2026-10-14 · **R1-14, PR #43: approved at `6d6cb9f`, merge as-is.** Base `93c6386` = main; scope is two owned files. Fresh clone on Node 26: 204 tests, 201 pass, 0 fail, 3 todo; check clean. I opened 10 cited PASS lines and all match (pricing 1125; saved-query apply; predictive basis and the `margin` exclusion; `insufficient_scope`; import errors; password change revoking sessions, challenges and resets; onboarding rollback; `field_not_editable`; disabled-user MCP 401). Protected mtimes are unchanged. **Severity corrected:** the worker marked R114-1 and R114-3 as release blockers, but production is unaffected. Pre-R1 `de112e6` on a scratch copy of the pre-001 backup gives 3 recognized types, 2 margins, 0 unowned rates, and still clears `pwd` and adds Alan/Bob. So R114-2 and R114-3 date from `838291a` (2026-09-24), and R114-1 comes from R1-02's insert-only `ensureCompany` (D-006, `75b4f8b`) meeting `rec…` type ids. Production normalized before R1-02 shipped. The operator retired the path (D-026). R114-4 is confirmed: the `create` handler in `users.js` posts without `confirmed()` → R1-18. Litter: 11 `/tmp/r114-*` files remain (the temp directories were deleted).
 - 2026-10-14 · **Finding: agents booted the app against the operator's local `data/rateninja.db`** (read-only check of copies): `schema_migrations` shows 001 applied 2026-10-13T14:30Z (R1-02 window) and 002–008 at 2026-10-14T02:06Z (R1-11a window, after AGENTS.md forbade it). Data intact: rates 3,108, sailings 38,850, users 3 in the live file and in both backups (`data/backups/…pre-001.db`, `…pre-002.db`). Production unaffected. The `pre-001` backup is the R1-14 drill baseline: copy it, never use it in place.
 - 2026-10-14 · **R1-17, PR #41: approved at `3b61b94`, merged (`7ce1dd6`).** 201/0. A direct probe of `listPartnerRates` on a rate stored as `(1000.4, NULL, 0)` returns `[1000, null, 0]`. Golden unchanged. **All P1 build tasks are now merged; R1-14 (release acceptance) remains.** Main `7ce1dd6`, migrations 001–006 and 008 applied in production on deploy, production `/api/health` ok.
 - 2026-10-13 · **R1-11a, PR #39: approved at `ddee763`.** Base = main; 199/0; deps pinned, `npm audit --omit=dev` 0. Whole-tree leak check (xlsx unzipped) against the real workbooks found no new hits; `13943.4` in `scripts/ralph/progress.txt` (a real price, public since July) predates this PR. Upload: a content-length 413 plus a running-total stream cap; stored as `<uuid>.upload` beside the DB, outside `public/`. Null price → null in the app and the demo API. **Finding → R1-17:** the partner/MCP DTO `baseRateAmount` returns 0 for a missing price (reproduced with `listPartnerRates`: `rate40D: 0`). Real-file run: 1,554/0 and 2,254/0, spot rows matched Excel, undo OK. Live trial: $0.06.
