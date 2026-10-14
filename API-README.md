@@ -1,57 +1,169 @@
 # Rate Ninja API
 
-The browser talks only to the same-origin endpoints below. Rate and sailing data are read from SQLite on the server; never expose the database file or session secrets to the browser.
+The browser talks only to the same-origin endpoints below. Rate and sailing data are read from SQLite on the server. Do not expose the database file, session secret, or demo key to the browser.
+
+There are three ways to read rates. The partner guide, `docs/partner-integration.md`, is the full OAuth and MCP reference. The samples there and the samples below use placeholders. They are not a company's private credentials.
+
+| Access | Credential | What you get |
+| --- | --- | --- |
+| Same-origin session | HTTP-only cookie `rate_ninja_session` | Contract owners see their own base contract prices. Customers see each active linked owner's rates with that customer's margin |
+| Demo API | Shared `X-API-Key` (`RATE_NINJA_API_KEY`) | Base contract prices for the demo database. This key is not a partner token and not a company's private key |
+| Partner API and MCP | OAuth bearer token | The approving contract owner's base contract prices. Predictive results are estimates of that base price |
+
+A customer account cannot authorize the partner API or MCP. Partner OAuth, the partner routes, and `POST /mcp` run only when `PARTNER_OAUTH_ENABLED` allows them: `true` is on, `false` is off, and unset is on unless `NODE_ENV` is `production`. On 2026-10-13 the operator confirmed that production is running with the gate open.
 
 ## Authentication
 
-`POST /api/auth/login` accepts a JSON body with `username` and `password`. A successful response creates an HTTP-only `rate_ninja_session` cookie and returns a CSRF token. Send that token as `X-CSRF-Token` on later state-changing requests.
+`POST /api/auth/login` accepts JSON `username` and `password`. Success sets `rate_ninja_session` and returns `csrfToken` plus the public user (`username`, `companyName`, `companyType`, `permissions`, `companyContext`). Send `X-CSRF-Token` on later state-changing requests.
 
-`POST /api/auth/logout` clears that cookie. `GET /api/session` returns the signed-in user's display name, administrator status, contract-owner status, and a fresh CSRF token for the current session.
+`POST /api/auth/logout` clears the cookie. `GET /api/session` returns the same public user and a fresh `csrfToken`.
 
 Passwords are Argon2id hashes. Accounts without a hash cannot sign in until an administrator sets one.
 
-## Data endpoints
+Company type `Contract Owner` is a contract owner. Company type `Freight Forwarder/Customer` is a customer. Prices are not chosen by a client-supplied role.
+
+## Session data
 
 | Endpoint | Access | Purpose |
 | --- | --- | --- |
-| `GET /api/rates` | Signed-in user | Contract owners see their own base rates. Customers see each linked contract owner's rates with that owner's margin. |
-| `GET /api/rates/predictive?after=` | Signed-in user | Latest rate per route with a linear 5% increase per full 30 days; `after` must be more than 90 days out. |
-| `GET /api/sailings` | Signed-in user | Returns sailings for `carrier`, `originPort`, and `after` query parameters. |
-| `GET /api/admin/companies` | Contract-owner administrator | Customer companies and this owner's margin for each. |
-| `PATCH /api/admin/companies/:recordId` | Contract-owner administrator | Sets this owner's margin for that customer company. Requires `X-CSRF-Token`. |
-| `POST /api/admin/pull-forward/rates` | Administrator | Copies a source date range of rates into a future target range (optional delete of existing target rows). |
-| `POST /api/admin/pull-forward/sailings` | Administrator | Same pull-forward behavior for sailings. |
+| `GET /api/rates` | Signed-in user | Owners: own base rates. Customers: active linked owners, with that margin. Body `{ "rates": [...] }`. |
+| `GET /api/rates/predictive?after=` | Signed-in user | Latest rate per route, then 5% per full 30-day period. `after` is `YYYY-MM-DD` and must be more than 90 UTC days ahead. Customers then get their margin. Rows are marked `predictive: true` and are not stored. |
+| `GET /api/sailings?carrier=&originPort=&after=` | Signed-in user | All three query parameters are required. Match is case-insensitive exact, on the rows that account can see. The 400 text says "effective date"; the parameter name is `after`. |
+| `GET /api/admin/customers` | Contract-owner administrator | Current customer list for this owner. |
+| `PATCH /api/admin/customers/{id}/margins` | Contract-owner administrator | Sets this owner's margin for that customer. Requires `X-CSRF-Token`. |
+| `GET /api/admin/companies` | Contract-owner administrator | Older list of customer companies and margin fields. Not a view filter. |
+| `PATCH /api/admin/companies/{recordId}` | Contract-owner administrator | Older margin update for a customer already linked to this owner. Requires `X-CSRF-Token`. |
+| `POST /api/admin/pull-forward/rates` | Contract-owner administrator | Copies a source date range of this owner's rates into a later target range. |
+| `POST /api/admin/pull-forward/sailings` | Contract-owner administrator | Same pull-forward behavior for sailings. |
 
-All endpoints return JSON. Authentication and authorization are enforced by the server, not by browser storage or client-supplied role fields.
+A system administrator uses these company routes only after selecting a contract-owner company. The server checks the session. It does not trust a role field in the body.
 
 ## Public demo API (v1)
 
-The read-only demo API is designed for server-to-server calls, Postman, or curl. It returns **base rates** only—never a signed-in customer's margin-adjusted prices—and requires the separate `RATE_NINJA_API_KEY` secret.
+`GET /api/v1` returns the name, version, and the three data paths. It does not check the demo key.
 
-Send that key in the `X-API-Key` header. The demo has an in-memory limit of 60 requests per minute per running server instance, so it is suitable for demonstrations rather than a production integration.
+The three data routes require `X-API-Key`. A missing `RATE_NINJA_API_KEY` on the server is HTTP 500. A wrong key is HTTP 401 `A valid X-API-Key header is required.` The limit is 60 requests per 60-second window for the whole process. Over the limit: HTTP 429.
 
 | Endpoint | Query parameters | Purpose |
 | --- | --- | --- |
-| `GET /api/v1` | — | Returns version and endpoint metadata. |
-| `GET /api/v1/rates` | `carrier`, `originPort`, `destinationPort`, `page`, `pageSize` | Searches rates in SQLite. Text filters are case-insensitive; `pageSize` is capped at 100. |
-| `GET /api/v1/sailings` | `carrier`, `originPort`, `after` | Returns matching sailings; all three query parameters are required. |
-| `GET /api/v1/predictive-pricing` | `carrier`, `originPort`, `after` | Pricing forecast. The date must be more than 90 days in the future; it returns the latest-expiring rate for each matching destination/arrival group with a linear 5% increase per full 30 days. |
+| `GET /api/v1/rates` | Optional `carrier`, `originPort`, `destinationPort`, `page`, `pageSize` | Case-insensitive substring filters. `page` defaults to 1 (ceiling 10000). `pageSize` defaults to 50 (ceiling 100). Base prices only. |
+| `GET /api/v1/sailings` | Required `carrier`, `originPort`, `after` | Case-sensitive exact carrier and departure port. `departure` is greater than `after`. No pagination. |
+| `GET /api/v1/predictive-pricing` | Required `carrier`, `originPort`, `after` | Case-sensitive exact carrier and origin. More than 90 days ahead. Latest rate per route, then 5% per full 30-day period, base price only. No pagination. Not stored. |
 
-Example:
+Missing `carrier`, `originPort`, or `after` on demo sailings or demo predictive pricing is HTTP 400 `Carrier, originPort, and after query parameters are required.`
 
-```bash
-curl "http://localhost:3000/api/v1/rates?carrier=MSC&pageSize=25" \
-  -H "X-API-Key: your-demo-api-key"
-```
-
-The rate response uses `{ "data": [...], "meta": { ... } }`, where `meta` includes the total matching records and pagination details.
-
-For a friendly local demo, open [`/api-testbed.html`](api-testbed.html) while the Rate Ninja server is running. It provides a small 3PL-styled console for these v1 endpoints without saving the API key.
+For a local demo, open `/api-testbed.html` while the server is running. The testbed calls these v1 routes. It does not store a company credential.
 
 ## Partner API and MCP
 
-Contract owners authorize a registered OAuth client with PKCE. The partner API and `POST /mcp` then return that owner's base rates and sailings. Customer accounts cannot authorize a partner. The demo `X-API-Key` is rejected on these routes. See `docs/partner-integration.md`.
+Contract owners authorize a registered OAuth client with PKCE S256. `POST /mcp` and `/api/partner/v1/me/*` then return that owner's base rates, sailings, and predictive estimates. Customer accounts cannot authorize a partner. The demo key is not accepted on these routes.
+
+Scopes are `profile:read`, `rates:read`, and `sailings:read`. Predictive pricing uses `rates:read`. Revoke from Connected apps (`DELETE /oauth/consents/{clientId}`) or `POST /oauth/revoke`.
+
+Partner list defaults match the demo rate list: page 1, page size 50, ceilings 10000 and 100. Partner text filters are case-insensitive exact matches, not substrings. See `docs/partner-integration.md` for every tool, the coverage table, and the OAuth steps.
+
+| Capability | API | MCP tool | Scope |
+| --- | --- | --- | --- |
+| Current subject and company | `GET /oauth/userinfo` | `rateninja_get_my_profile` | `profile:read` |
+| Rate search and pagination | `GET /api/partner/v1/me/rates` | `rateninja_list_my_rates` | `rates:read` |
+| One authorized rate | `GET /api/partner/v1/me/rates/{rateId}` | `rateninja_get_my_rate` | `rates:read` |
+| Sailing search and pagination | `GET /api/partner/v1/me/sailings` | `rateninja_list_my_sailings` | `sailings:read` |
+| One authorized sailing | `GET /api/partner/v1/me/sailings/{sailingId}` | `rateninja_get_my_sailing` | `sailings:read` |
+| Predictive pricing | `GET /api/partner/v1/me/predictive-pricing` | `rateninja_get_my_predictive_pricing` | `rates:read` |
+
+Supported MCP protocol versions are `2025-11-25` and `2025-03-26`. `2025-11-25` is the default.
+
+## Samples
+
+Same placeholders as the partner guide. `after=2027-06-15` must be more than 90 UTC days ahead of the day you run it.
+
+```example
+# readme: demo rates
+curl -sS -o /dev/null -w '%{http_code}' \
+  -H 'X-API-Key: YOUR_DEMO_API_KEY' \
+  'http://127.0.0.1:3000/api/v1/rates?carrier=MSC&originPort=Shanghai&destinationPort=Los%20Angeles&page=1&pageSize=25'
+```
+
+```example
+# readme: demo sailings
+curl -sS -o /dev/null -w '%{http_code}' \
+  -H 'X-API-Key: YOUR_DEMO_API_KEY' \
+  'http://127.0.0.1:3000/api/v1/sailings?carrier=MSC&originPort=Shanghai&after=2026-01-01'
+```
+
+```example
+# readme: demo predictive
+curl -sS -o /dev/null -w '%{http_code}' \
+  -H 'X-API-Key: YOUR_DEMO_API_KEY' \
+  'http://127.0.0.1:3000/api/v1/predictive-pricing?carrier=MSC&originPort=Shanghai&after=2027-06-15'
+```
+
+```example
+# readme: session rates
+curl -sS -o /dev/null -w '%{http_code}' \
+  -b 'rate_ninja_session=YOUR_SESSION_COOKIE' \
+  'http://127.0.0.1:3000/api/rates'
+```
+
+```example
+# readme: session predictive
+curl -sS -o /dev/null -w '%{http_code}' \
+  -b 'rate_ninja_session=YOUR_SESSION_COOKIE' \
+  'http://127.0.0.1:3000/api/rates/predictive?after=2027-06-15'
+```
+
+```example
+# readme: session sailings
+curl -sS -o /dev/null -w '%{http_code}' \
+  -b 'rate_ninja_session=YOUR_SESSION_COOKIE' \
+  'http://127.0.0.1:3000/api/sailings?carrier=MSC&originPort=Shanghai&after=2026-01-01'
+```
+
+```example
+# readme: partner rates
+curl -sS -o /dev/null -w '%{http_code}' \
+  -H 'Authorization: Bearer YOUR_ACCESS_TOKEN' \
+  'http://127.0.0.1:3000/api/partner/v1/me/rates?carrier=MSC&originPort=Shanghai&destinationPort=Los%20Angeles&effectiveDate=2026-06-01&page=1&pageSize=25'
+```
+
+```example
+# readme: partner rate
+curl -sS -o /dev/null -w '%{http_code}' \
+  -H 'Authorization: Bearer YOUR_ACCESS_TOKEN' \
+  'http://127.0.0.1:3000/api/partner/v1/me/rates/docs-rate-1'
+```
+
+```example
+# readme: partner sailings
+curl -sS -o /dev/null -w '%{http_code}' \
+  -H 'Authorization: Bearer YOUR_ACCESS_TOKEN' \
+  'http://127.0.0.1:3000/api/partner/v1/me/sailings?carrier=MSC&originPort=Shanghai&after=2026-01-01&page=1&pageSize=25'
+```
+
+```example
+# readme: partner sailing
+curl -sS -o /dev/null -w '%{http_code}' \
+  -H 'Authorization: Bearer YOUR_ACCESS_TOKEN' \
+  'http://127.0.0.1:3000/api/partner/v1/me/sailings/docs-sail-1'
+```
+
+```example
+# readme: partner predictive
+curl -sS -o /dev/null -w '%{http_code}' \
+  -H 'Authorization: Bearer YOUR_ACCESS_TOKEN' \
+  'http://127.0.0.1:3000/api/partner/v1/me/predictive-pricing?after=2027-06-15&carrier=MSC&originPort=Shanghai&page=1&pageSize=25'
+```
+
+```example
+# readme: mcp predictive
+curl -sS -o /dev/null -w '%{http_code}' \
+  -H 'Authorization: Bearer YOUR_ACCESS_TOKEN' \
+  -H 'Content-Type: application/json' \
+  -H 'mcp-protocol-version: 2025-11-25' \
+  --data '{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"rateninja_get_my_predictive_pricing","arguments":{"after":"2027-06-15","carrier":"MSC","originPort":"Shanghai","page":1,"pageSize":25}}}' \
+  'http://127.0.0.1:3000/mcp'
+```
 
 ## Data store
 
-SQLite tables are created on server start if missing. Company type is a lookup (`Contract Owner`, `Freight Forwarder/Customer`). A user belongs to one company. Margins are stored per contract-owner and customer company, not as one margin on the customer. Default path is `data/rateninja.db`, overridable with `SQLITE_DB_PATH`. `npm run migrate` imports Airtable rows and does not copy passwords.
+SQLite tables are created on server start if missing. A user belongs to one company. Margins are stored per contract-owner and customer company. Default path is `data/rateninja.db`, overridable with `SQLITE_DB_PATH`.
