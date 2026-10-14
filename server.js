@@ -22,8 +22,7 @@ const {
     getSailings,
     queryPublicRates,
     getUserCredentials,
-    getUserById,
-    listUsersForAdmin
+    getUserById
 } = require('./lib/store');
 const {
     parsePageNumber,
@@ -60,7 +59,7 @@ const {
     requireCsrf
 } = require('./lib/http');
 const routeModules = require('./lib/routes');
-const { setPasswordById, setEmailById, setDisabled, markTemporaryPassword, passwordChangeRequired } = require('./lib/accounts');
+const { passwordChangeRequired } = require('./lib/accounts');
 const permissions = require('./lib/permissions');
 const { requestPasswordReset, completePasswordReset } = require('./lib/password-reset');
 const { resendSettings } = require('./lib/resend');
@@ -70,7 +69,6 @@ const {
     confirmEnrollment,
     verifySecondFactor,
     disableOwnMfa,
-    clearMfa,
     hasOpenLoginChallenge,
     createLoginChallenge,
     readLoginChallenge,
@@ -502,86 +500,6 @@ async function handlePullForwardSailings(request, response, session) {
         }
         throw error;
     }
-}
-
-async function handleAdminUsers(request, response, session) {
-    const scope = requireAdmin(response, session);
-    if (!scope) return;
-    sendJson(response, 200, { users: listUsersForAdmin(scope.company.id) }, securityHeaders());
-}
-
-function userInAdminScope(scope, userId) {
-    return permissions.canManageUser(scope.actor, getUserById(userId), scope);
-}
-
-async function handleAdminPassword(request, response, session, userId) {
-    const body = await readJson(request);
-    if (!requireCsrf(request, response, session, body)) return;
-    const scope = requireAdmin(response, session);
-    if (!scope) return;
-    if (rejectCompanyMismatch(response, body, scope.company)) return;
-    if (!userInAdminScope(scope, userId)) {
-        sendError(response, 404, 'User was not found.');
-        return;
-    }
-    const result = setPasswordById(userId, body.password, session.user.id, scope.company.id);
-    if (!result.ok) {
-        sendError(response, result.status, result.error);
-        return;
-    }
-    markTemporaryPassword(userId, session.user.id);
-    sendJson(response, 200, { ok: true, signedOut: userId === session.user.id }, securityHeaders());
-}
-
-async function handleAdminUserUpdate(request, response, session, userId) {
-    const body = await readJson(request);
-    if (!requireCsrf(request, response, session, body)) return;
-    const scope = requireAdmin(response, session);
-    if (!scope) return;
-    if (rejectCompanyMismatch(response, body, scope.company)) return;
-    if (!userInAdminScope(scope, userId)) {
-        sendError(response, 404, 'User was not found.');
-        return;
-    }
-    const hasEmail = Object.prototype.hasOwnProperty.call(body, 'email');
-    const hasDisabled = typeof body.disabled === 'boolean';
-    if (!hasEmail && !hasDisabled) {
-        sendError(response, 400, 'disabled must be true or false.');
-        return;
-    }
-    if (hasEmail) {
-        const emailResult = setEmailById(userId, body.email, session.user.id, scope.company.id);
-        if (!emailResult.ok) {
-            sendError(response, emailResult.status, emailResult.error);
-            return;
-        }
-    }
-    if (hasDisabled) {
-        const result = setDisabled(userId, body.disabled, session.user.id, scope.company.id);
-        if (!result.ok) {
-            sendError(response, result.status, result.error);
-            return;
-        }
-    }
-    sendJson(response, 200, { ok: true }, securityHeaders());
-}
-
-async function handleAdminClearMfa(request, response, session, userId) {
-    const body = await readJson(request);
-    if (!requireCsrf(request, response, session, body)) return;
-    const scope = requireAdmin(response, session);
-    if (!scope) return;
-    if (rejectCompanyMismatch(response, body, scope.company)) return;
-    if (!userInAdminScope(scope, userId)) {
-        sendError(response, 404, 'User was not found.');
-        return;
-    }
-    const result = clearMfa(userId, session.user.id);
-    if (!result.ok) {
-        sendError(response, result.status, result.error);
-        return;
-    }
-    sendJson(response, 200, { ok: true, signedOut: userId === session.user.id }, securityHeaders());
 }
 
 function handleSecurityStatus(request, response, session) {
@@ -1090,17 +1008,10 @@ const server = http.createServer(async (request, response) => {
         if (pathname === '/api/rates/predictive' && request.method === 'GET') return handlePredictiveRates(request, response, session, url);
         if (pathname === '/api/rates' && request.method === 'GET') return handleRates(request, response, session);
         if (pathname === '/api/sailings' && request.method === 'GET') return handleSailings(request, response, session, url);
-        if (pathname === '/api/admin/users' && request.method === 'GET') return handleAdminUsers(request, response, session);
         if (pathname === '/api/admin/oauth-clients' && request.method === 'GET') return handleAdminClients(request, response, session);
         if (pathname === '/api/admin/oauth-clients' && request.method === 'POST') return handleAdminClientCreate(request, response, session);
         if (pathname === '/api/admin/pull-forward/rates' && request.method === 'POST') return handlePullForwardRates(request, response, session);
         if (pathname === '/api/admin/pull-forward/sailings' && request.method === 'POST') return handlePullForwardSailings(request, response, session);
-        const userPasswordMatch = pathname.match(/^\/api\/admin\/users\/([\w-]+)\/password$/);
-        if (userPasswordMatch && request.method === 'POST') return handleAdminPassword(request, response, session, userPasswordMatch[1]);
-        const userMfaMatch = pathname.match(/^\/api\/admin\/users\/([\w-]+)\/two-factor$/);
-        if (userMfaMatch && request.method === 'DELETE') return handleAdminClearMfa(request, response, session, userMfaMatch[1]);
-        const userMatch = pathname.match(/^\/api\/admin\/users\/([\w-]+)$/);
-        if (userMatch && request.method === 'PATCH') return handleAdminUserUpdate(request, response, session, userMatch[1]);
         const clientRotateMatch = pathname.match(/^\/api\/admin\/oauth-clients\/([\w-]+)\/rotate-secret$/);
         if (clientRotateMatch && request.method === 'POST') return handleAdminClientRotate(request, response, session, clientRotateMatch[1]);
         const clientMatch = pathname.match(/^\/api\/admin\/oauth-clients\/([\w-]+)$/);

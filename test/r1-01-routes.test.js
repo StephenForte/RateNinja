@@ -157,6 +157,10 @@ describe('r1-01 routes and exact documents', { concurrency: 1 }, () => {
                 assert.equal(mod.routes.length, 11);
             } else if (name === 'preferences') {
                 assert.equal(mod.routes.length, 12);
+            } else if (name === 'onboarding') {
+                assert.equal(mod.routes.length, 2);
+            } else if (name === 'users') {
+                assert.equal(mod.routes.length, 6);
             } else {
                 assert.equal(mod.routes.length, 0);
             }
