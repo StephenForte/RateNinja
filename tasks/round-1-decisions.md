@@ -238,3 +238,28 @@ companies to choose from. This was a planning gap in the R1-02 and R1-03 briefs,
 - Fail-closed behaviour is unchanged. There is still no fallback to the admin's own company.
 - Release rule: R1-02 (#17) and R1-03 (#18) merge back to back, R1-02 first, and only once both
   are approved. Render deploys each merge, and R1-02 alone leaves production without admin screens.
+
+### D-022 — Migration 004 must not fail on existing login collisions (2026-10-13)
+
+Migration 004 adds a case-insensitive unique index on login names. Production is a single
+instance on a persistent disk, so a migration that aborts startup means downtime. Policy:
+- 004 checks for existing case-insensitive duplicates of `username`.
+- If there are none, it creates the unique index on `lower(username)`.
+- If there are any, it logs the colliding user ids (no other data), creates no index, and
+  still records 004 as applied.
+- Application code always checks case-insensitive uniqueness before creating or renaming a
+  login, so new collisions can't appear either way.
+
+### D-023 — No real customer data in the repository (2026-10-13)
+
+The repository is public. The operator's sample files (real contract rates, contract numbers,
+and sailings, in `/Users/stephenforte/airtable-shipping-tools/`) stay outside the repo and are
+read in place. Import fixtures under `test/fixtures/imports/` are synthetic: same structure,
+quirks, and column names, with invented ports, prices, contract numbers, and vessels. No
+discovery document quotes rows from the real files.
+
+### D-024 — Apple Numbers files are not an import format (2026-10-13)
+
+The operator supplied a `.numbers` copy alongside the `.xlsx`. Round 1 imports accept CSV and
+Excel (`.xlsx`) only (D-017, D-018). The import screen tells users to export Numbers files to
+Excel. The operator can reopen this.

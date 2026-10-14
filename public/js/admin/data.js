@@ -174,10 +174,10 @@ function renderHistory(operations) {
         );
         const action = document.createElement('td');
         action.append(document.createTextNode(operation.status));
-        if (operation.type === 'delete') {
-            const restore = button('', 'Restore', 'back-btn');
-            restore.addEventListener('click', () => restoreOperation(operation));
-            action.append(document.createTextNode(' '), restore);
+        if (operation.type === 'edit' || operation.type === 'pull-forward' || operation.type === 'delete') {
+            const undo = button(`dataUndo-${operation.id}`, 'Undo', 'back-btn');
+            undo.addEventListener('click', () => undoOperation(operation));
+            action.append(document.createTextNode(' '), undo);
         }
         row.append(action);
         body.append(row);
@@ -279,23 +279,29 @@ async function deleteSelection(ctx) {
     }
 }
 
-async function restoreOperation(operation) {
-    const gate = companyOperationGate(permissions, `Restore ${operation.affectedCount} ${operation.dataset}.`);
+async function undoOperation(operation) {
+    const conflicts = document.getElementById('dataUndoConflicts');
+    const gate = companyOperationGate(permissions, `Undo this ${operation.type} of ${operation.affectedCount} ${operation.dataset}.`);
     if (!gate.allowed) {
         showFailure(new Error(gate.message));
         return;
     }
+    conflicts.hidden = true;
+    conflicts.textContent = '';
     if (!window.confirm(gate.message)) return;
     try {
-        const result = await request(`/api/admin/data/operations/${operation.id}/restore`, {
+        const result = await request(`/api/admin/data/operations/${operation.id}/undo`, {
             method: 'POST',
             body: JSON.stringify({
                 submissionId: crypto.randomUUID(),
                 companyId: permissions.companyContext?.id
             })
         });
-        finish(`Restored ${result.affectedCount} ${result.dataset} at ${result.company.name}.`);
+        finish(`Undid ${result.affectedCount} ${result.dataset} at ${result.company.name}.`);
     } catch (error) {
+        const message = adminFailureMessage(error, error.message);
+        conflicts.hidden = false;
+        conflicts.textContent = message;
         showFailure(error);
     }
 }
@@ -555,6 +561,9 @@ export async function mount(container, ctx) {
     pageInfo.id = 'dataPageInfo';
     pageInfo.textContent = 'Page 1';
     pager.append(prev, pageInfo, next);
+    const undoConflicts = paragraph('data-undo-conflicts', '');
+    undoConflicts.id = 'dataUndoConflicts';
+    undoConflicts.hidden = true;
     const historyTitle = heading('History');
     historyTitle.id = 'dataHistoryTitle';
     const historyWrap = document.createElement('div');
@@ -585,6 +594,7 @@ export async function mount(container, ctx) {
         actions,
         tableWrap,
         pager,
+        undoConflicts,
         historyTitle,
         historyWrap,
         buildDialog()

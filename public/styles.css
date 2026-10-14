@@ -2124,6 +2124,82 @@ body {
 
 .preference-note { color: var(--muted); }
 
+/* R1-09 */
+.pf-steps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.pf-step {
+    border: 1px solid var(--line);
+    background: var(--surface-muted);
+    color: var(--ink);
+    border-radius: 999px;
+    padding: 6px 10px;
+    cursor: pointer;
+}
+
+.pf-step[aria-current="step"] {
+    background: var(--brand);
+    color: #fff;
+    border-color: var(--brand);
+}
+
+.pf-panel {
+    display: grid;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.pf-panel[hidden],
+.pull-forward-success[hidden],
+.data-undo-conflicts[hidden] {
+    display: none;
+}
+
+.pf-target-end,
+.pf-confirm-text {
+    font-weight: 600;
+    color: var(--ink);
+}
+
+.pf-conflict-keep,
+.pf-conflict-replace {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    padding: 12px;
+    border-radius: 8px;
+}
+
+.pf-conflict-keep {
+    border: 2px solid var(--line);
+    background: var(--surface);
+}
+
+.pf-conflict-replace {
+    border: 2px solid #9b2c2c;
+    background: #fde8e8;
+    color: #7f1d1d;
+}
+
+.pf-preview {
+    display: grid;
+    gap: 4px;
+}
+
+.data-undo-conflicts {
+    margin: 0;
+    padding: 10px 12px;
+    border: 1px solid #9b2c2c;
+    border-radius: 8px;
+    background: #fde8e8;
+    color: #7f1d1d;
+    font-weight: 600;
+}
+
 /* R1-06 */
 .onboarding-wizard,
 #userEditor {

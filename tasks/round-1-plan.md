@@ -60,15 +60,15 @@ Model names are the planner's proposal; operator overrides recorded in the Run c
 | R1-02 | Roles and company isolation | Roles, Delivery 1 | R1-01 | S / Opus 5.5 | merged 2026-10-13, PR #17 |
 | R1-03 | App shell: addressable pages and menu | FR1 | R1-01 | M / Sonnet 5.5 | merged 2026-10-13, PR #18 |
 | R1-04 | Profile and password lifecycle | FR4 | R1-02, R1-03 | S / Opus 5.5 | merged 2026-10-13, PR #24 |
-| R1-05 | Saved queries and saved views | FR2, FR3 | R1-03 | M / Sonnet 5.5 | approved 2026-10-13, PR #29 (`9552cc1`) |
-| R1-06 | Company and user onboarding | FR5, FR6 | R1-04 | S / Opus 5.5 | not dispatched |
+| R1-05 | Saved queries and saved views | FR2, FR3 | R1-03 | M / Sonnet 5.5 | merged 2026-10-13, PR #29 |
+| R1-06 | Company and user onboarding | FR5, FR6 | R1-04 | S / Opus 5.5 | briefed 2026-10-13 (W3) |
 | R1-07 | Customer authorization and live preview | FR7 | R1-02, R1-03 | S / Opus 5.5 | merged 2026-10-13, PR #22 |
 | R1-08 | Data workspace core: soft delete, versions, edit, delete/restore, history | FR9 | R1-02, R1-03 | S / Opus 5.5 | merged 2026-10-13, PR #23 |
-| R1-09 | Pull-forward wizard and operation undo | FR9 | R1-08 | S / Opus 5.5 | not dispatched |
-| R1-10 | Imports discovery spike, CSV + Excel (no product code) | FR8 | representative files from operator | M / Sonnet 5.5 | awaiting files |
+| R1-09 | Pull-forward wizard and operation undo | FR9 | R1-08 | S / Opus 5.5 | briefed 2026-10-13 (W3) |
+| R1-10 | Imports discovery spike, CSV + Excel (no product code) | FR8 | representative files from operator | M / Sonnet 5.5 | approved 2026-10-13, PR #33 (`2e7f052`) |
 | R1-11a | Imports implementation: CSV + Excel | FR8 | R1-08, R1-10 | S / Opus 5.5 | not dispatched |
 | R1-12 | MCP / partner API parity incl. predictive | FR11 | R1-01 | S / Opus 5.5 | merged 2026-10-13, PR #19 |
-| R1-13 | API and MCP instructions + docs alignment | FR10 | R1-07, R1-12 | M / Sonnet 5.5 | not dispatched |
+| R1-13 | API and MCP instructions + docs alignment | FR10 | R1-07, R1-12 | M / Sonnet 5.5 | briefed 2026-10-13 (W3) |
 | R1-14 | Integrated release acceptance | §Validation | all P1 | M / Sonnet 5.5 + operator | not dispatched |
 | R1-15 | P2: bulk price adjustment | FR12 | R1-09 | S | not planned in detail |
 | R1-16 | P2: duplicate handling | FR13 | R1-11a | S | not planned in detail |
@@ -79,6 +79,7 @@ Model names are the planner's proposal; operator overrides recorded in the Run c
 - **W1** (parallel, after R1-01 merges): R1-02, R1-03, R1-12. Merge order: any order, except R1-03 after R1-02 (it consumes D-009). R1-12 must merge before R1-07/R1-08 start (`lib/visibility.js`).
 - **W2** (parallel): R1-05 (needs R1-03 only — can start as soon as it lands); R1-04, R1-07, R1-08 (need R1-02 + R1-03). Merge order: any, except R1-07 before R1-08 (both edit `lib/store.js`; R1-08's preview-exclusion test needs R1-07's preview). Expect `test/r1-01-routes.test.js` and `public/styles.css` conflicts on every merge after the first: keep both sides.
 - **W3**: R1-06 (after R1-04), R1-09 (after R1-08), R1-11a (after R1-08 + R1-10). R1-10 can run any time once representative files are supplied.
+- **W3 dispatch (2026-10-13):** R1-06, R1-09, R1-10, R1-13 in parallel. R1-09 runs in the main checkout; the others run in clones. R1-11a follows R1-10 and R1-08 (merged).
 - **W4**: R1-13, then R1-14.
 
 Peak concurrency is 4 (W2). If the operator runs fewer agents, drop R1-05 to W3 first.
@@ -138,7 +139,10 @@ Every migration task must also prove: fresh DB, prod-shaped copy, and re-run (id
 - **Every task that fills a pre-registered route module:** `test/r1-01-routes.test.js` asserts per-module route counts, so it conflicts whenever two tasks fill modules in parallel. Resolve by keeping both counts; assert your own routes in your own test file.
 - **R1-09:** legacy pull-forward `deleteExisting` still **hard-deletes** every target-window row, including soft-deleted ones, which permanently destroys restorable deletions. R1-09 must replace it with soft delete through data-ops operations, and pull-forward must never touch deleted rows. (Found in the R1-08 review; disclosed by the worker.)
 - **Every migration test that boots with a partial `MIGRATIONS_DIR`:** since R1-08, `lib/store.js` needs migration 006's columns at module load. Partial fixtures must include `006-data-operations.js`.
+- **R1-06:** deactivation bumps `session_epoch` but doesn't revoke OAuth grants or refresh tokens, so after reactivation an old refresh token issues a valid access token again (verified by reading `oauth.refreshAccessToken` and `store.setUserDisabled` on `909150b`; not yet executed). FR 6 says reactivation must not revive credentials. R1-06 revokes the user's grants and refresh tokens on deactivation.
+- **Migration 004 (R1-06):** every test asserting the full applied-id list gains `'004'`, and partial-migration fixtures still need 006 (see above).
 - **R1-06:** migration 001 installs `users` triggers that keep `admin_screen` and `company_role` in sync (an insert with `admin_screen = 1` becomes `company_admin`). Set `company_role` directly when creating users; never rely on `admin_screen`.
+- **R1-11a (from R1-10):** follow `docs/imports-discovery.md`: `read-excel-file@9.3.12`; Excel serial to UTC calendar date via floor (never round, never local getters); store prices in cents (no whole-dollar rounding on import); blanks stay null; reject non-USD text; limits `IMPORT_MAX_BYTES` 5,000,000, `IMPORT_MAX_ROWS` 10,000, sample 5 rows and 8,000 chars; 24h retention. **Must also fix:** `formatNumber` (browse table) renders a null price as `$0`, so customers would see $0 for blank imported prices. Show it as blank or "—" instead. **Must run** the live Claude mapping trial (needs `ANTHROPIC_API_KEY`) and record tokens and cost. Operator decisions pending: Contract Number (default: append to notes_1) and Arrival Port (default: unmapped).
 - **R1-11a:** the route dispatcher JSON-parses every unsafe-method session body (1 MB cap) before CSRF. File upload needs a route-level opt-out (for example `body: 'raw'` with header-only CSRF) and its own size limit; that change to `server.js` is in R1-11a's scope.
 
 ## Open items
@@ -148,7 +152,7 @@ Every migration task must also prove: fresh DB, prod-shaped copy, and re-run (id
 
 - ~~Import formats~~ resolved 2026-10-12 (D-017), narrowed by D-018: Round 1 imports CSV + Excel; PDF deferred.
 - **Deferred past Round 1 (D-018):** Claude extraction of unstructured files, and with it PDF import. Guardrails recorded; no Round 1 task. Target: P3 or P4 (operator, 2026-10-12).
-- **Operator input needed:** representative rate/sailing files in each format for R1-10.
+- ~~Representative files~~ supplied 2026-10-13: `Updated_Rates_2025-09-06_2pct.xlsx` (1,554 rates, 17 columns, plus a non-data `Summary` sheet) and `ONE_Carrier_Sailings.xlsx` (2,254 sailings, 9 columns), kept outside the repo (D-023). A `.numbers` copy is out of scope (D-024).
 - PRD defaults (temp-password replacement, 2 group levels, 3 sorts, 30-day window) adopted as D-011 pending product review.
 - Real MCP client check (R1-12, R1-14) needs the operator: production has `PARTNER_OAUTH_ENABLED=false`; run locally.
 
@@ -156,6 +160,7 @@ Every migration task must also prove: fresh DB, prod-shaped copy, and re-run (id
 
 _(planner appends: task, PR, verdict, what was independently verified and how)_
 
+- 2026-10-13 · **R1-10, PR #33: approved at `2e7f052`.** Scope: doc, fixtures, generator only; 152/0. **Leak check (D-023), done independently:** the worker's commit grep can't see inside `.xlsx` zips, so I unzipped all fixtures and checked them, the CSV, the doc and the generator against all 3,009 distinctive values from the real workbooks. The only hits are column headers, `Source`, and the filename date. No leak. Parser `read-excel-file@9.3.12` (MIT, current). The live Claude trial wasn't run (no API key).
 - 2026-10-13 · **R1-05, PR #29: approved at `9552cc1`.** Base `01f5244` = main; scope clean; fresh clone 152/0/0; CI and Bugbot green. Probe: a second user (system admin, same company) gets 404 on read, patch, delete and set-default of another user's query or view, and sees an empty list; date and page criteria keys, a third group field, and an unknown column each return 400. Browser on a scratch DB (45 rates), after the Bugbot fixes: with no view the standard table shows 20 rows, Page 1 of 3; the default grouped view is restored on reload, and group headers count the full set (CMA 15, MSC 15).
 - 2026-10-13 · **R1-08, PR #23: approved at `adc76e4` after rebase onto `04f5516`.** Fresh clone, two runs: 134/0 each; CI green. The merged `store.js` keeps both the deleted_at filters (15) and R1-07's active-link filter. The test edits match the requested resolution.
 - 2026-10-13 · **R1-08, PR #23: behaviour approved at `557d624`, rebase requested.** Scope clean; fresh clone 106/0/0. Probe: a filter preview (2 rows) followed by a matching insert, then commit, deletes only the 2 previewed rows; replaying a submissionId leaves 1 operation row; a row_version bump between preview and commit gives 409 `preview_stale` and nothing is deleted; another owner's id in a preview gives 404. The every-path deleted test covers app, demo, partner/MCP (parity), and pull-forward sources. Trial merge onto `7611c2c`: 3 textual conflicts (styles, r1-01-routes, r1-02 id list) plus 2 semantic ones. `store.js` prepares `deleted_at` statements at load, so `r1-04-migration`'s 001-only boot fails (production is safe: migrations run before the store loads), and the full id lists need 006.
