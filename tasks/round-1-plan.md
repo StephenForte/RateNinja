@@ -61,17 +61,18 @@ Model names are the planner's proposal; operator overrides recorded in the Run c
 | R1-03 | App shell: addressable pages and menu | FR1 | R1-01 | M / Sonnet 5.5 | merged 2026-10-13, PR #18 |
 | R1-04 | Profile and password lifecycle | FR4 | R1-02, R1-03 | S / Opus 5.5 | merged 2026-10-13, PR #24 |
 | R1-05 | Saved queries and saved views | FR2, FR3 | R1-03 | M / Sonnet 5.5 | merged 2026-10-13, PR #29 |
-| R1-06 | Company and user onboarding | FR5, FR6 | R1-04 | S / Opus 5.5 | approved 2026-10-13, PR #34 (`afe269f`) |
+| R1-06 | Company and user onboarding | FR5, FR6 | R1-04 | S / Opus 5.5 | merged 2026-10-13, PR #34 |
 | R1-07 | Customer authorization and live preview | FR7 | R1-02, R1-03 | S / Opus 5.5 | merged 2026-10-13, PR #22 |
 | R1-08 | Data workspace core: soft delete, versions, edit, delete/restore, history | FR9 | R1-02, R1-03 | S / Opus 5.5 | merged 2026-10-13, PR #23 |
 | R1-09 | Pull-forward wizard and operation undo | FR9 | R1-08 | S / Opus 5.5 | merged 2026-10-13, PR #35 |
 | R1-10 | Imports discovery spike, CSV + Excel (no product code) | FR8 | representative files from operator | M / Sonnet 5.5 | merged 2026-10-13, PR #33 |
-| R1-11a | Imports implementation: CSV + Excel | FR8 | R1-08, R1-10 | S / Opus 5.5 | briefed 2026-10-13 (after #35 merges) |
+| R1-11a | Imports implementation: CSV + Excel | FR8 | R1-08, R1-10 | S / Opus 5.5 | approved 2026-10-13, PR #39 (`ddee763`) |
 | R1-12 | MCP / partner API parity incl. predictive | FR11 | R1-01 | S / Opus 5.5 | merged 2026-10-13, PR #19 |
-| R1-13 | API and MCP instructions + docs alignment | FR10 | R1-07, R1-12 | M / Sonnet 5.5 | changes requested 2026-10-13, PR #32 (registry gate) |
+| R1-13 | API and MCP instructions + docs alignment | FR10 | R1-07, R1-12 | M / Sonnet 5.5 | approved 2026-10-13, PR #32 (`5f5bc82`) |
 | R1-14 | Integrated release acceptance | §Validation | all P1 | M / Sonnet 5.5 + operator | not dispatched |
 | R1-15 | P2: bulk price adjustment | FR12 | R1-09 | S | not planned in detail |
 | R1-16 | P2: duplicate handling | FR13 | R1-11a | S | not planned in detail |
+| R1-17 | Partner/MCP return null for a missing price (not 0) | FR 8, FR 11 | R1-11a | M / Sonnet 5.5 | briefed 2026-10-13 |
 
 ### Run order (waves)
 
@@ -160,6 +161,8 @@ Every migration task must also prove: fresh DB, prod-shaped copy, and re-run (id
 
 _(planner appends: task, PR, verdict, what was independently verified and how)_
 
+- 2026-10-13 · **R1-11a, PR #39: approved at `ddee763`.** Base = main; 199/0; deps pinned, `npm audit --omit=dev` 0. Whole-tree leak check (xlsx unzipped) against the real workbooks found no new hits; `13943.4` in `scripts/ralph/progress.txt` (a real price, public since July) predates this PR. Upload: a content-length 413 plus a running-total stream cap; stored as `<uuid>.upload` beside the DB, outside `public/`. Null price → null in the app and the demo API. **Finding → R1-17:** the partner/MCP DTO `baseRateAmount` returns 0 for a missing price (reproduced with `listPartnerRates`: `rate40D: 0`). Real-file run: 1,554/0 and 2,254/0, spot rows matched Excel, undo OK. Live trial: $0.06.
+- 2026-10-13 · **R1-13, PR #32: approved at `5f5bc82`** after the registry fix and the rebase. MERGEABLE/CLEAN; 185/0; both style blocks present.
 - 2026-10-13 · **R1-06, PR #34: approved at `afe269f`.** Trial merge onto `6e6b8fc`: no conflicts, 182/0. The OAuth revival test fails with `revokeAllCredentialsForUser` removed and passes with it, driving grant → deactivate → reactivate → refresh. Escalation probe as a company admin: another company's id → 409, `isSystemAdmin` → 400, `role: system_admin` → 400, onboarding → 403; no rows written and no system admin created. D-022 reading (no index on collision; the submissions table is still created) is correct.
 - 2026-10-13 · **R1-13, PR #32: changes requested.** FR 10 requires the integrations section for both company types; `registry.js` gates it `ownerOrSystem`. The fix (an `anyAdmin` predicate plus one navigation-test expectation) was proven in scratch at 155/0. This was a gap in the R1-03 plan. The docs' 46 runnable examples returned the expected codes.
 - 2026-10-13 · **Process fix:** workers pushed and stopped without opening PRs or printing the return block. The dispatch-worker skill now requires hand-back steps H1–H5, and the repo `AGENTS.md` (PR #37) carries the same rule for briefs already running.
