@@ -17,3 +17,7 @@ When at least one migration is pending and the database path is a file, the runn
 ## Tests
 
 The directory is chosen at call time: `options.migrationsDir`, otherwise `MIGRATIONS_DIR`, otherwise this directory. Set `MIGRATIONS_DIR` or pass `migrationsDir` before `lib/db.js` loads. `lib/db.js` opens the database at require time, so a test that requires it first cannot redirect the path.
+
+## Restore limits
+
+Restore only backups written by the D-003 migration runner from a database that had already booted the 2026-09-24 server (`838291a`) or later. A backup from before 2026-09-24, or anything written by `scripts/migrate-from-airtable.js`, cannot be restored onto Round 1 code (D-026).

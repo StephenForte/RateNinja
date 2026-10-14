@@ -240,6 +240,11 @@ export async function mount(container, ctx) {
         showNotice('');
         if (!loginName.value.trim()) loginName.value = email.value.trim();
         renderReview();
+        const gate = confirmed(`Create ${displayName.value.trim() || loginName.value.trim()}.`);
+        if (!gate.allowed) {
+            if (gate.message) errors.show(gate.message);
+            return;
+        }
         create.disabled = true;
         try {
             await request('/api/admin/users', {

@@ -1,3 +1,8 @@
+if (require.main === module) {
+    console.error('D-026: The raw Airtable shape cannot be started or restored on Round 1 code.');
+    process.exit(1);
+}
+
 /**
  * One-time migration: copy all Airtable records into the local SQLite database.
  *
