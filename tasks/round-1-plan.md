@@ -46,7 +46,7 @@ Owner of this file and the decisions log: the planner. **Workers never edit eith
 | 009 | reserved | R1-12 (use only if needed) |
 | 010+ | unassigned | ask the planner |
 
-Next free: **010**.
+Next free: **010**. (007 and 009 were reserved and never used; don't reuse them without a planner decision.)
 
 ## Task tree
 
@@ -66,13 +66,13 @@ Model names are the planner's proposal; operator overrides recorded in the Run c
 | R1-08 | Data workspace core: soft delete, versions, edit, delete/restore, history | FR9 | R1-02, R1-03 | S / Opus 5.5 | merged 2026-10-13, PR #23 |
 | R1-09 | Pull-forward wizard and operation undo | FR9 | R1-08 | S / Opus 5.5 | merged 2026-10-13, PR #35 |
 | R1-10 | Imports discovery spike, CSV + Excel (no product code) | FR8 | representative files from operator | M / Sonnet 5.5 | merged 2026-10-13, PR #33 |
-| R1-11a | Imports implementation: CSV + Excel | FR8 | R1-08, R1-10 | S / Opus 5.5 | approved 2026-10-13, PR #39 (`ddee763`) |
+| R1-11a | Imports implementation: CSV + Excel | FR8 | R1-08, R1-10 | S / Opus 5.5 | merged 2026-10-13, PR #39 |
 | R1-12 | MCP / partner API parity incl. predictive | FR11 | R1-01 | S / Opus 5.5 | merged 2026-10-13, PR #19 |
-| R1-13 | API and MCP instructions + docs alignment | FR10 | R1-07, R1-12 | M / Sonnet 5.5 | approved 2026-10-13, PR #32 (`5f5bc82`) |
-| R1-14 | Integrated release acceptance | §Validation | all P1 | M / Sonnet 5.5 + operator | not dispatched |
+| R1-13 | API and MCP instructions + docs alignment | FR10 | R1-07, R1-12 | M / Sonnet 5.5 | merged 2026-10-13, PR #32 |
+| R1-14 | Integrated release acceptance | §Validation | all P1 | M / Sonnet 5.5 + operator | briefed 2026-10-14 (Opus 5.5, upgraded from Sonnet: it judges coverage across all 11 FRs) |
 | R1-15 | P2: bulk price adjustment | FR12 | R1-09 | S | not planned in detail |
 | R1-16 | P2: duplicate handling | FR13 | R1-11a | S | not planned in detail |
-| R1-17 | Partner/MCP return null for a missing price (not 0) | FR 8, FR 11 | R1-11a | M / Sonnet 5.5 | briefed 2026-10-13 |
+| R1-17 | Partner/MCP return null for a missing price (not 0) | FR 8, FR 11 | R1-11a | M / Sonnet 5.5 | merged 2026-10-14, PR #41 |
 
 ### Run order (waves)
 
@@ -161,6 +161,7 @@ Every migration task must also prove: fresh DB, prod-shaped copy, and re-run (id
 
 _(planner appends: task, PR, verdict, what was independently verified and how)_
 
+- 2026-10-14 · **R1-17, PR #41: approved at `3b61b94`, merged (`7ce1dd6`).** 201/0. A direct probe of `listPartnerRates` on a rate stored as `(1000.4, NULL, 0)` returns `[1000, null, 0]`. Golden unchanged. **All P1 build tasks are now merged; R1-14 (release acceptance) remains.** Main `7ce1dd6`, migrations 001–006 and 008 applied in production on deploy, production `/api/health` ok.
 - 2026-10-13 · **R1-11a, PR #39: approved at `ddee763`.** Base = main; 199/0; deps pinned, `npm audit --omit=dev` 0. Whole-tree leak check (xlsx unzipped) against the real workbooks found no new hits; `13943.4` in `scripts/ralph/progress.txt` (a real price, public since July) predates this PR. Upload: a content-length 413 plus a running-total stream cap; stored as `<uuid>.upload` beside the DB, outside `public/`. Null price → null in the app and the demo API. **Finding → R1-17:** the partner/MCP DTO `baseRateAmount` returns 0 for a missing price (reproduced with `listPartnerRates`: `rate40D: 0`). Real-file run: 1,554/0 and 2,254/0, spot rows matched Excel, undo OK. Live trial: $0.06.
 - 2026-10-13 · **R1-13, PR #32: approved at `5f5bc82`** after the registry fix and the rebase. MERGEABLE/CLEAN; 185/0; both style blocks present.
 - 2026-10-13 · **R1-06, PR #34: approved at `afe269f`.** Trial merge onto `6e6b8fc`: no conflicts, 182/0. The OAuth revival test fails with `revokeAllCredentialsForUser` removed and passes with it, driving grant → deactivate → reactivate → refresh. Escalation probe as a company admin: another company's id → 409, `isSystemAdmin` → 400, `role: system_admin` → 400, onboarding → 403; no rows written and no system admin created. D-022 reading (no index on collision; the submissions table is still created) is correct.
