@@ -406,10 +406,14 @@ export async function mount(container, ctx) {
         }
         saveRole.disabled = true;
         try {
-            await request(`/api/admin/users/${selected.id}/role`, {
+            const result = await request(`/api/admin/users/${selected.id}/role`, {
                 method: 'POST',
                 body: JSON.stringify({ role: editorRole.value, companyId: contextCompanyId(ctx.permissions) })
             });
+            if (result.signedOut) {
+                signedOut();
+                return;
+            }
             await reload();
         } catch (error) {
             showError(error);

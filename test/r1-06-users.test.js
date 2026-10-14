@@ -148,6 +148,43 @@ describe('r1-06 company user management', { concurrency: 1 }, () => {
         assert.equal(after.session_epoch, before.session_epoch);
     });
 
+    it('signs out an administrator who changes their own role', async () => {
+        const created = await call(app.baseUrl, admin, 'POST', '/api/admin/users', {
+            displayName: 'Second Admin',
+            email: 'second.admin@example.com',
+            role: 'company_admin',
+            temporaryPassword: TEMP,
+            companyId: ownerId
+        });
+        assert.equal(created.status, 200, created.text);
+        const secondId = created.json.user.id;
+        const firstLogin = await login(app.baseUrl, 'second.admin@example.com', TEMP);
+        assert.equal(firstLogin.status, 200, JSON.stringify(firstLogin.json));
+        const replaced = await call(app.baseUrl, firstLogin, 'POST', '/api/account/password', {
+            currentPassword: TEMP,
+            newPassword: REPLACEMENT,
+            confirmPassword: REPLACEMENT
+        });
+        assert.equal(replaced.status, 200, replaced.text);
+        const second = await login(app.baseUrl, 'second.admin@example.com', REPLACEMENT);
+        assert.equal(second.status, 200, JSON.stringify(second.json));
+
+        const unchanged = await call(app.baseUrl, second, 'POST', `/api/admin/users/${secondId}/role`, { role: 'company_admin' });
+        assert.equal(unchanged.status, 200, unchanged.text);
+        assert.equal(unchanged.json.signedOut, false);
+        const stillIn = await call(app.baseUrl, second, 'GET', '/api/session');
+        assert.equal(stillIn.status, 200, stillIn.text);
+
+        const demoted = await call(app.baseUrl, second, 'POST', `/api/admin/users/${secondId}/role`, { role: 'member' });
+        assert.equal(demoted.status, 200, demoted.text);
+        assert.equal(demoted.json.signedOut, true);
+        assert.equal(row(secondId).company_role, 'member');
+        const signedOut = await call(app.baseUrl, second, 'GET', '/api/session');
+        assert.equal(signedOut.status, 401);
+        const ownerStillIn = await call(app.baseUrl, admin, 'GET', '/api/session');
+        assert.equal(ownerStillIn.status, 200, ownerStillIn.text);
+    });
+
     it('creates a member, edits them, changes their role, and keeps the temporary-password gate', async () => {
         const before = counts(app.db);
         const created = await call(app.baseUrl, admin, 'POST', '/api/admin/users', {
@@ -181,6 +218,7 @@ describe('r1-06 company user management', { concurrency: 1 }, () => {
             companyId: ownerId
         });
         assert.equal(promoted.status, 200, promoted.text);
+        assert.equal(promoted.json.signedOut, false);
         assert.equal(row(member.id).company_role, 'company_admin');
         assert.ok(row(member.id).session_epoch > member.session_epoch);
 
