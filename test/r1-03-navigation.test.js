@@ -77,7 +77,8 @@ describe('menu matches the role', () => {
             '/profile/account',
             '/profile/security',
             '/profile/preferences',
-            '/admin/users'
+            '/admin/users',
+            '/admin/integrations'
         ]);
         assert.deepEqual(paths(ownerAdmin), [
             '/rates',
