@@ -21,8 +21,6 @@ const {
     companyForUser,
     getSailings,
     queryPublicRates,
-    pullForwardRates,
-    pullForwardSailings,
     getUserCredentials,
     getUserById,
     listUsersForAdmin
@@ -32,6 +30,8 @@ const {
     validatePullForwardRange,
     mapRateRecord
 } = require('./lib/domain');
+const { executeLegacy } = require('./lib/pull-forward');
+const { DataOpsError } = require('./lib/data-ops');
 const {
     getSession,
     createSession,
@@ -446,17 +446,28 @@ async function handlePullForwardRates(request, response, session) {
         sendError(response, 400, 'Price increase percent must be a number between 0 and 100.');
         return;
     }
-    const result = pullForwardRates({
-        sourceStart: body.sourceStart,
-        sourceEnd: body.sourceEnd,
-        targetStart: body.targetStart,
-        targetEnd: body.targetEnd,
-        offsetDays: validation.offsetDays,
-        priceIncreasePercent,
-        deleteExisting: body.deleteExisting === true,
-        ownerCompanyId: scope.company.id
-    });
-    sendJson(response, 200, { ok: true, copied: result.copied, deleted: result.deleted }, securityHeaders());
+    try {
+        const result = executeLegacy({
+            dataset: 'rates',
+            companyId: scope.company.id,
+            companyName: scope.company.fields?.CompanyName || '',
+            actorUserId: scope.actor.id,
+            sourceStart: body.sourceStart,
+            sourceEnd: body.sourceEnd,
+            targetStart: body.targetStart,
+            targetEnd: body.targetEnd,
+            offsetDays: validation.offsetDays,
+            priceIncreasePercent,
+            conflict: body.deleteExisting === true ? 'replace' : 'keep'
+        });
+        sendJson(response, 200, { ok: true, copied: result.copied, deleted: result.deleted }, securityHeaders());
+    } catch (error) {
+        if (error instanceof DataOpsError) {
+            sendJson(response, error.status, { error: error.message, code: error.code }, securityHeaders());
+            return;
+        }
+        throw error;
+    }
 }
 
 async function handlePullForwardSailings(request, response, session) {
@@ -470,16 +481,27 @@ async function handlePullForwardSailings(request, response, session) {
         sendError(response, 400, validation.error);
         return;
     }
-    const result = pullForwardSailings({
-        sourceStart: body.sourceStart,
-        sourceEnd: body.sourceEnd,
-        targetStart: body.targetStart,
-        targetEnd: body.targetEnd,
-        offsetDays: validation.offsetDays,
-        deleteExisting: body.deleteExisting === true,
-        ownerCompanyId: scope.company.id
-    });
-    sendJson(response, 200, { ok: true, copied: result.copied, deleted: result.deleted }, securityHeaders());
+    try {
+        const result = executeLegacy({
+            dataset: 'sailings',
+            companyId: scope.company.id,
+            companyName: scope.company.fields?.CompanyName || '',
+            actorUserId: scope.actor.id,
+            sourceStart: body.sourceStart,
+            sourceEnd: body.sourceEnd,
+            targetStart: body.targetStart,
+            targetEnd: body.targetEnd,
+            offsetDays: validation.offsetDays,
+            conflict: body.deleteExisting === true ? 'replace' : 'keep'
+        });
+        sendJson(response, 200, { ok: true, copied: result.copied, deleted: result.deleted }, securityHeaders());
+    } catch (error) {
+        if (error instanceof DataOpsError) {
+            sendJson(response, error.status, { error: error.message, code: error.code }, securityHeaders());
+            return;
+        }
+        throw error;
+    }
 }
 
 async function handleAdminUsers(request, response, session) {
