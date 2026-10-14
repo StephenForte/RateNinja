@@ -1,0 +1,6 @@
+﻿Rate Type,Origin Port,Destination Port/Via Port,Inland Delivery Location,Carrier,Contract Number,Contract Owner,20D Rate,40D rate,40HC Rate,Validity,Effective Date,Expiry Date,Notes 1,Notes 2,Notes 3,Note 4
+FAK Base,Fixture Harbor,North Quay,"Depot A, ZZ",Fixture Line,FX-1001,Example Owner,1100.5,2100.25,2200,Mar 2 - Mar 20,46083.7083333333333334,46101.7083333333333334,"Gate A, pier ""north""",Sample note two,Sample note three,Sample note four
+FAK Base,Cedar Dock,South Quay,,Fixture Line,,Example Owner,,1800.4,1900,Apr 1 - Apr 15,46113.7083333333333334,46127.7083333333333334,No twenty-foot price on this row,,,
+FAK Base,  Padded Port  ,West Quay,"Yard B, ZZ",Fixture Line,FX-1002,Example Owner,999.99,1500,,May 4 - May 18,46146.7083333333333334,46160.7083333333333334,Origin has surrounding spaces,,,
+FAK Base,East Quay,North Quay,,Fixture Line,,Second Example,800,1400.1,1450.55,Jun 6 - Jun 10,46179.7083333333333334,46183.7083333333333334,Two-decimal forty-foot high cube,,Only the third note is set,
+FAK Base,Low Wharf,South Quay,"Ramp C, ZZ",Fixture Line,,Example Owner,750.5,,,Jul 7 - Jul 21,46210.7083333333333334,46224.7083333333333334,Only a twenty-foot price,,,
