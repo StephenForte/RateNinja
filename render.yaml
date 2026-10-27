@@ -11,6 +11,10 @@ services:
       mountPath: /var/data
       sizeGB: 1
     envVars:
+      # October 21, 2026 Node.js security release. Local development can stay
+      # on Node.js 22 or later; this pin applies to the Render build and runtime.
+      - key: NODE_VERSION
+        value: "26.12.1"
       - key: NODE_ENV
         value: production
       - key: SQLITE_DB_PATH
