@@ -4,7 +4,7 @@ Rate Ninja is a small web application for browsing ocean freight rates, sailing 
 
 ## Run locally
 
-1. Use Node.js 22 or later.
+1. Use Node.js 22 or later. Render runs Node.js 26.12.1; that pin is not required on a local machine.
 2. Copy `.env.example` to `.env` and set `SESSION_SECRET` (and `RATE_NINJA_API_KEY` if you want the public demo API).
 3. Ensure a SQLite database exists at `data/rateninja.db` (or set `SQLITE_DB_PATH`). To import from Airtable once, set the Airtable variables in `.env` and run `npm run migrate`.
 4. Start the app:
@@ -58,4 +58,4 @@ Tests use Node's built-in test runner (`node:test`) with no extra dependencies. 
 
 ## Render deployment
 
-The included `render.yaml` creates a Render web service with a persistent disk at `/var/data` and `SQLITE_DB_PATH=/var/data/rateninja.db`. Supply `RATE_NINJA_API_KEY` when prompted; Render generates `SESSION_SECRET`. Copy or migrate the SQLite file onto the disk after the first deploy so the service has data.
+The included `render.yaml` creates a Render web service with a persistent disk at `/var/data` and `SQLITE_DB_PATH=/var/data/rateninja.db`. `NODE_VERSION` is `26.12.1` or higher (the October 21, 2026 Node.js security release). Supply `RATE_NINJA_API_KEY` when prompted; Render generates `SESSION_SECRET`. Copy or migrate the SQLite file onto the disk after the first deploy so the service has data. This service does not run PHP or Python.
