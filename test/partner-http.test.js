@@ -1,5 +1,6 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs');
+const http = require('node:http');
 const os = require('node:os');
 const path = require('node:path');
 
@@ -225,6 +226,39 @@ describe('partner http', () => {
         const mcpBody = await mcp.json();
         assert.equal(mcp.status, 200);
         assert.deepEqual(mcpBody.result.structuredContent.data.map(rate => rate.id), ['kings-rate']);
+
+        const missingStream = await fetch(`${baseUrl}/mcp`, { method: 'GET' });
+        assert.equal(missingStream.status, 401);
+        const streamUrl = new URL(`${baseUrl}/mcp`);
+        const opened = await new Promise((resolve, reject) => {
+            const req = http.request({
+                hostname: streamUrl.hostname,
+                port: streamUrl.port,
+                path: '/mcp',
+                method: 'GET',
+                headers: {
+                    authorization: `Bearer ${token.access_token}`,
+                    accept: 'text/event-stream'
+                }
+            }, (response) => {
+                response.once('data', (chunk) => {
+                    response.destroy();
+                    resolve({
+                        status: response.statusCode,
+                        type: response.headers['content-type'],
+                        chunk: chunk.toString('utf8')
+                    });
+                });
+            });
+            req.on('error', reject);
+            req.setTimeout(2000, () => {
+                req.destroy(new Error('MCP event stream did not start'));
+            });
+            req.end();
+        });
+        assert.equal(opened.status, 200);
+        assert.equal(opened.type, 'text/event-stream');
+        assert.match(opened.chunk, /: connected/);
 
         const blackwater = db.prepare(`SELECT id FROM companies WHERE company_name = 'Blackwater Shippers'`).get();
         const margin = await fetch(`${baseUrl}/api/admin/companies/${blackwater.id}`, {

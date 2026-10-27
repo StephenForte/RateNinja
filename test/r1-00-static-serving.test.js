@@ -231,11 +231,14 @@ describe('static files are served only from public/', () => {
         }
 
         const mcpGet = await rawGet('/mcp');
-        assert.equal(mcpGet.status, 405);
-        assert.equal(mcpGet.headers.allow, 'POST');
+        assert.equal(mcpGet.status, 403);
         assert.equal(mcpGet.headers['content-type'], 'application/json; charset=utf-8');
-        assert.match(mcpGet.body.toString('utf8'), /Method not allowed/);
+        assert.match(mcpGet.body.toString('utf8'), /partner_oauth_disabled/);
         assert.equal(mcpGet.body.includes(Buffer.from('<!DOCTYPE')), false);
+
+        const mcpDelete = await rawRequest('DELETE', '/mcp');
+        assert.equal(mcpDelete.status, 405);
+        assert.equal(mcpDelete.headers.allow, 'GET, POST');
 
         const mcp = await rawRequest('POST', '/mcp', '{}', { 'content-type': 'application/json' });
         assert.equal(mcp.status, 403);

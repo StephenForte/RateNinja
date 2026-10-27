@@ -106,7 +106,7 @@ Scopes are `profile:read`, `rates:read`, and `sailings:read`. Predictive pricing
 - `GET /api/partner/v1/me/rates` and `GET /api/partner/v1/me/rates/{rateId}` (`rates:read`)
 - `GET /api/partner/v1/me/sailings` and `GET /api/partner/v1/me/sailings/{sailingId}` (`sailings:read`)
 - `GET /api/partner/v1/me/predictive-pricing` (`rates:read`)
-- `POST /mcp`. `GET /mcp` returns 405 `Method not allowed` and `Allow: POST`. This server does not open an event stream.
+- `POST /mcp`. A signed-in `GET /mcp` stays open as `text/event-stream` so the client can keep calling POST. Other methods return 405. When partner sign-in is off, GET returns 403.
 - `GET /.well-known/oauth-authorization-server`
 - `GET /.well-known/oauth-protected-resource` and `GET /.well-known/oauth-protected-resource/mcp`
 - `GET /api/health`
