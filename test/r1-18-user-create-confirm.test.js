@@ -1,30 +1,9 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
-const os = require('node:os');
 const path = require('node:path');
-const { spawnSync } = require('node:child_process');
 
 const root = path.resolve(__dirname, '..');
-
-test('R1-18: retired Airtable migration refuses without opening a database', () => {
-    const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'r1-18-guard-'));
-    const database = path.join(temporary, 'must-not-exist.db');
-    const env = { ...process.env, SQLITE_DB_PATH: database };
-    delete env.AIRTABLE_PAT;
-    try {
-        const result = spawnSync(process.execPath, ['scripts/migrate-from-airtable.js'], {
-            cwd: root, env, encoding: 'utf8', timeout: 10_000
-        });
-        assert.ifError(result.error);
-        assert.notEqual(result.status, 0);
-        assert.match(result.stdout + result.stderr, /D-026/);
-        assert.match(result.stdout + result.stderr, /raw Airtable shape cannot be started or restored on Round 1 code/);
-        assert.equal(fs.existsSync(database), false, 'refusal must happen before lib/db opens SQLite');
-    } finally {
-        fs.rmSync(temporary, { recursive: true, force: true });
-    }
-});
 
 test('R1-18: user create confirms and returns on denial before sending the request', () => {
     const source = fs.readFileSync(path.join(root, 'public/js/admin/users.js'), 'utf8');

@@ -19,10 +19,6 @@ services:
         value: production
       - key: SQLITE_DB_PATH
         value: /var/data/rateninja.db
-      # AIRTABLE_PAT is only needed for the one-time `npm run migrate` seed;
-      # safe to remove from the dashboard after the disk is populated.
-      - key: AIRTABLE_PAT
-        sync: false
       - key: RATE_NINJA_API_KEY
         sync: false
       - key: SESSION_SECRET

@@ -5,7 +5,6 @@
   "description": "Ocean freight rate lookup application",
   "scripts": {
     "start": "node server.js",
-    "migrate": "node scripts/migrate-from-airtable.js",
     "check": "node scripts/check-syntax.js",
     "set-password": "node scripts/set-password.js",
     "test": "node --experimental-test-isolation=process --test test/**/*.test.js"
