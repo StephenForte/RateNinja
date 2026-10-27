@@ -20,4 +20,4 @@ The directory is chosen at call time: `options.migrationsDir`, otherwise `MIGRAT
 
 ## Restore limits
 
-Restore only backups written by the D-003 migration runner from a database that had already booted the 2026-09-24 server (`838291a`) or later. A backup from before 2026-09-24, or anything written by `scripts/migrate-from-airtable.js`, cannot be restored onto Round 1 code (D-026).
+Restore only backups written by the D-003 migration runner from a database that had already booted the 2026-09-24 server (`838291a`) or later. A backup from before 2026-09-24, or a database produced by the retired Airtable import, cannot be restored onto Round 1 code (D-026).

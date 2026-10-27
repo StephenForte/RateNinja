@@ -6,7 +6,7 @@ Rate Ninja is a small web application for browsing ocean freight rates, sailing 
 
 1. Use Node.js 22 or later. Render runs Node.js 26.12.1; that pin is not required on a local machine.
 2. Copy `.env.example` to `.env` and set `SESSION_SECRET` (and `RATE_NINJA_API_KEY` if you want the public demo API).
-3. Ensure a SQLite database exists at `data/rateninja.db` (or set `SQLITE_DB_PATH`). To import from Airtable once, set the Airtable variables in `.env` and run `npm run migrate`.
+3. Ensure a SQLite database exists at `data/rateninja.db` (or set `SQLITE_DB_PATH`).
 4. Start the app:
 
    ```bash
@@ -29,8 +29,6 @@ Install dependencies once (`npm install`). Password hashing uses `@node-rs/argon
 | `RESEND_API_KEY` | For password reset mail | Resend API key. Never commit it |
 | `RESEND_FROM` | For password reset mail | From address Resend is allowed to send as |
 | `PUBLIC_ORIGIN` | No | Origin written into reset links. Defaults to `https://rate-ninja.onrender.com`. Request host headers are ignored |
-
-Airtable env vars are only needed for the one-time `npm run migrate` importer.
 
 ## Features
 
