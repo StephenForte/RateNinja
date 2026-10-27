@@ -969,7 +969,11 @@ const server = http.createServer(async (request, response) => {
         if (pathname === '/oauth/token' && request.method === 'POST') return handleToken(request, response);
         if (pathname === '/oauth/revoke' && request.method === 'POST') return handleRevoke(request, response);
         if (pathname === '/oauth/userinfo' && request.method === 'GET') return handleUserInfo(request, response);
-        if (pathname === '/mcp' && request.method === 'POST') return handleMcpRequest(request, response);
+        if (pathname === '/mcp' && request.method !== 'POST') {
+            sendJson(response, 405, { error: 'Method not allowed.' }, { Allow: 'POST', ...securityHeaders() });
+            return;
+        }
+        if (pathname === '/mcp') return handleMcpRequest(request, response);
         if (pathname === '/api/v1' && request.method === 'GET') {
             sendJson(response, 200, {
                 name: 'Rate Ninja Demo API',

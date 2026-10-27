@@ -230,6 +230,13 @@ describe('static files are served only from public/', () => {
             JSON.parse(result.body.toString('utf8'));
         }
 
+        const mcpGet = await rawGet('/mcp');
+        assert.equal(mcpGet.status, 405);
+        assert.equal(mcpGet.headers.allow, 'POST');
+        assert.equal(mcpGet.headers['content-type'], 'application/json; charset=utf-8');
+        assert.match(mcpGet.body.toString('utf8'), /Method not allowed/);
+        assert.equal(mcpGet.body.includes(Buffer.from('<!DOCTYPE')), false);
+
         const mcp = await rawRequest('POST', '/mcp', '{}', { 'content-type': 'application/json' });
         assert.equal(mcp.status, 403);
         assert.equal(mcp.headers['content-type'], 'application/json; charset=utf-8');
