@@ -707,6 +707,47 @@ function handlePartnerSailing(request, response, sailingId) {
     sendJson(response, 200, payload, securityHeaders());
 }
 
+function handleMcpStream(request, response) {
+    if (!partnerOauthEnabled()) {
+        sendJson(response, 403, { error: 'partner_oauth_disabled' }, securityHeaders());
+        return;
+    }
+    const origin = externalOrigin(request);
+    const authHeaders = {
+        'WWW-Authenticate': `Bearer realm="rateninja", resource_metadata="${origin}/.well-known/oauth-protected-resource"`
+    };
+    const token = bearerToken(request);
+    const verified = token ? oauth.verifyAccessToken(token) : { ok: false, status: 401, error: 'invalid_token', description: 'A bearer access token is required.' };
+    if (!verified.ok) {
+        sendJson(response, verified.status || 401, {
+            error: verified.error || 'invalid_token',
+            error_description: verified.description || 'A bearer access token is required.'
+        }, { ...authHeaders, ...securityHeaders() });
+        return;
+    }
+    if (!consumePartnerRequest(verified.access.clientId, verified.access.sub)) {
+        sendJson(response, 429, { error: 'rate_limited' }, securityHeaders());
+        return;
+    }
+    response.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        Connection: 'keep-alive',
+        'X-Accel-Buffering': 'no',
+        ...securityHeaders()
+    });
+    response.write(': connected\n\n');
+    const timer = setInterval(() => {
+        if (response.writableEnded || response.destroyed) {
+            clearInterval(timer);
+            return;
+        }
+        response.write(': ping\n\n');
+    }, 15000);
+    timer.unref();
+    response.on('close', () => clearInterval(timer));
+}
+
 async function handleMcpRequest(request, response) {
     const origin = externalOrigin(request);
     const authHeaders = {
@@ -969,8 +1010,9 @@ const server = http.createServer(async (request, response) => {
         if (pathname === '/oauth/token' && request.method === 'POST') return handleToken(request, response);
         if (pathname === '/oauth/revoke' && request.method === 'POST') return handleRevoke(request, response);
         if (pathname === '/oauth/userinfo' && request.method === 'GET') return handleUserInfo(request, response);
+        if (pathname === '/mcp' && request.method === 'GET') return handleMcpStream(request, response);
         if (pathname === '/mcp' && request.method !== 'POST') {
-            sendJson(response, 405, { error: 'Method not allowed.' }, { Allow: 'POST', ...securityHeaders() });
+            sendJson(response, 405, { error: 'Method not allowed.' }, { Allow: 'GET, POST', ...securityHeaders() });
             return;
         }
         if (pathname === '/mcp') return handleMcpRequest(request, response);
