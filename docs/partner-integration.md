@@ -29,7 +29,7 @@ When the gate is closed:
 
 `GET /.well-known/oauth-authorization-server` and `GET /.well-known/oauth-protected-resource` still return metadata. They do not check the gate.
 
-On 2026-10-13 the operator confirmed that production is running with this gate open. The code still refuses production when the variable is unset or `false`. This guide has no production key, client secret, or password.
+On 2026-10-13 the operator confirmed that production is running with this gate open. `render.yaml` sets `PARTNER_OAUTH_ENABLED` to `true`, because a blueprint sync overwrites the dashboard. The code still refuses production when the variable is unset or `false`. This guide has no production key, client secret, or password.
 
 ## Customer accounts
 

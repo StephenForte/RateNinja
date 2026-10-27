@@ -23,7 +23,7 @@ Install dependencies once (`npm install`). Password hashing uses `@node-rs/argon
 | --- | --- | --- |
 | `SESSION_SECRET` | Yes | Signs HTTP-only session cookies |
 | `OAUTH_SIGNING_SECRET` | No | Signs partner access tokens. Falls back to `SESSION_SECRET` |
-| `PARTNER_OAUTH_ENABLED` | No | `false` on Render until security gates are opened. See `docs/partner-integration.md` |
+| `PARTNER_OAUTH_ENABLED` | No | `true` in `render.yaml`, so a blueprint sync leaves partner sign-in on. See `docs/partner-integration.md` |
 | `RATE_NINJA_API_KEY` | For `/api/v1/*` | Public demo API key (`X-API-Key`). Does not grant partner access |
 | `SQLITE_DB_PATH` | No | Defaults to `data/rateninja.db` |
 | `RESEND_API_KEY` | For password reset mail | Resend API key. Never commit it |
@@ -45,7 +45,7 @@ Passwords are stored as Argon2id hashes. Existing plaintext passwords are not mi
 
 On startup the server adds missing SQLite columns and tables to the existing database file. It does not delete or replace that file.
 
-Partner OAuth, the partner API, and MCP are documented in `docs/partner-integration.md`. Leave `PARTNER_OAUTH_ENABLED` false in production until that document's gates are accepted. The host stays this Render service. `rateninja.co` can be attached later.
+Partner OAuth, the partner API, and MCP are documented in `docs/partner-integration.md`. `render.yaml` sets `PARTNER_OAUTH_ENABLED` to `true` on this Render service. `rateninja.co` is attached to the same service.
 
 ## Checks
 

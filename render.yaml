@@ -29,11 +29,10 @@ services:
         generateValue: true
       - key: OAUTH_SIGNING_SECRET
         generateValue: true
-      # Partner OAuth stays off on this service until the PRD security gates
-      # are accepted. rateninja.co attaches to this same service later and is
-      # not required for deploy.
+      # A blueprint sync writes this value over the dashboard. Keep it true
+      # so OceanRelay partner sign-in stays available while testing.
       - key: PARTNER_OAUTH_ENABLED
-        value: "false"
+        value: "true"
       # Set in the Render dashboard. Do not commit the API key or from-address.
       - key: RESEND_API_KEY
         sync: false
