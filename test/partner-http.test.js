@@ -259,6 +259,7 @@ describe('partner http', () => {
         assert.equal(opened.status, 200);
         assert.equal(opened.type, 'text/event-stream');
         assert.match(opened.chunk, /: connected/);
+        assert.match(opened.chunk, /notifications\/tools\/list_changed/);
 
         const blackwater = db.prepare(`SELECT id FROM companies WHERE company_name = 'Blackwater Shippers'`).get();
         const margin = await fetch(`${baseUrl}/api/admin/companies/${blackwater.id}`, {

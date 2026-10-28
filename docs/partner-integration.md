@@ -106,7 +106,7 @@ Scopes are `profile:read`, `rates:read`, and `sailings:read`. Predictive pricing
 - `GET /api/partner/v1/me/rates` and `GET /api/partner/v1/me/rates/{rateId}` (`rates:read`)
 - `GET /api/partner/v1/me/sailings` and `GET /api/partner/v1/me/sailings/{sailingId}` (`sailings:read`)
 - `GET /api/partner/v1/me/predictive-pricing` (`rates:read`)
-- `POST /mcp`. A signed-in `GET /mcp` stays open as `text/event-stream` so the client can keep calling POST. Other methods return 405. When partner sign-in is off, GET returns 403.
+- `POST /mcp`. A signed-in `GET /mcp` stays open as `text/event-stream`, sends `notifications/tools/list_changed` when it opens, and then stays open so the client can keep calling POST. Other methods return 405. When partner sign-in is off, GET returns 403.
 - `GET /.well-known/oauth-authorization-server`
 - `GET /.well-known/oauth-protected-resource` and `GET /.well-known/oauth-protected-resource/mcp`
 - `GET /api/health`
@@ -177,7 +177,7 @@ Every tool rejects unknown properties. Dates are `YYYY-MM-DD`. The tools are rea
 
 `initialize` echoes a requested `protocolVersion` when this server supports it. Otherwise it answers the latest supported version. The supported set exercised with MCP Inspector 2.10.1 and the tests is `2025-11-25` and `2025-03-26`. `2025-11-25` is the latest of those. Send it as `initialize` `params.protocolVersion`. If the `mcp-protocol-version` header is present and is not one of those two values, `POST /mcp` returns HTTP 400 `Unsupported protocol version` and does not accept the token yet.
 
-`serverInfo.name` is `rateninja` and `serverInfo.version` is `1.0.0`. `capabilities.tools.listChanged` is false.
+`serverInfo.name` is `rateninja` and `serverInfo.version` is `1.0.0`. `capabilities.tools.listChanged` is true. The event stream sends `notifications/tools/list_changed` once when it opens.
 
 ## Revoke
 
