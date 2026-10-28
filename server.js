@@ -736,7 +736,10 @@ function handleMcpStream(request, response) {
         'X-Accel-Buffering': 'no',
         ...securityHeaders()
     });
-    response.write(': connected\n\n');
+    // Cursor caches an empty tool list and does not call tools/list again until
+    // it sees this notification. The event id is what that client treats as a priming event.
+    const toolListChanged = JSON.stringify({ jsonrpc: '2.0', method: 'notifications/tools/list_changed' });
+    response.write(`: connected\n\nid: 1\nevent: message\ndata: ${toolListChanged}\n\n`);
     const timer = setInterval(() => {
         if (response.writableEnded || response.destroyed) {
             clearInterval(timer);

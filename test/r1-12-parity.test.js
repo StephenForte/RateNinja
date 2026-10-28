@@ -536,6 +536,7 @@ describe('partner and MCP parity', { concurrency: 1 }, () => {
             });
             assert.equal(response.status, 200, response.text);
             assert.equal(response.body.result.protocolVersion, version);
+            assert.equal(response.body.result.capabilities.tools.listChanged, true);
         }
         const unknown = await mcpCall(app.baseUrl, token, 'initialize', { protocolVersion: '1999-01-01' });
         assert.equal(unknown.body.result.protocolVersion, '2025-11-25');
