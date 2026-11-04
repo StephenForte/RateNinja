@@ -120,17 +120,11 @@ describe('R1-22 customer partner boundary', { concurrency: 1 }, () => {
         const createTool = listed.body.result.tools.find(t => t.name === 'rateninja_create_booking_request');
         assert.deepEqual(createTool.annotations, { readOnlyHint: false, destructiveHint: false, idempotentHint: false });
         assert.match(createTool.description, /repeat call creates another request/);
-        const { execFileSync } = require('node:child_process');
-        const Module = require('node:module');
-        const path = require('node:path');
-        const original = new Module(path.resolve(__dirname, '../lib/mcp.js'), module);
-        original.filename = path.resolve(__dirname, '../lib/mcp.js');
-        original.paths = module.paths;
-        original._compile(execFileSync('git', ['show', '9a5534b:lib/mcp.js'], { encoding: 'utf8' }), original.filename);
-        const access = require('../lib/oauth').verifyAccessToken(ownerToken.access_token).access;
-        const expected = original.exports.handleMcp({ message: { jsonrpc: '2.0', id: 1, method: 'tools/list' }, access }).body;
+        // SHA-256 of JSON.stringify(tools/list body, id 1) from main 9a5534b.
+        // Pin the full bytes without requiring history in CI's shallow checkout.
         const actual = await mcpCall(app.baseUrl, ownerToken.access_token, 'tools/list', {});
-        assert.equal(JSON.stringify(actual.body), JSON.stringify(expected));
+        const digest = require('node:crypto').createHash('sha256').update(JSON.stringify(actual.body)).digest('hex');
+        assert.equal(digest, '872126b25ad6a6bfc9493bf372d18f9e232c32c4491466ad0076a28344d901be');
     });
 
     it('creates through API and MCP using the shared snapshot rules and audit context', async () => {
