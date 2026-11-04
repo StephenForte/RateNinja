@@ -44,9 +44,10 @@ Owner of this file and the decisions log: the planner. **Workers never edit eith
 | 007 | reserved | R1-09 (use only if needed) |
 | 008 | `lib/migrations/008-import-jobs.js` | R1-11a |
 | 009 | reserved | R1-12 (use only if needed) |
-| 010+ | unassigned | ask the planner |
+| 010 | `lib/migrations/010-booking-requests.js` | R1-19 |
+| 011+ | unassigned | ask the planner |
 
-Next free: **010**. (007 and 009 were reserved and never used; don't reuse them without a planner decision.)
+Next free: **011**. (007 and 009 were reserved and never used; don't reuse them without a planner decision.)
 
 ## Task tree
 
@@ -74,6 +75,8 @@ Model names are the planner's proposal; operator overrides recorded in the Run c
 | R1-16 | P2: duplicate handling | FR13 | R1-11a | S | not planned in detail |
 | R1-17 | Partner/MCP return null for a missing price (not 0) | FR 8, FR 11 | R1-11a | M / Sonnet 5.5 | merged 2026-10-14, PR #41 |
 | R1-18 | User-create company confirmation (R114-4); guard the Airtable migration script (D-026) | FR1, FR6 | R1-14 | M / Sonnet 5.5 | approved 2026-10-14, PR #45 |
+| R1-19 | Booking requests P1: grid button, requests table, approve/decline, in-app notifications | D-027 | — | S / Opus 5.5 | dispatch pending, run alone in the main checkout |
+| R1-20 | P2: booking request emails via `lib/resend.js` | D-027 | R1-19 | M | not planned in detail |
 
 ### Run order (waves)
 
@@ -109,6 +112,7 @@ Peak concurrency is 4 (W2). If the operator runs fewer agents, drop R1-05 to W3 
 | R1-13 | `public/js/admin/integrations.js` | `public/api-docs.html`, `API-README.md`, `docs/partner-integration.md` |
 | R1-14 | `test/r1-14-*`, `docs/release-acceptance-r1.md` | — |
 | R1-18 | `test/r1-18-*` | `public/js/admin/users.js` (`create` handler only), `scripts/migrate-from-airtable.js` (refusal guard at the top), `lib/migrations/README.md` (restore-limits note) |
+| R1-19 | `lib/migrations/010-*`, `lib/booking-requests.js`, `lib/routes/booking-requests.js`, `public/js/rates/booking-requests.js`, `public/js/booking-notifications.js`, `docs/booking-requests.md`, `test/r1-19-*`, `test/helpers/r1-19.js` | `lib/routes/index.js` (one line), `lib/limits.js`, `lib/permissions.js` (add predicates only), `public/js/registry.js`, `public/js/shell.js`, `public/js/rates/browse.js`, `public/index.html` (bell and dialog), `public/styles.css` (append-only, R1-19 block), `README.md` (feature line), `lib/migrations/README.md` only if needed, tests that assert the applied-id list, route modules, or menu paths |
 
 ### Pre-registered modules (so nobody edits a registry)
 
@@ -164,6 +168,7 @@ Every migration task must also prove: fresh DB, prod-shaped copy, and re-run (id
 
 _(planner appends: task, PR, verdict, what was independently verified and how)_
 
+- 2026-11-03 · **R1-19 planned (D-027).** Baseline `215ad9f`: CI green; `git archive` copy on Node 26 gave 204 tests, 200 pass, 1 fail, 3 todo. The one failure is `git check-ignore` in `test/r1-01-migrations.test.js` needing a `.git` directory, so it is an artifact of the copy (a real clone should give 201/0). **Hazard:** in the operator's local `data/rateninja.db` all 3,108 rates expired by 2026-08-30. Production is unchecked. If it matches, D-027 availability shows no button until rates are pulled forward.
 - 2026-10-14 · **R1-18, PR #45: approved at `74f9764`, merge as-is. Merging it closes Round 1 P1.** Base `bf86849` = main; scope is the 3 narrow-edit files plus `test/r1-18-*`. Fresh clone on Node 26: 206 tests, 203 pass, 0 fail, 3 todo. `npm run migrate` with a temp `SQLITE_DB_PATH` exits 1 with D-026 and creates no file. Both new tests fail when I break the mechanism (guard moved below `require('../lib/db')`; `!gate.allowed` replaced with `false`). The guard is `require.main`-scoped because `test/migrate-company-link.test.js` imports the script's helpers; I accepted that. I did not re-run the browser steps (the worker ran cancel and confirm on a temp DB).
 - 2026-10-14 · **Round 1 P1 release call: accepted for production.** P1 has been live since the R1-17 deploy. The R1-14 matrix (107 PASS, 4 FAIL, 4 GAP, 3 CHANGED-BY-DECISION) has one production FAIL: R114-4 → R1-18. The other three FAIL rows (FR5 startup preservation, the FR7 migration half, the Validation migration bullet) are the raw-Airtable-shape path, retired by D-026. The 4 GAP rows are untested paths, not observed defects, and are accepted as residual (FR3 predictive marker with hidden columns, FR6 wizard retention after an error, FR8 suggestion rendering, FR11 rate-limit outcome). Round 1 closes when R1-18 merges. P2 (R1-15, R1-16) is not planned.
 - 2026-10-14 · **R1-14, PR #43: approved at `6d6cb9f`, merge as-is.** Base `93c6386` = main; scope is two owned files. Fresh clone on Node 26: 204 tests, 201 pass, 0 fail, 3 todo; check clean. I opened 10 cited PASS lines and all match (pricing 1125; saved-query apply; predictive basis and the `margin` exclusion; `insufficient_scope`; import errors; password change revoking sessions, challenges and resets; onboarding rollback; `field_not_editable`; disabled-user MCP 401). Protected mtimes are unchanged. **Severity corrected:** the worker marked R114-1 and R114-3 as release blockers, but production is unaffected. Pre-R1 `de112e6` on a scratch copy of the pre-001 backup gives 3 recognized types, 2 margins, 0 unowned rates, and still clears `pwd` and adds Alan/Bob. So R114-2 and R114-3 date from `838291a` (2026-09-24), and R114-1 comes from R1-02's insert-only `ensureCompany` (D-006, `75b4f8b`) meeting `rec…` type ids. Production normalized before R1-02 shipped. The operator retired the path (D-026). R114-4 is confirmed: the `create` handler in `users.js` posts without `confirmed()` → R1-18. Litter: 11 `/tmp/r114-*` files remain (the temp directories were deleted).
