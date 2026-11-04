@@ -355,6 +355,7 @@ below are pending product review.
   client gets the three read scopes it has today, not the booking scopes. New clients in the admin
   screen do not get `bookings:write` by default. A client only gets it when a system admin allows
   it and the user consents.
+- **Discovery stays minimal (added 2026-11-03, R1-21 review).** `scopes_supported` publishes only `profile:read`, `rates:read`, and `sailings:read`. MCP clients request everything published, and `parseScopes` rejects a request with any scope the client is not allowed, so publishing booking scopes breaks sign-in for existing clients. Clients ask for booking scopes explicitly.
 - **Consent must say what write does.** The consent page describes `bookings:write` in words: it
   lets the app approve or decline booking requests for the company.
 - **One rule set.** Partner and MCP calls go through `lib/booking-requests.js`, the same rules and
