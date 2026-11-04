@@ -304,3 +304,38 @@ Decision (operator, 2026-10-14):
   post-2026-09-24 database. The restore note in `lib/migrations/README.md` says this (R1-18).
 - The operator's local `data/rateninja.db` has this lineage. It is not a valid test or restore
   baseline for Round 1.
+
+### D-027 — Booking requests, P1 (2026-11-03)
+
+A customer asks a contract owner for space on a rate from the rates grid. The owner approves or
+declines in the app. Task R1-19. Operator answers 2026-11-03 are marked; the rest are planner
+defaults pending product review.
+
+- **Who requests:** any user of a Freight Forwarder/Customer company, member or admin. Contract
+  Owner companies get no button. System admins act as their home company (D-020).
+- **Who decides (operator):** any user of the company that owns the rate, member or admin. This
+  is a deliberate exception to the admin-only owner operations in the PRD role table. System
+  admins act only through their home company, not the selected company context.
+- **What is requested (operator):** one rate, one container size (`20D`, `40D`, or `40HC`) that
+  has a price for that customer, and a whole number of slots from 1 to `MAX_BOOKING_SLOTS`
+  (`lib/limits.js`, 1,000).
+- **Available (operator):** a saved, non-deleted, non-predictive rate the customer's company can
+  see now through an active link, with a blank expiration date or one on or after today (UTC).
+  A rate that is not yet effective qualifies. The server enforces this; hiding the button is not
+  the control.
+- **Storage:** one table, `booking_requests`, migration 010. Status is `pending`, `approved`, or
+  `declined`. Each row snapshots the rate details and the customer's price at request time, so
+  it stays readable after the rate is edited, deleted, or pulled forward.
+- **Price:** the snapshot is the customer's price from the D-013 pricing path, never the owner's
+  base price. Both sides see that same number.
+- **Decisions are final:** the first decision wins and any later one gets 409. No customer
+  cancel, no edit, no reopen in P1.
+- **Notifications:** in the app only, on both ends. A new request is unread for the owner company;
+  a decision is unread for the customer company. Read state is per company side, not per user, so
+  one colleague opening the page clears it for the others. Accepted for P1.
+- **Visibility:** every user of the two companies on a request can see it, and nobody else. The
+  customer side is not shown who at the owner decided.
+- **Capacity:** approval reserves nothing and nothing counts slots. `ALLOCATION_NOTICE` still
+  holds: rate records are not evidence of capacity.
+- **Not exposed to partners:** no partner API or MCP surface in P1.
+- **P2 (operator):** email to both ends, through `lib/resend.js`. Task R1-20, not planned in detail.
