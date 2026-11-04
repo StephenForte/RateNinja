@@ -254,7 +254,7 @@ describe('owner booking requests on the partner API and MCP', { concurrency: 1 }
             'public/js/admin/integrations.js'
         ]) {
             const text = fs.readFileSync(path.join(ROOT, relativePath), 'utf8');
-            assert.match(text, /planned, not available/, relativePath);
+            assert.match(text, /list before retrying/, relativePath);
             assert.equal(text.includes('The tools are read-only.'), false, relativePath);
         }
 
@@ -286,6 +286,7 @@ describe('owner booking requests on the partner API and MCP', { concurrency: 1 }
         assert.equal(invalid.status, 302);
         assert.match(invalid.headers.get('location'), /error=invalid_scope/);
 
+        app.db.prepare('UPDATE companies SET company_type = ?, company_type_id = NULL WHERE id = ?').run('', 'book-customer-a');
         const customerProof = pkce();
         const customerDenied = await fetch(`${app.baseUrl}/oauth/authorize?${new URLSearchParams({
             response_type: 'code',
@@ -298,8 +299,9 @@ describe('owner booking requests on the partner API and MCP', { concurrency: 1 }
         })}`, { headers: { cookie: customer.cookie }, redirect: 'manual' });
         assert.equal(customerDenied.status, 302);
         const customerLocation = customerDenied.headers.get('location');
-        assert.match(customerLocation, /only_contract_owner/);
+        assert.match(customerLocation, /unsupported_company_type/);
         assert.equal(new URL(customerLocation).searchParams.get('code'), null);
+        app.db.prepare('UPDATE companies SET company_type = ?, company_type_id = NULL WHERE id = ?').run(COMPANY_TYPE_CUSTOMER, 'book-customer-a');
     });
 
     it('keeps booking scopes out of discovery and still accepts an explicit request', async () => {

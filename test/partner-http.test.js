@@ -281,6 +281,7 @@ describe('partner http', () => {
         const alanBody = await alanRates.json();
         assert.deepEqual(alanBody.rates.map(rate => [rate.id, rate.rate20D]).sort(), [['kings-rate', 1100]]);
 
+        db.prepare('UPDATE companies SET company_type = ?, company_type_id = NULL WHERE id = ?').run('', blackwater.id);
         const denied = await fetch(`${baseUrl}/oauth/authorize?${new URLSearchParams({
             response_type: 'code',
             client_id: client.id,
@@ -292,7 +293,7 @@ describe('partner http', () => {
         })}`, { headers: { cookie: alan.cookie }, redirect: 'manual' });
         assert.equal(denied.status, 302);
         assert.match(denied.headers.get('location'), /error=access_denied/);
-        assert.match(denied.headers.get('location'), /only_contract_owner/);
+        assert.match(denied.headers.get('location'), /unsupported_company_type/);
 
         const rotated = await fetch(`${baseUrl}/oauth/token`, {
             method: 'POST',

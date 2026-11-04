@@ -169,8 +169,10 @@ describe('r1-01 routes and exact documents', { concurrency: 1 }, () => {
                 assert.equal(mod.routes.length, 7);
                 assert.ok(mod.routes.every(route => route.access === 'session'));
             } else if (name === 'partner-bookings') {
-                assert.equal(mod.routes.length, 3);
+                assert.equal(mod.routes.length, 5);
                 assert.deepEqual(mod.routes.map(route => [route.method, route.path || route.pattern.source, route.access]), [
+                    ['GET', '/api/partner/v1/me/available-rates', 'public'],
+                    ['POST', '/api/partner/v1/me/booking-requests', 'public'],
                     ['GET', '/api/partner/v1/me/booking-requests', 'public'],
                     ['GET', '^\\/api\\/partner\\/v1\\/me\\/booking-requests\\/([^/]+)$', 'public'],
                     ['POST', '^\\/api\\/partner\\/v1\\/me\\/booking-requests\\/([^/]+)\\/decision$', 'public']

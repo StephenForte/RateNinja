@@ -48,7 +48,7 @@ export async function mount(container) {
 function paragraphSubtitle() {
     const node = document.createElement('p');
     node.className = 'pull-forward-subtitle';
-    node.textContent = 'Partner grants for this contract owner.';
+    node.textContent = 'Partner grants for your account.';
     return node;
 }
 

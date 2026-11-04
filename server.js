@@ -652,8 +652,8 @@ function handleUserInfo(request, response) {
 }
 
 function handleConsents(request, response, session) {
-    if (!session.user.isContractOwner) {
-        sendError(response, 403, 'Only contract-owner accounts have partner grants.');
+    if (!permissions.canUsePartnerAccount(session.user.id)) {
+        sendError(response, 403, 'This company type cannot have partner grants.');
         return;
     }
     sendJson(response, 200, { grants: oauth.listUserGrants(session.user.id) }, securityHeaders());
@@ -661,8 +661,8 @@ function handleConsents(request, response, session) {
 
 function handleConsentDelete(request, response, session, clientId) {
     if (!requireCsrf(request, response, session)) return;
-    if (!session.user.isContractOwner) {
-        sendError(response, 403, 'Only contract-owner accounts have partner grants.');
+    if (!permissions.canUsePartnerAccount(session.user.id)) {
+        sendError(response, 403, 'This company type cannot have partner grants.');
         return;
     }
     oauth.revokeUserClientGrant(session.user.id, clientId);
