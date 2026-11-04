@@ -339,3 +339,30 @@ defaults pending product review.
   holds: rate records are not evidence of capacity.
 - **Not exposed to partners:** no partner API or MCP surface in P1.
 - **P2 (operator):** email to both ends, through `lib/resend.js`. Task R1-20, not planned in detail.
+
+### D-028 — Booking requests on the partner API and MCP (2026-11-03, amends D-027)
+
+D-027 kept booking requests off the partner surfaces. The operator reversed that on 2026-11-03:
+owners and customers both get them, and owners can approve or decline there. Planner defaults
+below are pending product review.
+
+- **Two tasks, in order.** R1-21 adds the owner side. R1-22 opens partner OAuth to customer
+  accounts and adds the customer side. They share `lib/oauth.js`, `lib/mcp.js`, and the docs, and
+  R1-22 changes a live security boundary, so it gets its own review.
+- **Scopes:** `bookings:read` and `bookings:write`. This is the first write scope on these
+  surfaces. Reading never implies writing.
+- **No silent grants.** Existing clients keep their allowed scopes. The seeded Capacity Exchange
+  client gets the three read scopes it has today, not the booking scopes. New clients in the admin
+  screen do not get `bookings:write` by default. A client only gets it when a system admin allows
+  it and the user consents.
+- **Consent must say what write does.** The consent page describes `bookings:write` in words: it
+  lets the app approve or decline booking requests for the company.
+- **One rule set.** Partner and MCP calls go through `lib/booking-requests.js`, the same rules and
+  responses as the app. Any owner-company user may decide (D-027), so the token's user needs only
+  the scope. First decision wins; a later one is an error.
+- **Audit:** decisions record the client id and channel. Reads use a partner audit event.
+- **Unread state:** partner and MCP reads do not change it. A decision made there still shows as
+  unread for the customer in the app.
+- **R1-22 boundary, to be detailed when it is planned:** a customer token must never see an
+  owner's base price on any partner route or MCP tool. Customers get a customer-priced rate
+  listing to find a rate id. Owner-only tools stay owner-only.
