@@ -74,7 +74,7 @@ export const sections = [
         label: 'Connected apps',
         group: 'Profile',
         path: '/profile/connected-apps',
-        allow: permissions => signedIn(permissions) && permissions.contractOwner === true,
+        allow: permissions => signedIn(permissions) && ['Contract Owner', 'Freight Forwarder/Customer'].includes(permissions.companyType),
         load: () => import('./profile/connected-apps.js')
     },
     {

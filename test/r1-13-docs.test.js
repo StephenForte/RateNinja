@@ -52,14 +52,15 @@ describe('API and MCP instructions', () => {
             signedIn: true,
             companyAdmin: true,
             contractOwner: false,
-            companyName: 'Blackwater'
+            companyName: 'Blackwater',
+            companyType: 'Freight Forwarder/Customer'
         });
 
         assert.equal(owner.audience, 'owner');
         assert.match(owner.summary, /contract owner/i);
         assert.match(owner.points.join(' '), /OAuth/);
         assert.match(owner.points.join(' '), /MCP/);
-        assert.match(owner.points.join(' '), /cannot approve partner or MCP access/);
+        assert.match(owner.points.join(' '), /Unsupported company types cannot approve partner or MCP access/);
         assert.deepEqual(owner.links.map(link => link.href), [
             '/api-testbed.html',
             '/api-docs.html',
@@ -68,8 +69,12 @@ describe('API and MCP instructions', () => {
             '/profile/connected-apps'
         ]);
 
+        const unsupported = instructionsFor({ signedIn: true, companyType: '' });
+        assert.equal(unsupported.audience, 'unsupported');
+        assert.match(unsupported.summary, /cannot authorize/);
+        assert.equal(unsupported.links.some(link => link.href === '/profile/connected-apps'), false);
         assert.equal(customer.audience, 'customer');
-        assert.match(customer.summary, /cannot authorize the partner API or MCP/);
+        assert.match(customer.summary, /partner API and MCP are available/);
         assert.match(customer.points.join(' '), /GET \/api\/rates/);
         assert.match(customer.points.join(' '), /session cookie/);
         assert.equal(customer.points.some(point => /client secret is [A-Za-z0-9]/.test(point)), false);
@@ -77,9 +82,10 @@ describe('API and MCP instructions', () => {
             '/api-testbed.html',
             '/api-docs.html',
             '/API-README.md',
-            '/docs/partner-integration.md'
+            '/docs/partner-integration.md',
+            '/profile/connected-apps'
         ]);
-        assert.equal(customer.links.some(link => link.href === '/profile/connected-apps'), false);
+        assert.equal(customer.links.some(link => link.href === '/profile/connected-apps'), true);
     });
 
     it('keeps the R1-12 coverage rows in all three docs', () => {

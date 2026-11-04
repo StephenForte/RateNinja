@@ -5,7 +5,8 @@ export const ANONYMOUS = Object.freeze({
     contractOwner: false,
     legacy: false,
     companyContext: null,
-    companyName: ''
+    companyName: '',
+    companyType: ''
 });
 
 export function normalizeCompanyContext(value) {
@@ -26,6 +27,7 @@ export function contextFromPayload(payload) {
 
 export function permissionsFromUser(user) {
     if (!user || typeof user !== 'object') return { ...ANONYMOUS };
+    const companyType = typeof user.companyType === 'string' ? user.companyType : '';
     const companyName = typeof user.companyName === 'string' ? user.companyName : '';
     const companyContext = normalizeCompanyContext(user.companyContext);
     if (user.permissions && typeof user.permissions === 'object') {
@@ -36,7 +38,8 @@ export function permissionsFromUser(user) {
             contractOwner: user.permissions.contractOwner === true,
             legacy: false,
             companyContext,
-            companyName
+            companyName,
+            companyType
         };
     }
     return {
@@ -46,7 +49,8 @@ export function permissionsFromUser(user) {
         contractOwner: user.isContractOwner === true,
         legacy: true,
         companyContext,
-        companyName
+        companyName,
+        companyType
     };
 }
 

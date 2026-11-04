@@ -10,12 +10,13 @@ const member = {
     contractOwner: false,
     legacy: false,
     companyContext: null,
-    companyName: ''
+    companyName: '',
+    companyType: 'Freight Forwarder/Customer'
 };
 const customerAdmin = { ...member, companyAdmin: true, companyName: 'Blackwater' };
-const ownerAdmin = { ...member, companyAdmin: true, contractOwner: true, companyName: 'Kings Group' };
-const systemAdmin = { ...member, systemAdmin: true, companyContext: { id: 'kings', name: 'Kings Group' } };
-const everyRole = { ...systemAdmin, companyAdmin: true, contractOwner: true };
+const ownerAdmin = { ...member, companyAdmin: true, contractOwner: true, companyType: 'Contract Owner', companyName: 'Kings Group' };
+const systemAdmin = { ...member, companyType: '', systemAdmin: true, companyContext: { id: 'kings', name: 'Kings Group' } };
+const everyRole = { ...systemAdmin, companyType: 'Contract Owner', companyAdmin: true, contractOwner: true };
 
 describe('app shell routes', () => {
     it('maps every registered path and rejects the unknown ones', async () => {
@@ -41,7 +42,8 @@ describe('app shell routes', () => {
         const denied = [
             [member, '/admin/users'],
             [member, '/admin/customers'],
-            [member, '/profile/connected-apps'],
+            [{ ...member, companyType: '' }, '/profile/connected-apps'],
+            [{ ...member, companyType: 'Unsupported' }, '/profile/connected-apps'],
             [customerAdmin, '/admin/customers'],
             [customerAdmin, '/admin/companies'],
             [customerAdmin, '/admin/oauth-clients'],
@@ -71,7 +73,8 @@ describe('menu matches the role', () => {
             '/profile/booking-requests',
             '/profile/account',
             '/profile/security',
-            '/profile/preferences'
+            '/profile/preferences',
+            '/profile/connected-apps'
         ]);
         assert.deepEqual(paths(customerAdmin), [
             '/rates',
@@ -79,6 +82,7 @@ describe('menu matches the role', () => {
             '/profile/account',
             '/profile/security',
             '/profile/preferences',
+            '/profile/connected-apps',
             '/admin/users',
             '/admin/integrations'
         ]);

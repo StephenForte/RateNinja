@@ -457,7 +457,7 @@ describe('partner and MCP parity', { concurrency: 1 }, () => {
         assert.equal(epochMcp.body.error.message, 'invalid_token');
     });
 
-    await step('rejects the demo key, keeps the deployment gate, and refuses customer accounts', async () => {
+    await step('rejects the demo key, keeps the deployment gate, and refuses unsupported company types', async () => {
         for (const path of ['/api/partner/v1/me/rates', '/api/partner/v1/me/sailings', '/api/partner/v1/me/predictive-pricing']) {
             const response = await fetch(`${app.baseUrl}${path}`, { headers: { 'x-api-key': 'demo-key' } });
             const body = await response.json();
@@ -479,6 +479,7 @@ describe('partner and MCP parity', { concurrency: 1 }, () => {
             body: JSON.stringify({ username: 'customer-c', password: PASSWORD })
         });
         const customer = await login.json();
+        app.db.prepare('UPDATE companies SET company_type = ?, company_type_id = NULL WHERE id = ?').run('', 'customer-c');
         const proof = helpers.pkce();
         const denied = await fetch(`${app.baseUrl}/oauth/authorize?${new URLSearchParams({
             response_type: 'code',
@@ -490,7 +491,7 @@ describe('partner and MCP parity', { concurrency: 1 }, () => {
             code_challenge_method: 'S256'
         })}`, { headers: { cookie: cookieHeader(login) }, redirect: 'manual' });
         assert.equal(denied.status, 302);
-        assert.match(denied.headers.get('location'), /only_contract_owner/);
+        assert.match(denied.headers.get('location'), /unsupported_company_type/);
         assert.equal(customer.user.isContractOwner, false);
 
         process.env.PARTNER_OAUTH_ENABLED = 'false';

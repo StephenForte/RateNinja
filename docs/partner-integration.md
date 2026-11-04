@@ -6,11 +6,11 @@ Three ways to read rates. They are not interchangeable.
 | --- | --- | --- | --- |
 | Same-origin session | The signed-in user | HTTP-only cookie `rate_ninja_session` | Contract owner: base contract price. Customer: that customer's active margin on the linked owner's base |
 | Demo API | Anyone who has the shared demo key | `X-API-Key` | Base contract price for the whole demo database. Not a company's private credential |
-| Partner API and MCP | A contract-owner user who approved a registered OAuth client | Bearer access token, audience `rn:partner-api` | That owner's base contract price. Predictive calls are estimates of that base price |
+| Partner API and MCP | A Contract Owner or Freight Forwarder/Customer user who approved a registered OAuth client | Bearer access token, audience `rn:partner-api` | Owners: base contract prices and predictive estimates. Customers: their own prices through active links |
 
-Customer accounts cannot approve the partner API or MCP. The demo key is rejected there: those routes read only a bearer access token.
+Contract Owner and Freight Forwarder/Customer accounts can authorize the partner API and MCP. The demo key is rejected there: those routes read only a bearer access token.
 
-Booking requests are the exception on price. Those responses carry the customer price stored on the request, and the requester, and they do not carry the base price. A contract owner lists and reads them with `bookings:read` and approves or declines them with `bookings:write`. That decision changes data and is final. Customer access to booking requests on the partner API and MCP is planned, not available.
+Booking requests are the exception on price. Those responses carry the customer price stored on the request (and the requester in the owner view), and they do not carry the base price. A contract owner lists and reads them with `bookings:read` and approves or declines them with `bookings:write`. That decision changes data and is final. Customers can list, read and create their own booking requests through the partner API and MCP.
 
 ## Deployment gate
 
@@ -35,9 +35,9 @@ On 2026-10-13 the operator confirmed that production is running with this gate o
 
 ## Customer accounts
 
-Company type `Contract Owner` can approve a client. Company type `Freight Forwarder/Customer` cannot. On authorize, a signed-in customer is sent back to the redirect URI with `error=access_denied` and `error_description=only_contract_owner`. Token exchange and refresh also reject a user who is not a contract owner.
+Company types `Contract Owner` and `Freight Forwarder/Customer` can approve a client. Other or blank types are refused with `access_denied` / `unsupported_company_type` at authorize, and rejected at code exchange, refresh and access-token verification. Company type is read live on each call; it is never a token role claim.
 
-`GET /oauth/consents` and `DELETE /oauth/consents/{clientId}` return 403 `Only contract-owner accounts have partner grants.` for anyone else.
+Both supported company types can list and revoke grants with `GET /oauth/consents` and `DELETE /oauth/consents/{clientId}` on Connected apps. Unsupported types receive 403.
 
 An account that still has to change a temporary password gets 403 HTML and no grant. Change the password, then try again.
 
@@ -51,7 +51,7 @@ Base contract price is the stored container amount, rounded to a whole dollar, w
 
 Partner rate and sailing payloads set `source` to `base_contract`. `currency` and `updatedAt` are `null` because those columns are not stored. `allocationEvidence` is false and `capacityQuantity` is `null`. The list `notice` is: "Rate and sailing records are not evidence of allocatable or transferable capacity."
 
-Customer margin price is the session browsing price for a customer. `customerPrice` applies the active link's margin: a stored `margin_percent` greater than 1 is a whole percent, and a stored value of 1 or less is a fraction (so 1 means 100%). It then adds `margin_number` and rounds to a whole dollar. Only an active link is visible. Partner, MCP, and demo responses do not apply this margin.
+Customer margin price is the session browsing price for a customer. `customerPrice` applies the active link's margin: a stored `margin_percent` greater than 1 is a whole percent, and a stored value of 1 or less is a fraction (so 1 means 100%). It then adds `margin_number` and rounds to a whole dollar. Only an active link is visible. Customer available-rates responses on the partner API and MCP apply this margin. Owner base-rate and demo responses do not.
 
 Predictive estimate is not a saved price. The shared rule is: the `after` date must be more than 90 UTC days ahead, or the error is `Departing after must be more than 90 days in the future.` The period count is `floor(daysUntil / 30)`. A container price on file becomes `round(base * (1 + periods * 0.05))`. A missing base stays null. The latest rate for that route is used (latest expiration date; the route key is carrier, origin, destination, and arrival). Nothing is written to the database.
 
@@ -84,7 +84,7 @@ Passwords are Argon2id. Reset links expire after 30 minutes, work once, and only
 A system administrator registers the client under Admin, OAuth clients. Confidential clients receive a secret once, at creation or rotation. Public clients have no secret and must not send one. The first seeded display name is Capacity Exchange; administrators can register more clients.
 
 1. The client sends the user to `GET /oauth/authorize` with `response_type=code`, `client_id`, `redirect_uri`, `scope`, `state`, `code_challenge`, and `code_challenge_method=S256`. `state` is required and at most 512 characters. Scopes are a space-separated subset of the client's allowed scopes.
-2. If the user is not signed in, the server redirects to `/login` and then back. A contract owner sees the consent page. A customer is redirected to the client with `access_denied` / `only_contract_owner`.
+2. If the user is not signed in, the server redirects to `/login` and then back. Contract owners and customers see consent wording for their own company type. Unsupported types are redirected with `access_denied` / `unsupported_company_type`.
 3. Approve posts the same fields plus `decision=approve` and `csrf_token`. Deny posts `decision=deny`.
 4. The redirect carries `code` and `state`. The code lives 60 seconds and works once.
 5. `POST /oauth/token` with `grant_type=authorization_code`, `code`, `redirect_uri`, `client_id`, `code_verifier`, and, for a confidential client, `client_secret` in the body. JSON or form body. The verifier is 43 to 128 characters from `A-Z`, `a-z`, `0-9`, `-`, `.`, `_`, `~`.
@@ -104,7 +104,7 @@ Scopes are `profile:read`, `rates:read`, `sailings:read`, `bookings:read`, and `
 - `POST /oauth/token`
 - `POST /oauth/revoke`
 - `GET /oauth/userinfo` (scope `profile:read`)
-- `GET /oauth/consents` and `DELETE /oauth/consents/{clientId}` (session, contract owner, CSRF on delete)
+- `GET /oauth/consents` and `DELETE /oauth/consents/{clientId}` (session, owner or customer, CSRF on delete)
 - `GET /api/partner/v1/me/rates` and `GET /api/partner/v1/me/rates/{rateId}` (`rates:read`)
 - `GET /api/partner/v1/me/sailings` and `GET /api/partner/v1/me/sailings/{sailingId}` (`sailings:read`)
 - `GET /api/partner/v1/me/predictive-pricing` (`rates:read`)
@@ -184,7 +184,7 @@ An MCP `tools/call` is checked against the tool's `inputSchema` before the tool 
 | `rateninja_get_my_booking_request` | `bookings:read` | `requestId` | none |
 | `rateninja_decide_booking_request` | `bookings:write` | `requestId`, `decision` (`approved` or `declined`) | none |
 
-Every tool rejects unknown properties. Dates are `YYYY-MM-DD`. Profile, rate, sailing, and predictive tools are read-only. `rateninja_decide_booking_request` changes data: it approves or declines a booking request, and the decision is final. Its annotations are `readOnlyHint` false, `destructiveHint` true, and `idempotentHint` false. The two booking read tools set `readOnlyHint` true. A booking read does not change unread state. A decision is unread for the customer in the app. Customer access to booking requests is planned, not available.
+Every tool rejects unknown properties. Dates are `YYYY-MM-DD`. Profile, rate, sailing, and predictive tools are read-only. `rateninja_decide_booking_request` changes data: it approves or declines a booking request, and the decision is final. Its annotations are `readOnlyHint` false, `destructiveHint` true, and `idempotentHint` false. The two booking read tools set `readOnlyHint` true. A booking read does not change unread state. A decision is unread for the customer in the app. Customers can list, read and create their own booking requests.
 
 `initialize` echoes a requested `protocolVersion` when this server supports it. Otherwise it answers the latest supported version. The supported set exercised with MCP Inspector 2.10.1 and the tests is `2025-11-25` and `2025-03-26`. `2025-11-25` is the latest of those. Send it as `initialize` `params.protocolVersion`. If the `mcp-protocol-version` header is present and is not one of those two values, `POST /mcp` returns HTTP 400 `Unsupported protocol version` and does not accept the token yet.
 
@@ -192,7 +192,7 @@ Every tool rejects unknown properties. Dates are `YYYY-MM-DD`. Profile, rate, sa
 
 ## Revoke
 
-A contract owner can revoke from Connected apps (`/profile/connected-apps`), which calls `DELETE /oauth/consents/{clientId}` with header `X-CSRF-Token`. The client can also `POST /oauth/revoke` with `client_id`, the token, and, for a confidential client, `client_secret`. A known access token or refresh token revokes that grant and its refresh family. An unknown token still returns HTTP 200 and `{}` when the client authenticates. The next partner or MCP call with the revoked token is 401 `invalid_token`.
+An owner or customer can revoke from Connected apps (`/profile/connected-apps`), which calls `DELETE /oauth/consents/{clientId}` with header `X-CSRF-Token`. The client can also `POST /oauth/revoke` with `client_id`, the token, and, for a confidential client, `client_secret`. A known access token or refresh token revokes that grant and its refresh family. An unknown token still returns HTTP 200 and `{}` when the client authenticates. The next partner or MCP call with the revoked token is 401 `invalid_token`.
 
 ## Samples
 
@@ -456,3 +456,12 @@ curl -sS -o /dev/null -w '%{http_code}' \
   --data '{"client_id":"YOUR_REVOKE_CLIENT_ID","client_secret":"YOUR_REVOKE_CLIENT_SECRET","token":"YOUR_REVOKE_TOKEN"}' \
   'http://127.0.0.1:3000/oauth/revoke'
 ```
+
+
+## Customer partner access
+
+Customers use GET /api/partner/v1/me/available-rates (rates:read; MCP rateninja_list_available_rates) for app-grid customer prices through active links. Filters carrier, originPort and destinationPort are case-insensitive exact matches; page and pageSize use the usual bounds. Fields are id, carrier, originPort, destinationPort, inlandDeliveryLocation, commodityType, contractOwner, ownerCompanyName, contractNumber, rate20D, rate40D, rate40HC, rateEffectiveDate, rateExpirationDate, notes and bookable. bookable requires an unexpired rate (blank expiry or today UTC qualifies) and at least one price. Lists return { data, meta } with the allocation notice.
+
+Customers use POST /api/partner/v1/me/booking-requests (bookings:write; MCP rateninja_create_booking_request) with { "rateId", "containerSize", "slots" }; the API returns 201 { data, meta }. A repeat create makes another request; clients should list before retrying. Customers list and read only their company requests with bookings:read through the existing booking routes and tools. Their view never includes the deciding user. Reads leave unread state unchanged; a new request is unread for the owner. Hidden rates and another customer's request ids return the same not_found as missing ids.
+
+Customer tokens never receive base prices, margins or owner company ids. Owner rates, sailings, predictive pricing and decisions return 403 owner_only to customers. Owners receive 403 customer_only on available-rates and create. MCP calls enforce company type before scopes and arguments; tools/list shows customers exactly profile, available rates, booking list, booking read and booking create. Owner discovery is unchanged. Create annotations are readOnlyHint false, destructiveHint false and idempotentHint false; the tool changes data. The available-rates list is read-only. Company type is live on each call. Scopes remain independently required, and discovery still advertises only the three read scopes. Connected apps lets both supported types list and revoke grants; revoked credentials stop working.
