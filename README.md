@@ -33,6 +33,7 @@ Install dependencies once (`npm install`). Password hashing uses `@node-rs/argon
 ## Features
 
 - Signed-in rate browsing with company margin math and RateView isolation
+- Booking requests: a customer asks for slots on a rate, and the rate's owner approves or declines in the app (`docs/booking-requests.md`)
 - Predictive rates mode (signed-in) and public predictive-pricing stub
 - Admin margin editing and pull-forward tools for rates/sailings
 - Read-only public demo API at `/api/v1/*`

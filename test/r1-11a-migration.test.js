@@ -64,7 +64,7 @@ describe('r1-11a migration 008', () => {
         db.close();
 
         const second = boot(dbPath, path.join(repoRoot, 'lib', 'migrations'));
-        assert.deepEqual(second, ['001', '002', '003', '004', '005', '006', '008']);
+        assert.deepEqual(second, ['001', '002', '003', '004', '005', '006', '008', '010']);
         const opened = new DatabaseSync(dbPath, { readOnly: true });
         assert.equal(opened.prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'import_jobs'`).get().name, 'import_jobs');
         assert.equal(opened.prepare(`PRAGMA table_info(rates)`).all().some(column => column.name === 'contract_number'), true);
@@ -75,6 +75,6 @@ describe('r1-11a migration 008', () => {
         opened.close();
 
         const third = boot(dbPath, path.join(repoRoot, 'lib', 'migrations'));
-        assert.deepEqual(third, ['001', '002', '003', '004', '005', '006', '008']);
+        assert.deepEqual(third, ['001', '002', '003', '004', '005', '006', '008', '010']);
     });
 });
