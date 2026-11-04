@@ -30,7 +30,15 @@ Both companies on the request can see it. Nobody else can. The customer response
 
 ## Unread count
 
-Read state is per company side, not per user. A new request is unread for the owner company. A decision is unread for the customer company. Opening Booking requests marks that side read. The header bell shows the signed-in user's unread count, links to `/profile/booking-requests`, and refreshes when they change pages and about every 60 seconds.
+Read state is per company side, not per user. A new request is unread for the owner company. A decision is unread for the customer company. Opening Booking requests marks that side read. The header bell shows the signed-in user's unread count, links to `/profile/booking-requests`, and refreshes when they change pages and about every 60 seconds. A partner API or MCP read does not mark either side read.
+
+## Partner API and MCP
+
+A contract owner can list and read the company's booking requests with scope `bookings:read`, and approve or decline one with scope `bookings:write`. The routes are `GET /api/partner/v1/me/booking-requests`, `GET /api/partner/v1/me/booking-requests/{id}`, and `POST /api/partner/v1/me/booking-requests/{id}/decision`. The MCP tools are `rateninja_list_my_booking_requests`, `rateninja_get_my_booking_request`, and `rateninja_decide_booking_request`.
+
+The token's company must own the request. Another company's id is the same not-found response as a missing id. The body is the owner view: customer price and requester, and not the base price. `bookings:read` does not include `bookings:write`. The decide tool changes data and the decision is final. The first decision wins. A repeat is `already_decided`. Reading through the partner API or MCP does not change unread state. A decision made there is unread for the customer in the app, the same as a decision made in the app.
+
+Customer access on the partner API and MCP is planned, not available. Creating a request through those surfaces is not available either.
 
 ## Phase 2
 

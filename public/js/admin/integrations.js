@@ -10,6 +10,7 @@ const DOCS = [
 const OWNER_POINTS = [
     'A contract-owner account can approve a registered OAuth client. That client then calls the partner API and POST /mcp for this account\'s base contract rates and sailings.',
     'Partner and MCP prices are base contract prices. They are not a customer margin price, and they are not a predictive estimate.',
+    'Booking requests for this company can be listed and read with bookings:read, and approved or declined with bookings:write. That decision changes data and is final. The booking payload is the customer price and the requester, not the base price. Customer access on the partner API and MCP is planned, not available.',
     'Predictive pricing on the partner API and the MCP tool is an estimate for a departure more than 90 days ahead. It is calculated, not stored, and it does not add a customer margin.',
     'A customer account cannot approve partner or MCP access. Signed-in browsing is what a customer account can do.',
     'Partner OAuth, the partner API, and MCP answer only when PARTNER_OAUTH_ENABLED allows them. The shared demo key on /api/v1 is not this company\'s credential, and it is not accepted on those routes.',
@@ -19,6 +20,7 @@ const OWNER_POINTS = [
 const CUSTOMER_POINTS = [
     'This account\'s company is a customer. The integration that applies is signed-in browsing: GET /api/rates, GET /api/sailings, and GET /api/rates/predictive, with the session cookie.',
     'Those rate and predictive responses apply this company\'s active margin. They are not the owner\'s base contract price, and they are not the partner API.',
+    'Booking requests stay in the signed-in app. Customer access on the partner API and MCP is planned, not available.',
     'This account cannot authorize the partner API or MCP. Only a contract-owner account can approve that access.',
     'The key on /api/v1 is a shared demonstration key. It is not this company\'s private credential. The testbed calls that demo API.',
     'Nothing on this page is a key, client secret, access token, or password.'

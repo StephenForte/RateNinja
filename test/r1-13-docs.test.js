@@ -16,7 +16,10 @@ const coverage = [
     ['GET /api/partner/v1/me/rates/{rateId}', 'rateninja_get_my_rate', 'rates:read'],
     ['GET /api/partner/v1/me/sailings', 'rateninja_list_my_sailings', 'sailings:read'],
     ['GET /api/partner/v1/me/sailings/{sailingId}', 'rateninja_get_my_sailing', 'sailings:read'],
-    ['GET /api/partner/v1/me/predictive-pricing', 'rateninja_get_my_predictive_pricing', 'rates:read']
+    ['GET /api/partner/v1/me/predictive-pricing', 'rateninja_get_my_predictive_pricing', 'rates:read'],
+    ['GET /api/partner/v1/me/booking-requests', 'rateninja_list_my_booking_requests', 'bookings:read'],
+    ['GET /api/partner/v1/me/booking-requests/{id}', 'rateninja_get_my_booking_request', 'bookings:read'],
+    ['POST /api/partner/v1/me/booking-requests/{id}/decision', 'rateninja_decide_booking_request', 'bookings:write']
 ];
 
 function readDoc(relativePath) {
