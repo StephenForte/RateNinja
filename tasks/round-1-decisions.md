@@ -367,3 +367,27 @@ below are pending product review.
 - **R1-22 boundary, to be detailed when it is planned:** a customer token must never see an
   owner's base price on any partner route or MCP tool. Customers get a customer-priced rate
   listing to find a rate id. Owner-only tools stay owner-only.
+
+### D-029 — Customer accounts on the partner API and MCP (2026-11-03, amends D-028)
+
+Task R1-22. Operator asked for customer access on 2026-11-03. The rest are planner defaults
+pending product review.
+
+- **Who:** users of Contract Owner and Freight Forwarder/Customer companies can consent. A company
+  with any other type stays refused. Any registered client can be approved by either type.
+- **Role is live.** What a token can do comes from the user's current company type, never from a
+  token claim. A company whose type changes gets the matching behaviour on its next call.
+- **Owner-only by default.** Partner routes and MCP tools are owner-only unless they opt in.
+  A customer token on an owner route gets 403 `owner_only`. Owner rates, sailings, predictive
+  pricing, and decisions stay owner-only.
+- **Customer surface:** profile, a customer-priced rate listing, listing and reading the company's
+  own booking requests, and creating one. Sailings and predictive pricing are not included.
+- **Prices:** a customer sees only the D-013 customer price. Base prices, margins, and owner company
+  ids never reach a customer token.
+- **Scopes:** no new ones. `bookings:write` means create for a customer and decide for an owner.
+  The consent page words it for the signing-in user.
+- **MCP discovery:** `tools/list` shows a token only the tools its company type can call. Owner
+  output stays unchanged.
+- **Connected apps:** customers get the page and the revoke API, since a grant must be revocable.
+- **Repeat requests stay allowed (D-027).** There is no idempotency key, so a client retry can
+  create a second request. Accepted for now.
