@@ -27,16 +27,23 @@ export async function mount(container) {
     const redirects = document.createElement('textarea');
     redirects.rows = 3;
     redirects.placeholder = 'https://partner.example/callback';
+    const scopeDefaults = [
+        ['profile:read', true],
+        ['rates:read', true],
+        ['sailings:read', true],
+        ['bookings:read', true],
+        ['bookings:write', false]
+    ];
     const scopes = document.createElement('fieldset');
     const legend = document.createElement('legend');
     legend.textContent = 'Scopes';
     scopes.append(legend);
-    for (const scope of ['profile:read', 'rates:read', 'sailings:read']) {
+    for (const [scope, checked] of scopeDefaults) {
         const input = document.createElement('input');
         input.type = 'checkbox';
         input.name = 'oauthScope';
         input.value = scope;
-        input.checked = true;
+        input.checked = checked;
         const label = document.createElement('label');
         label.append(input, document.createTextNode(` ${scope}`));
         scopes.append(label);
@@ -175,7 +182,10 @@ export async function mount(container) {
             });
             showSecret(result.clientSecret);
             form.reset();
-            for (const input of form.querySelectorAll('input[name="oauthScope"]')) input.checked = true;
+            for (const input of form.querySelectorAll('input[name="oauthScope"]')) {
+                const entry = scopeDefaults.find(([scope]) => scope === input.value);
+                input.checked = Boolean(entry && entry[1]);
+            }
             await reload();
         } catch (error) {
             errors.show(adminFailureMessage(error, error.message));

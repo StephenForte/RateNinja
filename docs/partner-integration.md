@@ -10,6 +10,8 @@ Three ways to read rates. They are not interchangeable.
 
 Customer accounts cannot approve the partner API or MCP. The demo key is rejected there: those routes read only a bearer access token.
 
+Booking requests are the exception on price. Those responses carry the customer price stored on the request, and the requester, and they do not carry the base price. A contract owner lists and reads them with `bookings:read` and approves or declines them with `bookings:write`. That decision changes data and is final. Customer access to booking requests on the partner API and MCP is planned, not available.
+
 ## Deployment gate
 
 `partnerOauthEnabled()` in `lib/config.js` is the only switch.
@@ -92,7 +94,7 @@ Approving again for the same user and client revokes that client's previous gran
 
 Refresh with `grant_type=refresh_token`. The refresh token lasts 30 days and rotates on use. Reuse of an old refresh token revokes that token family. The access token's audience is `rn:partner-api`. Revocation is checked on the next API or MCP call.
 
-Scopes are `profile:read`, `rates:read`, and `sailings:read`. Predictive pricing requires `rates:read`. A missing scope is 403 `insufficient_scope` on the partner API. On MCP it is HTTP 200 with `result.isError` true and `error` `insufficient_scope`.
+Scopes are `profile:read`, `rates:read`, `sailings:read`, `bookings:read`, and `bookings:write`. Predictive pricing requires `rates:read`. `bookings:read` lists and reads booking requests for the token's company. `bookings:write` approves or declines them. A read scope does not include the write. The consent page says, in words, that an app with `bookings:write` can approve or decline booking requests for the company. A missing scope is 403 `insufficient_scope` on the partner API. On MCP it is HTTP 200 with `result.isError` true and `error` `insufficient_scope`. The seeded Capacity Exchange client is allowed `profile:read`, `rates:read`, and `sailings:read` only. Booking scopes are not added to a client that already exists. Discovery advertises only those three read scopes, in that order. `bookings:read` and `bookings:write` are not advertised in discovery. A client must request them explicitly, for example with `scopes` in Cursor's `mcp.json` auth block, and the client must be allowed them.
 
 `companyId` in userinfo and in the profile tool is the company row id from the token, not a separate business code. The tool cannot be given another company's id. Ownership comes from the token.
 
@@ -106,6 +108,8 @@ Scopes are `profile:read`, `rates:read`, and `sailings:read`. Predictive pricing
 - `GET /api/partner/v1/me/rates` and `GET /api/partner/v1/me/rates/{rateId}` (`rates:read`)
 - `GET /api/partner/v1/me/sailings` and `GET /api/partner/v1/me/sailings/{sailingId}` (`sailings:read`)
 - `GET /api/partner/v1/me/predictive-pricing` (`rates:read`)
+- `GET /api/partner/v1/me/booking-requests` and `GET /api/partner/v1/me/booking-requests/{id}` (`bookings:read`)
+- `POST /api/partner/v1/me/booking-requests/{id}/decision` (`bookings:write`) with body `{ "decision": "approved" }` or `{ "decision": "declined" }`
 - `POST /mcp`. A signed-in `GET /mcp` stays open as `text/event-stream`, sends `notifications/tools/list_changed` when it opens, and then stays open so the client can keep calling POST. Other methods return 405. When partner sign-in is off, GET returns 403.
 - `GET /.well-known/oauth-authorization-server`
 - `GET /.well-known/oauth-protected-resource` and `GET /.well-known/oauth-protected-resource/mcp`
@@ -136,6 +140,7 @@ MCP checks the tool arguments before the tool runs. `page` outside 1..10000, `pa
 | Partner rates | Optional `carrier`, `originPort`, `destinationPort`: case-insensitive exact match. Optional `effectiveDate`: the rate's effective date is on or before that day and the expiration is blank or on or after that day |
 | Partner sailings | Optional `carrier` and `originPort` (the departure port): case-insensitive exact match. Optional `after`: `departure` is greater than the given value |
 | Partner predictive | Required `after` (`YYYY-MM-DD`, more than 90 days ahead). Optional `carrier` and `originPort`: case-insensitive exact match. Missing `after` is HTTP 400 `after query parameter is required.` |
+| Partner booking requests | Optional `status`: `pending`, `approved`, or `declined`. Anything else is HTTP 400 `invalid_request`. `page` and `pageSize` use the same default and ceiling as the other partner lists. Order is newest first (`created_at`, then `id`) and stays stable across pages. A decision body must be a JSON object. Bad JSON, a non-object body, or an unknown decision is HTTP 400 `invalid_request`. A second decision is HTTP 409 `already_decided` |
 | Demo rates | Optional `carrier`, `originPort`, `destinationPort`: case-insensitive substring. `page` and `pageSize` use the same default and ceiling as partner lists |
 | Demo sailings | Required `carrier`, `originPort`, and `after`. Carrier and departure port are case-sensitive exact matches. `departure` is greater than `after`. No pagination. Missing any of the three is HTTP 400 `Carrier, originPort, and after query parameters are required.` |
 | Demo predictive | Required `carrier`, `originPort`, and `after`. Carrier and origin are case-sensitive exact matches. Same 400 text if one is missing. No pagination |
@@ -157,12 +162,15 @@ Equivalent authorized requests return the same data and metadata on the partner 
 | Sailing search and pagination | `GET /api/partner/v1/me/sailings` | `rateninja_list_my_sailings` | `sailings:read` |
 | One authorized sailing | `GET /api/partner/v1/me/sailings/{sailingId}` | `rateninja_get_my_sailing` | `sailings:read` |
 | Predictive pricing | `GET /api/partner/v1/me/predictive-pricing` | `rateninja_get_my_predictive_pricing` | `rates:read` |
+| Booking request search and pagination | `GET /api/partner/v1/me/booking-requests` | `rateninja_list_my_booking_requests` | `bookings:read` |
+| One booking request | `GET /api/partner/v1/me/booking-requests/{id}` | `rateninja_get_my_booking_request` | `bookings:read` |
+| Approve or decline a booking request | `POST /api/partner/v1/me/booking-requests/{id}/decision` | `rateninja_decide_booking_request` | `bookings:write` |
 
 The demo predictive route remains `GET /api/v1/predictive-pricing`. It is not owner-scoped and still requires `carrier`, `originPort`, and `after`. The partner and MCP predictive calls are limited to the token's contract owner.
 
-An MCP `tools/call` is checked against the tool's `inputSchema` before the tool runs. MCP rate, sailing, and predictive reads write the same audit event as the matching partner read, with the same user and client, plus `detail.channel` of `mcp`. Profile follows `/oauth/userinfo` and does not write a data-read audit. Audit details do not include tokens or the query payload.
+An MCP `tools/call` is checked against the tool's `inputSchema` before the tool runs. Scope is checked before the arguments, so a token without `bookings:write` learns nothing from a decide call. MCP rate, sailing, and predictive reads write the same audit event as the matching partner read, with the same user and client, plus `detail.channel` of `mcp`. Booking reads write `partner_booking_requests_read`. A decision writes `booking_request_decided` with `clientId` and `detail.channel` of `api` or `mcp`. A decision made in the app does not gain those fields. Profile follows `/oauth/userinfo` and does not write a data-read audit. Audit details do not include tokens or the query payload.
 
-`tools/list` returns each tool's `name`, `description`, and `inputSchema`. It does not return the scope. A listed tool still requires its scope.
+`tools/list` returns each tool's `name`, `description`, and `inputSchema`. Tools that publish annotations include them. It does not return the scope. A listed tool still requires its scope.
 
 | Tool | Scope | Required | Optional |
 | --- | --- | --- | --- |
@@ -172,8 +180,11 @@ An MCP `tools/call` is checked against the tool's `inputSchema` before the tool 
 | `rateninja_list_my_sailings` | `sailings:read` | none | `carrier`, `originPort`, `after`, `page`, `pageSize` |
 | `rateninja_get_my_sailing` | `sailings:read` | `sailingId` | none |
 | `rateninja_get_my_predictive_pricing` | `rates:read` | `after` | `carrier`, `originPort`, `page`, `pageSize` |
+| `rateninja_list_my_booking_requests` | `bookings:read` | none | `status` (`pending`, `approved`, or `declined`), `page`, `pageSize` |
+| `rateninja_get_my_booking_request` | `bookings:read` | `requestId` | none |
+| `rateninja_decide_booking_request` | `bookings:write` | `requestId`, `decision` (`approved` or `declined`) | none |
 
-Every tool rejects unknown properties. Dates are `YYYY-MM-DD`. The tools are read-only.
+Every tool rejects unknown properties. Dates are `YYYY-MM-DD`. Profile, rate, sailing, and predictive tools are read-only. `rateninja_decide_booking_request` changes data: it approves or declines a booking request, and the decision is final. Its annotations are `readOnlyHint` false, `destructiveHint` true, and `idempotentHint` false. The two booking read tools set `readOnlyHint` true. A booking read does not change unread state. A decision is unread for the customer in the app. Customer access to booking requests is planned, not available.
 
 `initialize` echoes a requested `protocolVersion` when this server supports it. Otherwise it answers the latest supported version. The supported set exercised with MCP Inspector 2.10.1 and the tests is `2025-11-25` and `2025-03-26`. `2025-11-25` is the latest of those. Send it as `initialize` `params.protocolVersion`. If the `mcp-protocol-version` header is present and is not one of those two values, `POST /mcp` returns HTTP 400 `Unsupported protocol version` and does not accept the token yet.
 
