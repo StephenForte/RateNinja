@@ -302,6 +302,49 @@ describe('owner booking requests on the partner API and MCP', { concurrency: 1 }
         assert.equal(new URL(customerLocation).searchParams.get('code'), null);
     });
 
+    it('keeps booking scopes out of discovery and still accepts an explicit request', async () => {
+        async function document(pathname) {
+            const response = await fetch(`${app.baseUrl}${pathname}`);
+            const body = await response.json();
+            assert.equal(response.status, 200, JSON.stringify(body));
+            return body;
+        }
+
+        async function authorize(client, scopes) {
+            const proof = pkce();
+            const response = await fetch(`${app.baseUrl}/oauth/authorize?${new URLSearchParams({
+                response_type: 'code',
+                client_id: client.id,
+                redirect_uri: REDIRECT_URI,
+                scope: scopes.join(' '),
+                state: proof.state,
+                code_challenge: proof.challenge,
+                code_challenge_method: 'S256'
+            })}`, { headers: { cookie: owner.cookie }, redirect: 'manual' });
+            const html = await response.text();
+            return { status: response.status, html, location: response.headers.get('location') };
+        }
+
+        const resource = await document('/.well-known/oauth-protected-resource');
+        const authorization = await document('/.well-known/oauth-authorization-server');
+        assert.deepEqual(resource.scopes_supported, SEEDED_SCOPES);
+        assert.deepEqual(authorization.scopes_supported, SEEDED_SCOPES);
+        assert.equal(JSON.stringify(resource).includes('bookings:'), false);
+        assert.equal(JSON.stringify(authorization).includes('bookings:'), false);
+
+        const fromResource = await authorize(narrowClient, resource.scopes_supported);
+        assert.equal(fromResource.status, 200, fromResource.location || fromResource.html);
+        assert.match(fromResource.html, /wants to read data/);
+
+        const fromAuthorization = await authorize(narrowClient, authorization.scopes_supported);
+        assert.equal(fromAuthorization.status, 200, fromAuthorization.location || fromAuthorization.html);
+        assert.match(fromAuthorization.html, /wants to read data/);
+
+        const explicit = await authorize(fullClient, ['bookings:read', 'bookings:write']);
+        assert.equal(explicit.status, 200, explicit.location || explicit.html);
+        assert.match(explicit.html, /This app can approve or decline booking requests for your company\./);
+    });
+
     it('shows an owner only its own requests, with the same customer price on both surfaces', async () => {
         const { ALLOCATION_NOTICE } = require('../lib/visibility');
         const unreadBefore = await call(app.baseUrl, owner, 'GET', '/api/booking-requests/unread');

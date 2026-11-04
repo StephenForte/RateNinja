@@ -38,7 +38,7 @@ A contract owner can list and read the company's booking requests with scope `bo
 
 The token's company must own the request. Another company's id is the same not-found response as a missing id. The body is the owner view: customer price and requester, and not the base price. `bookings:read` does not include `bookings:write`. The decide tool changes data and the decision is final. The first decision wins. A repeat is `already_decided`. Reading through the partner API or MCP does not change unread state. A decision made there is unread for the customer in the app, the same as a decision made in the app.
 
-Customer access on the partner API and MCP is planned, not available. Creating a request through those surfaces is not available either.
+Customer access on the partner API and MCP is planned, not available. Creating a request through those surfaces is not available either. Discovery does not advertise `bookings:read` or `bookings:write`. A client must request those scopes explicitly, for example with `scopes` in Cursor's `mcp.json` auth block, and the client must be allowed them.
 
 ## Phase 2
 
