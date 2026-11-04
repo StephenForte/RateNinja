@@ -13,6 +13,7 @@ import {
 } from './grouping.js';
 import { loadQueries, mountQueries } from './queries.js';
 import { loadViews, mountViews, refreshViewControls } from './views.js';
+import { openBookingDialog } from './booking-requests.js';
 
 const state = {
     rates: [],
@@ -30,7 +31,8 @@ const state = {
     collapsed: new Set(),
     activeViewId: '',
     viewIsDefault: false,
-    viewAttention: false
+    viewAttention: false,
+    canBook: false
 };
 
 const filterDefinitions = [
@@ -162,10 +164,12 @@ export function mount() {
     renderHeader();
 }
 
-export async function showRates() {
+export async function showRates(options = {}) {
+    state.canBook = Boolean(options.canBook);
     mount();
     if (state.loaded) {
         await refreshSavedLists();
+        renderTable();
         return;
     }
     await loadRates();
@@ -449,6 +453,33 @@ function visibleColumns() {
     return (state.view.columnOrder || []).filter(id => known.has(id) && !hidden.has(id));
 }
 
+function columnCount() {
+    return visibleColumns().length + (state.canBook ? 1 : 0);
+}
+
+function rateIsExpired(rate) {
+    const value = rate?.rateExpirationDate;
+    if (value == null || value === '' || value === 'N/A') return false;
+    const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!match) return true;
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return true;
+    const today = new Date();
+    const todayUtc = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+    return date.getTime() < todayUtc;
+}
+
+function pricedSizeCount(rate) {
+    return [rate.rate20D, rate.rate40D, rate.rate40HC].filter(price => price !== null && price !== undefined && price !== '' && Number.isFinite(Number(price))).length;
+}
+
+function canRequestRow(rate) {
+    return state.canBook && !rate.predictive && !rateIsExpired(rate) && pricedSizeCount(rate) > 0;
+}
+
 function renderHeader() {
     const head = document.getElementById('ratesTableHead');
     if (!head) return;
@@ -471,6 +502,11 @@ function renderHeader() {
         }
         row.append(cell);
     });
+    if (state.canBook) {
+        const action = document.createElement('th');
+        action.textContent = 'Booking';
+        row.append(action);
+    }
     head.replaceChildren(row);
 }
 
@@ -506,7 +542,7 @@ function renderTable() {
         const cell = textCell(state.queryUnavailable
             ? 'This saved query is unavailable. No rates are shown.'
             : 'No shipping rates found matching your criteria', 'td');
-        cell.colSpan = Math.max(1, visibleColumns().length);
+        cell.colSpan = Math.max(1, columnCount());
         cell.className = 'empty-table-message';
         row.append(cell);
         elements.tableBody.append(row);
@@ -523,7 +559,7 @@ function createGroupRow(item) {
     row.className = 'group-header';
     row.dataset.depth = String(item.depth || 0);
     const cell = document.createElement('td');
-    cell.colSpan = Math.max(1, visibleColumns().length);
+    cell.colSpan = Math.max(1, columnCount());
     const toggle = document.createElement('button');
     toggle.type = 'button';
     toggle.className = 'group-toggle';
@@ -558,8 +594,22 @@ function createRateRow(rate) {
             cells.push(cell);
         }
     }
+    if (state.canBook) cells.push(bookingCell(rate));
     row.append(...cells);
     return row;
+}
+
+function bookingCell(rate) {
+    const cell = document.createElement('td');
+    cell.className = 'booking-action';
+    if (!canRequestRow(rate)) return cell;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'booking-request-btn';
+    button.textContent = 'Request booking';
+    button.addEventListener('click', () => openBookingDialog(rate));
+    cell.append(button);
+    return cell;
 }
 
 function rateCellFor(id, rate) {

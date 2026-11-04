@@ -34,6 +34,15 @@ export const sections = [
     },
     {
         area: 'profile',
+        id: 'booking-requests',
+        label: 'Booking requests',
+        group: 'Rates',
+        path: '/profile/booking-requests',
+        allow: signedIn,
+        load: () => import('./rates/booking-requests.js')
+    },
+    {
+        area: 'profile',
         id: 'account',
         label: 'Account',
         group: 'Profile',

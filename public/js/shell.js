@@ -5,10 +5,12 @@ import { isClientRoute, resolveRoute } from './router.js';
 import { menuFor } from './menu.js';
 import { mountPlaceholder } from './placeholder.js';
 import { showRates } from './rates/browse.js';
+import { refreshBookingNotifications, startBookingNotifications, stopBookingNotifications } from './booking-notifications.js';
 import { mount as mountPasswordRequired, unmount as unmountPasswordRequired } from './password-required.js';
 
 const ICONS = {
     rates: 'fa-ship',
+    'booking-requests': 'fa-bell',
     account: 'fa-user-circle',
     security: 'fa-shield-alt',
     preferences: 'fa-cog',
@@ -43,6 +45,7 @@ export async function boot() {
         const payload = await request('/api/session', { allowUnauthenticated: true });
         rememberAuth(payload);
         if (user?.mustChangePassword) {
+            stopBookingNotifications();
             app().hidden = false;
             await renderPasswordGate();
             return;
@@ -69,6 +72,7 @@ export async function boot() {
         app().hidden = false;
         renderMenu();
         renderIndicator();
+        startBookingNotifications();
         await renderRoute();
     } catch {
         showLoginPage();
@@ -158,6 +162,11 @@ function bindShell() {
     document.getElementById('notFoundHome').addEventListener('click', () => navigate('/rates'));
     document.getElementById('deniedHome').addEventListener('click', () => navigate('/rates'));
     document.getElementById('companyContextSelect').addEventListener('change', selectCompany);
+    document.getElementById('bookingBell').addEventListener('click', event => {
+        if (location.pathname !== '/profile/booking-requests') return;
+        event.preventDefault();
+        renderRoute({ remount: true });
+    });
 }
 
 function menuItems() {
@@ -278,6 +287,7 @@ function welcome() {
 }
 
 async function logout() {
+    stopBookingNotifications();
     try {
         await request('/api/auth/logout', { method: 'POST', allowUnauthenticated: true });
     } catch {
@@ -296,6 +306,7 @@ export function navigate(path) {
 }
 
 async function renderPasswordGate() {
+    stopBookingNotifications();
     welcome();
     app().classList.add('password-change-required');
     setMenuOpen(false);
@@ -315,9 +326,11 @@ async function renderPasswordGate() {
 
 async function renderRoute(options = {}) {
     if (user?.mustChangePassword) {
+        stopBookingNotifications();
         await renderPasswordGate();
         return;
     }
+    refreshBookingNotifications();
     const generation = ++renderGeneration;
     welcome();
     renderIndicator();
@@ -344,7 +357,7 @@ async function renderRoute(options = {}) {
     document.title = `Rate Ninja | ${decision.section.label}`;
     if (decision.section.id === 'rates') {
         document.getElementById('ratesView').hidden = false;
-        await showRates();
+        await showRates({ canBook: user?.companyType === 'Freight Forwarder/Customer' });
         return;
     }
     document.getElementById('sectionView').hidden = false;
@@ -391,6 +404,7 @@ function hideViews() {
     document.getElementById('deniedView').hidden = true;
     document.getElementById('sailingsModal').hidden = true;
     document.getElementById('contractModal').hidden = true;
+    document.getElementById('bookingDialog').hidden = true;
 }
 
 function clearSection() {

@@ -16,6 +16,7 @@ const routeNames = [
     'customer-access',
     'data-ops',
     'imports',
+    'booking-requests',
     'partner'
 ];
 
@@ -163,6 +164,9 @@ describe('r1-01 routes and exact documents', { concurrency: 1 }, () => {
                 assert.equal(mod.routes.length, 6);
             } else if (name === 'imports') {
                 assert.equal(mod.routes.length, 7);
+            } else if (name === 'booking-requests') {
+                assert.equal(mod.routes.length, 7);
+                assert.ok(mod.routes.every(route => route.access === 'session'));
             } else {
                 assert.equal(mod.routes.length, 0);
             }
