@@ -339,3 +339,55 @@ defaults pending product review.
   holds: rate records are not evidence of capacity.
 - **Not exposed to partners:** no partner API or MCP surface in P1.
 - **P2 (operator):** email to both ends, through `lib/resend.js`. Task R1-20, not planned in detail.
+
+### D-028 — Booking requests on the partner API and MCP (2026-11-03, amends D-027)
+
+D-027 kept booking requests off the partner surfaces. The operator reversed that on 2026-11-03:
+owners and customers both get them, and owners can approve or decline there. Planner defaults
+below are pending product review.
+
+- **Two tasks, in order.** R1-21 adds the owner side. R1-22 opens partner OAuth to customer
+  accounts and adds the customer side. They share `lib/oauth.js`, `lib/mcp.js`, and the docs, and
+  R1-22 changes a live security boundary, so it gets its own review.
+- **Scopes:** `bookings:read` and `bookings:write`. This is the first write scope on these
+  surfaces. Reading never implies writing.
+- **No silent grants.** Existing clients keep their allowed scopes. The seeded Capacity Exchange
+  client gets the three read scopes it has today, not the booking scopes. New clients in the admin
+  screen do not get `bookings:write` by default. A client only gets it when a system admin allows
+  it and the user consents.
+- **Discovery stays minimal (added 2026-11-03, R1-21 review).** `scopes_supported` publishes only `profile:read`, `rates:read`, and `sailings:read`. MCP clients request everything published, and `parseScopes` rejects a request with any scope the client is not allowed, so publishing booking scopes breaks sign-in for existing clients. Clients ask for booking scopes explicitly.
+- **Consent must say what write does.** The consent page describes `bookings:write` in words: it
+  lets the app approve or decline booking requests for the company.
+- **One rule set.** Partner and MCP calls go through `lib/booking-requests.js`, the same rules and
+  responses as the app. Any owner-company user may decide (D-027), so the token's user needs only
+  the scope. First decision wins; a later one is an error.
+- **Audit:** decisions record the client id and channel. Reads use a partner audit event.
+- **Unread state:** partner and MCP reads do not change it. A decision made there still shows as
+  unread for the customer in the app.
+- **R1-22 boundary, to be detailed when it is planned:** a customer token must never see an
+  owner's base price on any partner route or MCP tool. Customers get a customer-priced rate
+  listing to find a rate id. Owner-only tools stay owner-only.
+
+### D-029 — Customer accounts on the partner API and MCP (2026-11-03, amends D-028)
+
+Task R1-22. Operator asked for customer access on 2026-11-03. The rest are planner defaults
+pending product review.
+
+- **Who:** users of Contract Owner and Freight Forwarder/Customer companies can consent. A company
+  with any other type stays refused. Any registered client can be approved by either type.
+- **Role is live.** What a token can do comes from the user's current company type, never from a
+  token claim. A company whose type changes gets the matching behaviour on its next call.
+- **Owner-only by default.** Partner routes and MCP tools are owner-only unless they opt in.
+  A customer token on an owner route gets 403 `owner_only`. Owner rates, sailings, predictive
+  pricing, and decisions stay owner-only.
+- **Customer surface:** profile, a customer-priced rate listing, listing and reading the company's
+  own booking requests, and creating one. Sailings and predictive pricing are not included.
+- **Prices:** a customer sees only the D-013 customer price. Base prices, margins, and owner company
+  ids never reach a customer token.
+- **Scopes:** no new ones. `bookings:write` means create for a customer and decide for an owner.
+  The consent page words it for the signing-in user.
+- **MCP discovery:** `tools/list` shows a token only the tools its company type can call. Owner
+  output stays unchanged.
+- **Connected apps:** customers get the page and the revoke API, since a grant must be revocable.
+- **Repeat requests stay allowed (D-027).** There is no idempotency key, so a client retry can
+  create a second request. Accepted for now.
