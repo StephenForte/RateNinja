@@ -114,6 +114,23 @@ describe('R1-22 customer partner boundary', { concurrency: 1 }, () => {
         assert.equal(audit.client_id, client.id);
     });
 
+    it('keeps available-rate pages stable when SQLite reverses unordered reads', async () => {
+        const path = `${ROOT}/available-rates?page=2&pageSize=2`;
+        const before = await get(token.access_token, path);
+        assert.equal(before.status, 200);
+        assert.deepEqual(before.body.data.map(rate => rate.id), ['no-price', 'priced']);
+        app.db.prepare('PRAGMA reverse_unordered_selects = ON').run();
+        try {
+            const reversed = await get(token.access_token, path);
+            assert.equal(reversed.status, 200);
+            assert.deepEqual(reversed.body, before.body);
+            const mcp = await rpc(token.access_token, 'rateninja_list_available_rates', { page: 2, pageSize: 2 });
+            assert.deepEqual(mcp.body.result.structuredContent, before.body);
+        } finally {
+            app.db.prepare('PRAGMA reverse_unordered_selects = OFF').run();
+        }
+    });
+
     it('publishes exactly five customer tools and byte-identical owner discovery to main', async () => {
         const listed = await mcpCall(app.baseUrl, token.access_token, 'tools/list', {});
         assert.deepEqual(listed.body.result.tools.map(t => t.name), customerTools);
