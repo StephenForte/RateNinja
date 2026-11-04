@@ -162,6 +162,11 @@ function bindShell() {
     document.getElementById('notFoundHome').addEventListener('click', () => navigate('/rates'));
     document.getElementById('deniedHome').addEventListener('click', () => navigate('/rates'));
     document.getElementById('companyContextSelect').addEventListener('change', selectCompany);
+    document.getElementById('bookingBell').addEventListener('click', event => {
+        if (location.pathname !== '/profile/booking-requests') return;
+        event.preventDefault();
+        renderRoute({ remount: true });
+    });
 }
 
 function menuItems() {
