@@ -123,4 +123,18 @@ describe('R1-25 admin CLI', { concurrency: 1 }, () => {
         assert.match(result.stdout, /Port Klang/);
         assertKeyAbsent(result);
     });
+
+    it('interactive menu returns to the prompt after an HTTP error', async () => {
+        // 2 = origin-ports with a non-existent company → 404, then quit.
+        const input = ['2', 'missing-company-id', '', '', '', '', '', '8'].join('\n') + '\n';
+        const result = await runAdminCli([], {
+            baseUrl: app.baseUrl,
+            env: { RATE_NINJA_ADMIN_API_KEY: ADMIN_KEY },
+            input
+        });
+        assert.equal(result.status, 0, result.stderr + result.stdout);
+        assert.match(result.stderr, /404/);
+        assert.match(result.stdout, /Choice:/);
+        assertKeyAbsent(result);
+    });
 });

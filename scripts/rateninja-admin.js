@@ -199,7 +199,7 @@ async function runCommand(command, options) {
     } catch (error) {
         const message = error && error.message ? error.message : String(error);
         stderr.write(`Network failure contacting ${baseUrl()}: ${message}\n`);
-        process.exit(1);
+        return 1;
     }
     const text = await response.text();
     let body;
@@ -211,9 +211,10 @@ async function runCommand(command, options) {
     if (!response.ok) {
         const errorField = body && body.error != null ? body.error : 'request_failed';
         stderr.write(`${response.status} ${errorField}\n`);
-        process.exit(1);
+        return 1;
     }
     printResults(body, Boolean(options.json));
+    return 0;
 }
 
 function createPrompter() {
@@ -271,6 +272,7 @@ async function runMenu() {
                 continue;
             }
             const options = await promptFilters(prompter.ask, command);
+            // Print errors but keep the interactive session open.
             await runCommand(command, options);
         }
     } finally {
@@ -286,8 +288,7 @@ async function main() {
         process.exit(0);
     }
     if (parsed.mode === 'once') {
-        await runCommand(parsed.command, parsed.options);
-        process.exit(0);
+        process.exit(await runCommand(parsed.command, parsed.options));
     }
     await runMenu();
     process.exit(0);
