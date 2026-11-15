@@ -80,8 +80,8 @@ Model names are the planner's proposal; operator overrides recorded in the Run c
 | R1-20 | P2: booking request emails via `lib/resend.js` | D-027 | R1-19 | M | not planned in detail; production `/api/health` reports `resendConfigured: false` (2026-11-03) |
 | R1-21 | Booking requests on the partner API and MCP, owner side (`bookings:read`, `bookings:write`) | D-028 | R1-19 | S / Opus 5.5 | merged 2026-11-03, PR #56 |
 | R1-22 | Partner OAuth for customer accounts, customer-priced rates, and customer booking requests | D-029 | R1-21 | S / Opus 5.5 | merged 2026-11-04, PR #57 (`be2b694`); Cursor checked by the operator |
-| R1-23 | Port reference table: migration 011, system-admin Ports page, `lib/ports.js` resolver | D-030 | — | M / Sonnet 5.5 | approved 2026-11-14, PR #60 (`d513ede`) |
-| R1-24 | Reference lookups and current date ranges: six MCP tools + six partner routes | D-030 | R1-23 merged | S / Opus 5.5 | planned 2026-11-14; dispatch after R1-23 merges |
+| R1-23 | Port reference table: migration 011, system-admin Ports page, `lib/ports.js` resolver | D-030 | — | M / Sonnet 5.5 | merged 2026-11-14, PR #60 (`a1eaf86`) |
+| R1-24 | Reference lookups and current date ranges: six MCP tools + six partner routes | D-030 | R1-23 merged | S / Opus 5.5 | ready to dispatch 2026-11-14 (R1-23 merged at `a1eaf86`) |
 
 ### Run order (waves)
 
