@@ -53,12 +53,15 @@ Config (from the environment or a `.env` in the current directory):
 
 - `RATE_NINJA_ADMIN_API_KEY` (required)
 - `RATE_NINJA_BASE_URL` (optional; default `https://rate-ninja.onrender.com`)
+- `CLOUDBBS_TOKEN` (required for option 9 / `post-cloudbbs`)
+- `CLOUDBBS_URL` (optional; default `https://cloudbbs.ai`)
+- `CLOUDBBS_PROJECT` (optional; default `rn`)
 
-The CLI never reads or sends `RATE_NINJA_API_KEY`.
+The CLI never reads or sends `RATE_NINJA_API_KEY`. It never prints `RATE_NINJA_ADMIN_API_KEY` or `CLOUDBBS_TOKEN`.
 
 ### Interactive menu
 
-With no arguments, the CLI prints a numbered menu of the six reads plus `companies` and quit, prompts for optional filters, prints a table, and returns to the menu.
+With no arguments, the CLI prints a numbered menu of the six reads plus `companies`, then `8. quit`, then `9. Post this information to the CloudBBS`. Items 1–7 prompt for optional filters, print a table, and return to the menu. Quit stays 8.
 
 ### One-shot commands
 
@@ -67,6 +70,11 @@ node scripts/rateninja-admin.js list
 node scripts/rateninja-admin.js origin-ports
 node scripts/rateninja-admin.js rate-date-ranges --company <id> --carrier MSC --page 1 --page-size 50
 node scripts/rateninja-admin.js companies --json
+node scripts/rateninja-admin.js post-cloudbbs --yes
 ```
 
-Commands: `rate-date-ranges`, `origin-ports`, `destination-ports`, `contract-owners`, `sailing-date-ranges`, `predictive-date-ranges`, `companies`. Shared flags: `--company`, `--carrier`, `--origin-port`, `--destination-port`, `--page`, `--page-size`, `--json` (only where that command accepts the filter).
+Commands: `rate-date-ranges`, `origin-ports`, `destination-ports`, `contract-owners`, `sailing-date-ranges`, `predictive-date-ranges`, `companies`, `post-cloudbbs`. Shared flags: `--company`, `--carrier`, `--origin-port`, `--destination-port`, `--page`, `--page-size`, `--json` (only where that command accepts the filter). `post-cloudbbs` requires `--yes`.
+
+### Post to CloudBBS
+
+Option 9 / `post-cloudbbs` fetches the six D-030 reference reads (no company filter, every page) and replaces the CloudBBS project announcement (`PUT …/api/v1/projects/{project}/announcement`). The companies list is not included. Title is `RateNinja reference data`; the body is Markdown with schema `rateninja.reference.v1`. Bodies over 16384 UTF-8 bytes are refused without posting. The menu confirms with `[y/N]` before the PUT; the one-shot form requires `--yes`.

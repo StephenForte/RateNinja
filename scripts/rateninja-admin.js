@@ -9,8 +9,17 @@ try {
 
 const readline = require('node:readline');
 const { stdin, stdout, stderr } = require('node:process');
+const {
+    BODY_SIZE_CAP,
+    cloudBbsSettings,
+    buildAnnouncement,
+    collectReferenceReads,
+    putAnnouncement
+} = require('../lib/cloudbbs-post');
 
 const DEFAULT_BASE_URL = 'https://rate-ninja.onrender.com';
+const QUIT_MENU_INDEX = 8;
+const CLOUDBBS_MENU_INDEX = 9;
 
 const COMMANDS = [
     {
@@ -69,7 +78,7 @@ const FILTER_TO_QUERY = {
 function usage() {
     const names = COMMANDS.map(command => command.name).join('|');
     stderr.write(
-        `Usage: node scripts/rateninja-admin.js [list|${names}] [--company ID] [--carrier X] [--origin-port X] [--destination-port X] [--page N] [--page-size N] [--json]\n`
+        `Usage: node scripts/rateninja-admin.js [list|${names}|post-cloudbbs] [--company ID] [--carrier X] [--origin-port X] [--destination-port X] [--page N] [--page-size N] [--json] [--yes]\n`
     );
 }
 
@@ -93,7 +102,8 @@ function printMenu() {
         const command = COMMANDS[index];
         stdout.write(`${index + 1}. ${command.name} — ${command.description} (${command.path})\n`);
     }
-    stdout.write(`${COMMANDS.length + 1}. quit\n`);
+    stdout.write(`${QUIT_MENU_INDEX}. quit\n`);
+    stdout.write(`${CLOUDBBS_MENU_INDEX}. Post this information to the CloudBBS\n`);
 }
 
 function findCommand(name) {
@@ -104,6 +114,19 @@ function parseArgs(argv) {
     if (argv.length === 0) return { mode: 'menu' };
     const commandName = argv[0];
     if (commandName === 'list') return { mode: 'list' };
+    if (commandName === 'post-cloudbbs') {
+        let yes = false;
+        for (let index = 1; index < argv.length; index += 1) {
+            const arg = argv[index];
+            if (arg === '--yes') {
+                yes = true;
+                continue;
+            }
+            usage();
+            process.exit(2);
+        }
+        return { mode: 'post-cloudbbs', yes };
+    }
     if (commandName.startsWith('-')) {
         usage();
         process.exit(2);
@@ -250,6 +273,86 @@ async function promptFilters(ask, command) {
     return options;
 }
 
+function isAffirmative(answer) {
+    if (answer == null) return false;
+    const trimmed = answer.trim().toLowerCase();
+    return trimmed === 'y' || trimmed === 'yes';
+}
+
+function shortErrorLine(payload, text) {
+    if (payload && payload.error != null && typeof payload.error !== 'object') {
+        return String(payload.error);
+    }
+    if (typeof text === 'string' && text && !text.includes('\n')) {
+        return text;
+    }
+    return 'request_failed';
+}
+
+async function runPostCloudBbs({ confirmed, ask = null }) {
+    const settings = cloudBbsSettings();
+    if (!settings.token) {
+        stderr.write('Set CLOUDBBS_TOKEN in the environment or .env\n');
+        return 2;
+    }
+
+    const adminKey = process.env.RATE_NINJA_ADMIN_API_KEY;
+    const source = baseUrl();
+    let reads;
+    try {
+        reads = await collectReferenceReads({ baseUrl: source, adminKey });
+    } catch (error) {
+        const message = error && error.message ? error.message : String(error);
+        stderr.write(`${message}\n`);
+        return 1;
+    }
+
+    const generatedAt = new Date().toISOString();
+    const announcement = buildAnnouncement({ generatedAt, source, reads });
+    if (announcement.byteLength > BODY_SIZE_CAP) {
+        stderr.write(
+            `Announcement body is ${announcement.byteLength} bytes; CloudBBS cap is ${BODY_SIZE_CAP}. Not posting.\n`
+        );
+        return 1;
+    }
+
+    if (!confirmed) {
+        const prompt =
+            `Replace the announcement on ${settings.url}/${settings.project} ` +
+            `with ${announcement.byteLength} bytes? [y/N] `;
+        const answer = ask ? await ask(prompt) : null;
+        if (!isAffirmative(answer)) {
+            stdout.write('Cancelled.\n');
+            return 0;
+        }
+    }
+
+    let result;
+    try {
+        result = await putAnnouncement({
+            settings,
+            title: announcement.title,
+            body: announcement.body
+        });
+    } catch (error) {
+        const message = error && error.message ? error.message : String(error);
+        stderr.write(`${message}\n`);
+        return 1;
+    }
+
+    if (!result.ok) {
+        stderr.write(`${result.status} ${shortErrorLine(result.payload, result.text)}\n`);
+        return 1;
+    }
+
+    const version = result.payload?.version;
+    const updatedAt = result.payload?.updatedAt;
+    stdout.write(
+        `Posted to ${settings.project}: version ${version ?? '?'}, updatedAt ${updatedAt ?? '?'}\n`
+    );
+    return 0;
+}
+
 async function runMenu() {
     const prompter = createPrompter();
     try {
@@ -259,9 +362,16 @@ async function runMenu() {
             if (choiceRaw == null) return;
             const choice = choiceRaw.trim();
             if (!choice) continue;
-            const quitIndex = String(COMMANDS.length + 1);
-            if (choice === quitIndex || choice.toLowerCase() === 'quit' || choice.toLowerCase() === 'q') {
+            if (
+                choice === String(QUIT_MENU_INDEX) ||
+                choice.toLowerCase() === 'quit' ||
+                choice.toLowerCase() === 'q'
+            ) {
                 return;
+            }
+            if (choice === String(CLOUDBBS_MENU_INDEX)) {
+                await runPostCloudBbs({ confirmed: false, ask: prompter.ask });
+                continue;
             }
             const index = Number(choice);
             const command = Number.isInteger(index) && index >= 1 && index <= COMMANDS.length
@@ -286,6 +396,13 @@ async function main() {
     if (parsed.mode === 'list') {
         printMenu();
         process.exit(0);
+    }
+    if (parsed.mode === 'post-cloudbbs') {
+        if (!parsed.yes) {
+            stderr.write('post-cloudbbs requires --yes\n');
+            process.exit(2);
+        }
+        process.exit(await runPostCloudBbs({ confirmed: true }));
     }
     if (parsed.mode === 'once') {
         process.exit(await runCommand(parsed.command, parsed.options));
