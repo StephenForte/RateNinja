@@ -175,20 +175,30 @@ export function mount(container, ctx) {
         };
     }
 
+    function noTargetFits(allowed) {
+        return Boolean(allowed.latestStart) && allowed.latestStart < allowed.earliestStart;
+    }
+
+    function noTargetFitsMessage(allowed) {
+        return `No target start fits this source range: the target must start after ${sourceEnd.input.value} and end by ${allowed.latestEnd} (90 days from today). Shorten the source range.`;
+    }
+
     function refreshTargetEnd() {
         const end = derivedEnd();
         targetEnd.textContent = end ? `Target end: ${end}` : 'Target end: enter a source range and a target start.';
         const allowed = targetWindow();
+        const impossible = noTargetFits(allowed);
         targetStart.input.min = allowed.earliestStart;
-        targetStart.input.max = allowed.latestStart;
+        // An inverted min/max would make the picker unusable; the hint explains instead.
+        targetStart.input.max = impossible ? '' : allowed.latestStart;
         if (!allowed.latestStart) {
             targetWindowHint.textContent = `The target must end on or before ${allowed.latestEnd} (90 days from today).`;
-        } else if (allowed.latestStart < allowed.earliestStart) {
-            targetWindowHint.textContent = `No target start fits this source range: the target must start after ${sourceEnd.input.value} and end by ${allowed.latestEnd}. Go back and shorten the source range.`;
+        } else if (impossible) {
+            targetWindowHint.textContent = noTargetFitsMessage(allowed);
         } else {
             targetWindowHint.textContent = `Choose a target start from ${allowed.earliestStart} to ${allowed.latestStart}. The target must end by ${allowed.latestEnd} (90 days from today).`;
         }
-        targetWindowHint.classList.toggle('pf-window-warning', Boolean(end) && fullDaysUntil(parseIsoDate(end)) > MAX_TARGET_DAYS);
+        targetWindowHint.classList.toggle('pf-window-warning', impossible || (Boolean(end) && fullDaysUntil(parseIsoDate(end)) > MAX_TARGET_DAYS));
     }
 
     function syncType() {
@@ -232,18 +242,18 @@ export function mount(container, ctx) {
             if (sourceStart.input.value > sourceEnd.input.value) {
                 return 'Source start date must not be after source end date.';
             }
+            const allowed = targetWindow();
+            if (noTargetFits(allowed)) return noTargetFitsMessage(allowed);
         }
         if (step === 2) {
+            const allowed = targetWindow();
+            if (noTargetFits(allowed)) return noTargetFitsMessage(allowed);
             const end = derivedEnd();
             if (!parseIsoDate(targetStart.input.value) || !end) return 'Target start must be a valid date.';
             if (targetStart.input.value <= sourceEnd.input.value) {
                 return 'Target range must start after the source range ends.';
             }
             if (fullDaysUntil(parseIsoDate(end)) > MAX_TARGET_DAYS) {
-                const allowed = targetWindow();
-                if (allowed.latestStart < allowed.earliestStart) {
-                    return `The target would end ${end}, more than 90 days from today. No target start fits this source range, so go back and shorten it.`;
-                }
                 return `The target would end ${end}, more than 90 days from today (latest ${allowed.latestEnd}). Choose a target start on or before ${allowed.latestStart}, or shorten the source range.`;
             }
         }
@@ -285,6 +295,7 @@ export function mount(container, ctx) {
         } else {
             departurePort.input.value = record.departurePort || '';
         }
+        sourceCheck += 1;
         preview = null;
         resetMessages();
         loadExisting();
@@ -293,6 +304,7 @@ export function mount(container, ctx) {
     function useRange(start, end) {
         sourceStart.input.value = start;
         sourceEnd.input.value = end;
+        sourceCheck += 1;
         preview = null;
         resetMessages();
         refreshTargetEnd();
@@ -371,13 +383,20 @@ export function mount(container, ctx) {
     }
 
     // Catches an empty source before the user walks through three more steps.
+    // Bumped by any navigation or input change so an in-flight check can tell it is stale.
+    let sourceCheck = 0;
+
     async function checkSourceHasRecords() {
+        const dataset = type.value;
+        const start = sourceStart.input.value;
+        const end = sourceEnd.input.value;
         const result = await searchExisting({ withSourceDates: true, pageSize: 1 });
         if (result.total) return '';
-        return `No ${type.value} found from ${sourceStart.input.value} to ${sourceEnd.input.value} with these filters. Check "Existing ${type.value}" below for the dates you have.`;
+        return `No ${dataset} found from ${start} to ${end} with these filters. Check "Existing ${dataset}" below for the dates you have.`;
     }
 
     function showStep(next) {
+        sourceCheck += 1;
         step = next;
         panels.forEach((panel, index) => {
             panel.hidden = index !== step;
@@ -526,15 +545,17 @@ export function mount(container, ctx) {
             return;
         }
         if (step === 1) {
+            const ticket = ++sourceCheck;
             nextButton.disabled = true;
             try {
                 const empty = await checkSourceHasRecords();
+                if (ticket !== sourceCheck) return;
                 if (empty) {
                     errors.show(empty);
                     return;
                 }
             } catch (error) {
-                errors.show(adminFailureMessage(error, error.message));
+                if (ticket === sourceCheck) errors.show(adminFailureMessage(error, error.message));
                 return;
             } finally {
                 nextButton.disabled = false;
@@ -597,6 +618,7 @@ export function mount(container, ctx) {
 
     for (const input of [type, price, sourceStart.input, sourceEnd.input, targetStart.input, carrier.input, origin.input, destination.input, departurePort.input, keep, replace]) {
         input.addEventListener('change', () => {
+            sourceCheck += 1;
             preview = null;
             if (step === 4) nextButton.textContent = 'Preview';
             refreshTargetEnd();
@@ -606,6 +628,11 @@ export function mount(container, ctx) {
     type.addEventListener('change', syncType);
     existingRefresh.addEventListener('click', loadExisting);
     targetStart.input.addEventListener('input', refreshTargetEnd);
+    for (const input of [sourceStart.input, sourceEnd.input, carrier.input, origin.input, destination.input, departurePort.input]) {
+        input.addEventListener('input', () => {
+            sourceCheck += 1;
+        });
+    }
     sourceStart.input.addEventListener('input', refreshTargetEnd);
     sourceEnd.input.addEventListener('input', refreshTargetEnd);
 
