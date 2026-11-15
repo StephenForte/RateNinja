@@ -1,11 +1,19 @@
 import { companyOperationGate } from '../confirm.js';
-import { parseIsoDate } from '../dates.js';
+import { fullDaysUntil, parseIsoDate } from '../dates.js';
 import { request } from '../api.js';
 import { adminFailureMessage } from '../permissions.js';
-import { errorBox, heading, paragraph } from '../dom.js';
+import { errorBox, heading, paragraph, textCell } from '../dom.js';
 
 const STEPS = ['Dataset', 'Source', 'Target start', 'Conflict', 'Preview', 'Confirm'];
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+// Mirrors validatePullForwardRange in lib/domain.js: the target must end within 90 days of today (UTC).
+const MAX_TARGET_DAYS = 90;
+const EXISTING_PAGE_SIZE = 20;
+const QUICK_RANGE_DAYS = 28;
+
+function todayUtc() {
+    return new Date().toISOString().slice(0, 10);
+}
 
 function addUtcDays(value, days) {
     const parsed = parseIsoDate(value);
@@ -106,6 +114,36 @@ export function mount(container, ctx) {
     confirmText.id = 'pfConfirmText';
     confirmText.className = 'pf-confirm-text';
 
+    const targetWindowHint = document.createElement('p');
+    targetWindowHint.id = 'pfTargetWindow';
+    targetWindowHint.className = 'pf-window-hint';
+
+    const existingTitle = document.createElement('h4');
+    existingTitle.className = 'pf-existing-title';
+    const existingRefresh = document.createElement('button');
+    existingRefresh.type = 'button';
+    existingRefresh.id = 'pfShowExisting';
+    existingRefresh.className = 'back-btn';
+    existingRefresh.textContent = 'Refresh with current filters';
+    const existingStatus = document.createElement('p');
+    existingStatus.id = 'pfExistingStatus';
+    existingStatus.className = 'pull-forward-subtitle';
+    const existingActions = document.createElement('div');
+    existingActions.className = 'pf-existing-actions';
+    const existingTable = document.createElement('table');
+    existingTable.id = 'pfExistingTable';
+    existingTable.className = 'pf-existing-table';
+    existingTable.hidden = true;
+    const existingHead = document.createElement('thead');
+    const existingHeadRow = document.createElement('tr');
+    existingHead.append(existingHeadRow);
+    const existingBody = document.createElement('tbody');
+    existingTable.append(existingHead, existingBody);
+    const existingNote = paragraph('pull-forward-subtitle', 'Pull-forward matches carrier and port filters exactly, not partial text. "Use filters" copies a row\'s exact values.');
+    const existingSection = document.createElement('div');
+    existingSection.className = 'pf-existing';
+    existingSection.append(existingTitle, existingRefresh, existingStatus, existingActions, existingTable, existingNote);
+
     let step = 0;
     let preview = null;
     const panels = [];
@@ -125,9 +163,32 @@ export function mount(container, ctx) {
         return addUtcDays(sourceEnd.input.value, span);
     }
 
+    // The 90-day window, expressed for the current source range.
+    function targetWindow() {
+        const latestEnd = addUtcDays(todayUtc(), MAX_TARGET_DAYS);
+        const span = daySpan(sourceStart.input.value, sourceEnd.input.value);
+        if (span === null || span < 0) return { latestEnd, earliestStart: '', latestStart: '' };
+        return {
+            latestEnd,
+            earliestStart: addUtcDays(sourceEnd.input.value, 1),
+            latestStart: addUtcDays(latestEnd, -span)
+        };
+    }
+
     function refreshTargetEnd() {
         const end = derivedEnd();
         targetEnd.textContent = end ? `Target end: ${end}` : 'Target end: enter a source range and a target start.';
+        const allowed = targetWindow();
+        targetStart.input.min = allowed.earliestStart;
+        targetStart.input.max = allowed.latestStart;
+        if (!allowed.latestStart) {
+            targetWindowHint.textContent = `The target must end on or before ${allowed.latestEnd} (90 days from today).`;
+        } else if (allowed.latestStart < allowed.earliestStart) {
+            targetWindowHint.textContent = `No target start fits this source range: the target must start after ${sourceEnd.input.value} and end by ${allowed.latestEnd}. Go back and shorten the source range.`;
+        } else {
+            targetWindowHint.textContent = `Choose a target start from ${allowed.earliestStart} to ${allowed.latestStart}. The target must end by ${allowed.latestEnd} (90 days from today).`;
+        }
+        targetWindowHint.classList.toggle('pf-window-warning', Boolean(end) && fullDaysUntil(parseIsoDate(end)) > MAX_TARGET_DAYS);
     }
 
     function syncType() {
@@ -137,6 +198,10 @@ export function mount(container, ctx) {
         origin.wrap.hidden = !rates;
         destination.wrap.hidden = !rates;
         departurePort.wrap.hidden = rates;
+        existingTitle.textContent = `Existing ${type.value}`;
+        existingStatus.textContent = '';
+        existingTable.hidden = true;
+        existingActions.replaceChildren();
         preview = null;
         resetMessages();
     }
@@ -174,8 +239,142 @@ export function mount(container, ctx) {
             if (targetStart.input.value <= sourceEnd.input.value) {
                 return 'Target range must start after the source range ends.';
             }
+            if (fullDaysUntil(parseIsoDate(end)) > MAX_TARGET_DAYS) {
+                const allowed = targetWindow();
+                if (allowed.latestStart < allowed.earliestStart) {
+                    return `The target would end ${end}, more than 90 days from today. No target start fits this source range, so go back and shorten it.`;
+                }
+                return `The target would end ${end}, more than 90 days from today (latest ${allowed.latestEnd}). Choose a target start on or before ${allowed.latestStart}, or shorten the source range.`;
+            }
         }
         return '';
+    }
+
+    function companyQuery(params) {
+        const companyId = ctx.permissions.companyContext?.id;
+        if (companyId) params.set('companyId', companyId);
+        return params;
+    }
+
+    // Uses the Data workspace search. It matches filter text as "contains",
+    // while pull-forward matches carrier and ports exactly.
+    async function searchExisting({ withSourceDates, pageSize }) {
+        const params = new URLSearchParams();
+        const filter = filterBody();
+        for (const [key, value] of Object.entries(filter)) params.set(key, value);
+        if (withSourceDates) {
+            params.set(type.value === 'rates' ? 'effectiveFrom' : 'departureFrom', sourceStart.input.value);
+            params.set(type.value === 'rates' ? 'effectiveTo' : 'departureTo', sourceEnd.input.value);
+        }
+        params.set('page', '1');
+        params.set('pageSize', String(pageSize));
+        return request(`/api/admin/data/${type.value}?${companyQuery(params).toString()}`);
+    }
+
+    function recordDate(record) {
+        return type.value === 'rates'
+            ? String(record.rateEffectiveDate || '').slice(0, 10)
+            : String(record.departure || '').slice(0, 10);
+    }
+
+    function useRecordFilters(record) {
+        carrier.input.value = record.carrier || '';
+        if (type.value === 'rates') {
+            origin.input.value = record.originPort || '';
+            destination.input.value = record.destinationPort || '';
+        } else {
+            departurePort.input.value = record.departurePort || '';
+        }
+        preview = null;
+        resetMessages();
+        loadExisting();
+    }
+
+    function useRange(start, end) {
+        sourceStart.input.value = start;
+        sourceEnd.input.value = end;
+        preview = null;
+        resetMessages();
+        refreshTargetEnd();
+    }
+
+    let existingRequest = 0;
+    async function loadExisting() {
+        const ticket = ++existingRequest;
+        const noun = type.value;
+        existingStatus.textContent = `Loading existing ${noun}…`;
+        existingTable.hidden = true;
+        existingActions.replaceChildren();
+        try {
+            const result = await searchExisting({ withSourceDates: false, pageSize: EXISTING_PAGE_SIZE });
+            if (ticket !== existingRequest) return;
+            renderExisting(result);
+        } catch (error) {
+            if (ticket !== existingRequest) return;
+            existingStatus.textContent = adminFailureMessage(error, `Could not load existing ${noun}: ${error.message}`);
+        }
+    }
+
+    function renderExisting(result) {
+        const noun = type.value;
+        const rates = noun === 'rates';
+        existingBody.replaceChildren();
+        existingActions.replaceChildren();
+        if (!result.total) {
+            existingStatus.replaceChildren(
+                document.createTextNode(`No ${noun} found for this company${Object.keys(filterBody()).length ? ' with these filters' : ''}. Clear the filters, or add ${noun} on `),
+                Object.assign(document.createElement('a'), { href: '/admin/imports', textContent: 'Imports' }),
+                document.createTextNode(' first.')
+            );
+            existingTable.hidden = true;
+            return;
+        }
+        const latest = recordDate(result.records[0]);
+        existingStatus.textContent = `${result.total} ${noun} match these filters (any date). Most recent ${rates ? 'effective date' : 'departure'}: ${latest || '—'}. Showing the ${result.records.length} most recent.`;
+        if (parseIsoDate(latest)) {
+            const quickStart = addUtcDays(latest, -(QUICK_RANGE_DAYS - 1));
+            const quick = document.createElement('button');
+            quick.type = 'button';
+            quick.className = 'back-btn';
+            quick.id = 'pfUseLatestRange';
+            quick.textContent = `Use the last ${QUICK_RANGE_DAYS} days as source (${quickStart} to ${latest})`;
+            quick.addEventListener('click', () => useRange(quickStart, latest));
+            existingActions.append(quick);
+        }
+        existingHeadRow.replaceChildren(
+            ...(rates
+                ? ['Effective', 'Carrier', 'Origin', 'Destination', '']
+                : ['Departure', 'Carrier', 'Departure port', 'Arrival port', 'Vessel / voyage', '']
+            ).map(label => textCell(label, 'th'))
+        );
+        for (const record of result.records) {
+            const row = document.createElement('tr');
+            const cells = rates
+                ? [recordDate(record), record.carrier, record.originPort, record.destinationPort]
+                : [recordDate(record), record.carrier, record.departurePort, record.arrivalPort,
+                    [record.vessel, record.voyage].filter(Boolean).join(' / ')];
+            row.append(...cells.map(value => textCell(value || '')));
+            const action = document.createElement('td');
+            const use = document.createElement('button');
+            use.type = 'button';
+            use.className = 'back-btn pf-use-filters';
+            use.textContent = 'Use filters';
+            use.title = rates
+                ? 'Set carrier, origin, and destination to exactly these values'
+                : 'Set carrier and departure port to exactly these values';
+            use.addEventListener('click', () => useRecordFilters(record));
+            action.append(use);
+            row.append(action);
+            existingBody.append(row);
+        }
+        existingTable.hidden = false;
+    }
+
+    // Catches an empty source before the user walks through three more steps.
+    async function checkSourceHasRecords() {
+        const result = await searchExisting({ withSourceDates: true, pageSize: 1 });
+        if (result.total) return '';
+        return `No ${type.value} found from ${sourceStart.input.value} to ${sourceEnd.input.value} with these filters. Check "Existing ${type.value}" below for the dates you have.`;
     }
 
     function showStep(next) {
@@ -191,6 +390,7 @@ export function mount(container, ctx) {
         nextButton.hidden = step === STEPS.length - 1;
         nextButton.textContent = step === 4 ? 'Preview' : 'Next';
         refreshTargetEnd();
+        if (step === 1) loadExisting();
     }
 
     async function runPreview() {
@@ -325,6 +525,21 @@ export function mount(container, ctx) {
             errors.show(message);
             return;
         }
+        if (step === 1) {
+            nextButton.disabled = true;
+            try {
+                const empty = await checkSourceHasRecords();
+                if (empty) {
+                    errors.show(empty);
+                    return;
+                }
+            } catch (error) {
+                errors.show(adminFailureMessage(error, error.message));
+                return;
+            } finally {
+                nextButton.disabled = false;
+            }
+        }
         if (step < 4) {
             preview = null;
             showStep(step + 1);
@@ -336,7 +551,10 @@ export function mount(container, ctx) {
                 const ok = await runPreview();
                 if (ok) nextButton.textContent = 'Next';
             } catch (error) {
-                errors.show(adminFailureMessage(error, error.message));
+                const message = error.code === 'empty_selection'
+                    ? `${error.message} Carrier and port filters must match exactly. Go back to Source and use "Use filters" on an existing row.`
+                    : error.message;
+                errors.show(adminFailureMessage(error, message));
             } finally {
                 nextButton.disabled = false;
             }
@@ -386,6 +604,7 @@ export function mount(container, ctx) {
         });
     }
     type.addEventListener('change', syncType);
+    existingRefresh.addEventListener('click', loadExisting);
     targetStart.input.addEventListener('input', refreshTargetEnd);
     sourceStart.input.addEventListener('input', refreshTargetEnd);
     sourceEnd.input.addEventListener('input', refreshTargetEnd);
@@ -395,8 +614,8 @@ export function mount(container, ctx) {
     form.append(
         steps,
         panel('1. Dataset', typeWrap, priceWrap, paragraph('pull-forward-subtitle', 'Choose rates or sailings. A price increase applies to rates only, once.')),
-        panel('2. Source', sourceStart.wrap, sourceEnd.wrap, carrier.wrap, origin.wrap, destination.wrap, departurePort.wrap),
-        panel('3. Target start', targetStart.wrap, targetEnd, paragraph('pull-forward-subtitle', 'The target end is the source duration applied to this start. It must end within 90 days of today.')),
+        panel('2. Source', sourceStart.wrap, sourceEnd.wrap, carrier.wrap, origin.wrap, destination.wrap, departurePort.wrap, existingSection),
+        panel('3. Target start', targetStart.wrap, targetEnd, targetWindowHint, paragraph('pull-forward-subtitle', 'The target end is the source duration applied to this start.')),
         panel('4. Conflict choice', keepBox, replaceBox),
         panel('5. Preview', paragraph('pull-forward-subtitle', 'Preview the exact rows, then continue. Replace lists only the matching target rows.'), previewSummary),
         panel('6. Confirm', confirmText, confirmButton),

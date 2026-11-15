@@ -2190,6 +2190,62 @@ body {
     gap: 4px;
 }
 
+.pf-window-hint {
+    margin: 4px 0 8px;
+    color: var(--muted);
+}
+
+.pf-window-hint.pf-window-warning {
+    color: #b42318;
+    font-weight: 600;
+}
+
+.pf-existing {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+}
+
+.pf-existing-title {
+    margin: 0 0 8px;
+    color: var(--ink);
+}
+
+.pf-existing-actions {
+    margin: 8px 0;
+}
+
+.pf-existing-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    display: block;
+    overflow-x: auto;
+}
+
+.pf-existing-table[hidden] {
+    display: none;
+}
+
+.pf-existing-table th,
+.pf-existing-table td {
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--line);
+    text-align: left;
+    white-space: nowrap;
+}
+
+.pf-existing-table th {
+    background: var(--surface-muted);
+    color: var(--muted);
+    font-weight: 600;
+}
+
+.pf-use-filters {
+    padding: 4px 10px;
+    font-size: 0.85rem;
+}
+
 .data-undo-conflicts {
     margin: 0;
     padding: 10px 12px;
