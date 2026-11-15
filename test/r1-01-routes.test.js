@@ -18,7 +18,8 @@ const routeNames = [
     'imports',
     'booking-requests',
     'partner-bookings',
-    'partner'
+    'partner',
+    'ports'
 ];
 
 function rawGet(port, urlPath) {
@@ -177,6 +178,9 @@ describe('r1-01 routes and exact documents', { concurrency: 1 }, () => {
                     ['GET', '^\\/api\\/partner\\/v1\\/me\\/booking-requests\\/([^/]+)$', 'public'],
                     ['POST', '^\\/api\\/partner\\/v1\\/me\\/booking-requests\\/([^/]+)\\/decision$', 'public']
                 ]);
+            } else if (name === 'ports') {
+                assert.equal(mod.routes.length, 4);
+                assert.ok(mod.routes.every(route => route.access === 'session'));
             } else {
                 assert.equal(mod.routes.length, 0);
             }

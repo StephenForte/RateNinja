@@ -148,6 +148,15 @@ export const sections = [
         path: '/admin/oauth-clients',
         allow: allowOauthClients,
         load: () => import('./admin/oauth-clients.js')
+    },
+    {
+        area: 'admin',
+        id: 'ports',
+        label: 'Ports',
+        group: 'Admin',
+        path: '/admin/ports',
+        allow: permissions => permissions.systemAdmin === true,
+        load: () => import('./admin/ports.js')
     }
 ];
 

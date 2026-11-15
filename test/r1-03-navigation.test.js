@@ -47,8 +47,10 @@ describe('app shell routes', () => {
             [customerAdmin, '/admin/customers'],
             [customerAdmin, '/admin/companies'],
             [customerAdmin, '/admin/oauth-clients'],
+            [customerAdmin, '/admin/ports'],
             [ownerAdmin, '/admin/companies'],
             [ownerAdmin, '/admin/oauth-clients'],
+            [ownerAdmin, '/admin/ports'],
             [systemAdmin, '/profile/connected-apps']
         ];
         for (const [permissions, path] of denied) {
@@ -61,6 +63,7 @@ describe('app shell routes', () => {
         assert.equal(resolveRoute('/admin/customers', ownerAdmin).kind, 'section');
         assert.equal(resolveRoute('/admin/companies', systemAdmin).kind, 'section');
         assert.equal(resolveRoute('/admin/oauth-clients', systemAdmin).kind, 'section');
+        assert.equal(resolveRoute('/admin/ports', systemAdmin).kind, 'section');
     });
 });
 
@@ -113,7 +116,8 @@ describe('menu matches the role', () => {
             '/admin/pull-forward',
             '/admin/imports',
             '/admin/integrations',
-            '/admin/oauth-clients'
+            '/admin/oauth-clients',
+            '/admin/ports'
         ]);
     });
 
