@@ -221,6 +221,8 @@ an open operator question. Until it is answered, no task implements it.
 
 **Resolved 2026-10-13 (operator): no.** System admins administer the selected company (D-007, D-021) but always browse rates and sailings as their own company. No task implements cross-company browsing.
 
+**Amended 2026-11-15 (operator), D-031:** the admin API key may read the six D-030 reference lookups across all companies. App browsing is unchanged.
+
 ### D-021 — System admins pick a company context from the UI (2026-10-13, amends D-007)
 
 D-007 made company context fail closed (409) but gave the UI no way to pick a company. The R1-02
@@ -430,3 +432,41 @@ together (FR 11). The rest are planner defaults pending product review.
   owner-only, as D-029 keeps sailings and predictive pricing owner-only.
 - **Scopes:** no new ones. 1–4 and 6 need `rates:read`; 5 needs `sailings:read`.
 - No prices appear in any of the six responses.
+
+### D-031 — Admin API key and an admin CLI for the six reference reads (2026-11-15, amends D-020 for this API only)
+
+Task R1-25. On 2026-11-15 the operator asked for a console app that lists the six D-030 reads
+and runs them, authenticated by a token in `.env`, for the admin rather than partners. No admin
+token existed: system admins have a browser session only, and the six reads are reachable only
+through partner OAuth (10-minute access tokens, `lib/config.js` `ACCESS_TOKEN_TTL_MS`) and `/mcp`.
+The operator's non-expiring `.env` token is the demo key (`RATE_NINJA_API_KEY`, `X-API-Key`),
+which the partner routes reject (`lib/partner-http.js` reads `Authorization: Bearer` only).
+The operator chose, the same day: a new admin API key, and all companies with an optional
+company filter. That is cross-company reading, which D-020 ruled out; the operator amended D-020
+for this read-only admin API only. Rate and sailing browsing in the app keeps D-020 unchanged.
+
+- **Credential:** env `RATE_NINJA_ADMIN_API_KEY`, sent as header `X-Admin-API-Key`, compared in
+  constant time. It does not expire; rotation is changing the env value. Fail closed: unset, shorter
+  than 32 characters, or equal to `RATE_NINJA_API_KEY` means every admin reference route refuses
+  with 503 and no data. The demo key, a partner bearer token, and a browser session are not
+  accepted on these routes, and the admin key is accepted nowhere else.
+- **Routes:** `GET /api/admin/v1/reference/{rate-date-ranges, origin-ports, destination-ports,
+  contract-owners, sailing-date-ranges, predictive-date-ranges}`, plus
+  `GET /api/admin/v1/reference/companies` (id, name, company type) so the CLI can offer a company
+  filter. Same filters, paging, and row shapes as the partner routes, through the same
+  `lib/reference-ranges.js` functions. Not on MCP.
+- **Data scope:** with `company=<company row id>`, a response equals what that company's partner
+  token gets (owner or customer view; reads 5 and 6 refuse a customer company with 403
+  `owner_only`, as on the partner API). Unknown company: 404. With no `company`, the response
+  covers every Contract Owner company's owner view; rows of reads 1, 5 and 6 carry
+  `ownerCompanyId` and `ownerCompanyName`, reads 2 and 3 are distinct across all owners, and read 4
+  keeps its `ownerCompanyName`. No prices appear (D-030).
+- **Limits and audit:** one process-wide window of 60 requests per 60 seconds for the admin key.
+  Each call writes an audit event `admin_reference_<read>_read` with the count and company filter.
+- **CLI:** `scripts/rateninja-admin.js`, Node built-ins only. Reads `.env` for
+  `RATE_NINJA_ADMIN_API_KEY` and `RATE_NINJA_BASE_URL` (default
+  `https://rate-ninja.onrender.com`). With no arguments it lists the commands and runs the chosen one
+  interactively; with a command name it runs once. Results print as a table. It never prints the
+  key and never falls back to `RATE_NINJA_API_KEY`.
+- **Production:** `render.yaml` declares `RATE_NINJA_ADMIN_API_KEY` with `sync: false`; the
+  operator sets the value in the Render dashboard. Until then production refuses with 503.
