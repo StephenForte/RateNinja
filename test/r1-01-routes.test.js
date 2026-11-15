@@ -19,7 +19,8 @@ const routeNames = [
     'booking-requests',
     'partner-bookings',
     'partner',
-    'ports'
+    'ports',
+    'admin-reference'
 ];
 
 function rawGet(port, urlPath) {
@@ -187,6 +188,17 @@ describe('r1-01 routes and exact documents', { concurrency: 1 }, () => {
             } else if (name === 'ports') {
                 assert.equal(mod.routes.length, 4);
                 assert.ok(mod.routes.every(route => route.access === 'session'));
+            } else if (name === 'admin-reference') {
+                assert.equal(mod.routes.length, 7);
+                assert.deepEqual(mod.routes.map(route => [route.method, route.path, route.access]), [
+                    ['GET', '/api/admin/v1/reference/rate-date-ranges', 'public'],
+                    ['GET', '/api/admin/v1/reference/origin-ports', 'public'],
+                    ['GET', '/api/admin/v1/reference/destination-ports', 'public'],
+                    ['GET', '/api/admin/v1/reference/contract-owners', 'public'],
+                    ['GET', '/api/admin/v1/reference/sailing-date-ranges', 'public'],
+                    ['GET', '/api/admin/v1/reference/predictive-date-ranges', 'public'],
+                    ['GET', '/api/admin/v1/reference/companies', 'public']
+                ]);
             } else {
                 assert.equal(mod.routes.length, 0);
             }

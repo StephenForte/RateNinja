@@ -5,7 +5,7 @@ Rate Ninja is a small web application for browsing ocean freight rates, sailing 
 ## Run locally
 
 1. Use Node.js 22 or later. Render runs Node.js 26.12.1; that pin is not required on a local machine.
-2. Copy `.env.example` to `.env` and set `SESSION_SECRET` (and `RATE_NINJA_API_KEY` if you want the public demo API).
+2. Copy `.env.example` to `.env` and set `SESSION_SECRET` (and `RATE_NINJA_API_KEY` if you want the public demo API). For the admin reference CLI, see `docs/admin-cli.md`.
 3. Ensure a SQLite database exists at `data/rateninja.db` (or set `SQLITE_DB_PATH`).
 4. Start the app:
 
@@ -25,6 +25,7 @@ Install dependencies once (`npm install`). Password hashing uses `@node-rs/argon
 | `OAUTH_SIGNING_SECRET` | No | Signs partner access tokens. Falls back to `SESSION_SECRET` |
 | `PARTNER_OAUTH_ENABLED` | No | `true` in `render.yaml`, so a blueprint sync leaves partner sign-in on. See `docs/partner-integration.md` |
 | `RATE_NINJA_API_KEY` | For `/api/v1/*` | Public demo API key (`X-API-Key`). Does not grant partner access |
+| `RATE_NINJA_ADMIN_API_KEY` | For `/api/admin/v1/reference/*` | Admin reference API key (`X-Admin-API-Key`). See `docs/admin-cli.md` |
 | `SQLITE_DB_PATH` | No | Defaults to `data/rateninja.db` |
 | `RESEND_API_KEY` | For password reset mail | Resend API key. Never commit it |
 | `RESEND_FROM` | For password reset mail | From address Resend is allowed to send as |

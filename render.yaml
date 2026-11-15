@@ -21,6 +21,9 @@ services:
         value: /var/data/rateninja.db
       - key: RATE_NINJA_API_KEY
         sync: false
+      # Admin reference API / CLI. Set in the dashboard; never commit the value.
+      - key: RATE_NINJA_ADMIN_API_KEY
+        sync: false
       - key: SESSION_SECRET
         generateValue: true
       - key: OAUTH_SIGNING_SECRET
