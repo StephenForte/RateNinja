@@ -82,9 +82,11 @@ Model names are the planner's proposal; operator overrides recorded in the Run c
 | R1-22 | Partner OAuth for customer accounts, customer-priced rates, and customer booking requests | D-029 | R1-21 | S / Opus 5.5 | merged 2026-11-04, PR #57 (`be2b694`); Cursor checked by the operator |
 | R1-23 | Port reference table: migration 011, system-admin Ports page, `lib/ports.js` resolver | D-030 | — | M / Sonnet 5.5 | merged 2026-11-14, PR #60 (`a1eaf86`) |
 | R1-24 | Reference lookups and current date ranges: six MCP tools + six partner routes | D-030 | R1-23 merged | S / Opus 5.5 | approved 2026-11-14, PR #61 (`4dbb4a7`) |
+| R1-25 | Admin API key, admin reference routes (six reads + companies), and the `rateninja-admin` CLI | D-031 | R1-24 merged | S / Opus 5.5 | approved 2026-11-15, PR #63 (`617c603`) |
 
 ### Run order (waves)
 
+- **Admin CLI (2026-11-15):** R1-25 alone, one worker, main checkout. Base `303e8e1`.
 - **Reference lookups (2026-11-14):** R1-23, then R1-24 once R1-23 is merged (R1-24 reads `lib/ports.js`). Serial, one worker each, main checkout.
 
 - **W0** (serial, one worker): R1-00 → R1-01.
@@ -124,6 +126,7 @@ Peak concurrency is 4 (W2). If the operator runs fewer agents, drop R1-05 to W3 
 | R1-22 | `test/r1-22-*`, `test/helpers/r1-22.js` | `lib/oauth.js` (five access checks, consent wording), `lib/permissions.js` (add predicates), `lib/partner-http.js`, `lib/routes/partner-bookings.js`, `lib/routes/partner.js`, `lib/booking-requests.js`, `lib/visibility.js` (add a customer listing only), `lib/mcp.js`, `server.js` (partner handlers' audience, connected-apps checks), `public/js/registry.js`, `public/js/admin/integrations.js`, `public/js/profile/connected-apps.js`, partner docs, tests that assert customer refusal, routes, tools, or menus |
 | R1-23 | `lib/migrations/011-ports.js`, `lib/ports.js`, `lib/routes/ports.js`, `public/js/admin/ports.js`, `test/r1-23-*`, `test/helpers/r1-23.js` | `lib/routes/index.js` (one line), `public/js/registry.js` (one system-admin section), `public/index.html` (section container only, if the registry needs one), `public/styles.css` (append-only, R1-23 block), `lib/audit.js` (event names only), tests that assert the applied-id list, route modules, or menu paths |
 | R1-24 | `lib/reference-ranges.js`, `test/r1-24-*`, `test/helpers/r1-24.js` | `lib/mcp.js`, `lib/routes/partner.js`, `lib/partner-http.js` (only if a helper is missing), `lib/audit.js` (event names only), `API-README.md`, `docs/partner-integration.md`, `public/api-docs.html`, `public/js/admin/integrations.js` (tool list only), tests that assert routes, tools, or docs coverage |
+| R1-25 | `lib/admin-api-key.js`, `lib/routes/admin-reference.js`, `scripts/rateninja-admin.js`, `docs/admin-cli.md`, `test/r1-25-*`, `test/helpers/r1-25.js` | `lib/routes/index.js` (one line), `lib/reference-ranges.js` (add all-owners entry points; existing exports unchanged), `lib/config.js` (one setting), `lib/audit.js` (event names only), `render.yaml` (one `sync: false` entry), `.env.example` (one commented line), `package.json` (one `scripts` entry), `README.md` (configuration row and one CLI line), `test/r1-01-routes.test.js` (module list and the new module's routes) |
 
 ### Pre-registered modules (so nobody edits a registry)
 
@@ -176,6 +179,10 @@ Every migration task must also prove: fresh DB, prod-shaped copy, and re-run (id
 - Real MCP client check (R1-12, R1-14) needs the operator: production has `PARTNER_OAUTH_ENABLED=false`; run locally.
 
 ## Review log
+
+- 2026-11-15 · **R1-25, PR #63: approved at `617c603`, merge as-is.** Base `303e8e1` = main; scope inside the R1-25 row. Fresh clone on Node 26.12.1: main 252/249/0/3, PR 269 tests, 266 pass, 0 fail, 3 todo; no passing test name on main is missing from the PR. The handoff said 268/265; the extra test is the Bugbot regression added in `617c603`. Mutants caught: no 32-character minimum, admin key equal to the demo key allowed, unset key as empty string, sailing ranges opened to customers, `company=` always an owner view. Survives: dropping the Contract Owner filter in all-owners mode (code correct on reading, not pinned by a test). CLI probes: network failure and an invalid URL exit 1 without the key; an unset admin key does not fall back to `RATE_NINJA_API_KEY` (exit 2). Bugbot finding on `60614b1` (menu exits on any request error) was real and is fixed. Production and a real-TTY menu were not exercised. Worker run took ~26 min.
+
+- 2026-11-15 · **R1-25 planned (D-031), no migration.** Baseline `303e8e1`. Read on main: no admin token or admin API exists (`lib/permissions.js` `isSystemAdmin` is session-only); the six reads take `access.companyRecordId` and `access.companyType` (`lib/reference-ranges.js` lines 83–105, 182, 235); partner access tokens last 600 s (`lib/config.js:15`) and refresh tokens rotate (`lib/oauth.js:508-530`); the operator's non-expiring `.env` token is the demo key, which partner routes reject (`lib/partner-http.js:21-22`). D-020 amended for this admin API only. The CLI calls REST only: the operator first chose REST plus MCP for a partner token, and the admin key does not reach `/mcp`.
 
 - 2026-11-14 · **R1-24, PR #61: approved at `4dbb4a7`, merge as-is.** Base `a1eaf86` = main. Fresh clone on Node 26 with a temp DB: 252 tests, 249 pass, 0 fail, 3 todo (+6 over post-R1-23); CI, Bugbot, and Security Reviewer pass. Four mutants each fail the R1-24 suite: customer reading every owner, no expiration filter, sailing ranges opened to customers, and `earliestDepartingAfter` = today+90 unchecked. MCP `tools/list` from main and the branch, owner and customer: every prior tool definition is byte-identical (owner 9 to 15, customer 5 to 9, order kept). That matters because the worker replaced the R1-22 owner `tools/list` SHA pin with presence checks; future additions must be checked the same way. Worker run took 15m35s.
 
