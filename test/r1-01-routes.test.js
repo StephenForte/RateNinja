@@ -143,10 +143,16 @@ describe('r1-01 routes and exact documents', { concurrency: 1 }, () => {
             const mod = require(`../lib/routes/${name}`);
             assert.ok(Array.isArray(mod.routes));
             if (name === 'partner') {
-                assert.equal(mod.routes.length, 1);
-                assert.equal(mod.routes[0].method, 'GET');
-                assert.equal(mod.routes[0].path, '/api/partner/v1/me/predictive-pricing');
-                assert.equal(mod.routes[0].access, 'public');
+                assert.equal(mod.routes.length, 7);
+                assert.deepEqual(mod.routes.map(route => [route.method, route.path, route.access]), [
+                    ['GET', '/api/partner/v1/me/predictive-pricing', 'public'],
+                    ['GET', '/api/partner/v1/me/rate-date-ranges', 'public'],
+                    ['GET', '/api/partner/v1/me/origin-ports', 'public'],
+                    ['GET', '/api/partner/v1/me/destination-ports', 'public'],
+                    ['GET', '/api/partner/v1/me/contract-owners', 'public'],
+                    ['GET', '/api/partner/v1/me/sailing-date-ranges', 'public'],
+                    ['GET', '/api/partner/v1/me/predictive-date-ranges', 'public']
+                ]);
             } else if (name === 'admin-context') {
                 assert.equal(mod.routes.length, 3);
             } else if (name === 'account') {

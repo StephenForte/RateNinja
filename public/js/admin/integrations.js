@@ -10,6 +10,7 @@ const DOCS = [
 const OWNER_POINTS = [
     'A contract-owner account can approve a registered OAuth client. That client then calls the partner API and POST /mcp for this account\'s base contract rates and sailings.',
     'Partner and MCP prices are base contract prices. They are not a customer margin price, and they are not a predictive estimate.',
+    'Reference lookups cover current rate date ranges, origin and destination ports, contract owners, sailing date ranges, and predictive date ranges. Current-rate lookups are also available to linked customers.',
     'Booking requests for this company can be listed and read with bookings:read, and approved or declined with bookings:write. That decision changes data and is final. The booking payload is the customer price and the requester, not the base price. Customer accounts can authorize the partner API and MCP for customer-priced rates and booking requests.',
     'Predictive pricing on the partner API and the MCP tool is an estimate for a departure more than 90 days ahead. It is calculated, not stored, and it does not add a customer margin.',
     'Unsupported company types cannot approve partner or MCP access.',
@@ -20,8 +21,8 @@ const OWNER_POINTS = [
 const CUSTOMER_POINTS = [
     'This account\'s company is a customer. Signed-in browsing uses: GET /api/rates, GET /api/sailings, and GET /api/rates/predictive, with the session cookie.',
     'Those rate and predictive responses apply this company\'s active margin. They are not the owner\'s base contract price, and they are not the partner API.',
-    'Customers can list available-rates with rates:read, list and read their company booking requests with bookings:read, and create with bookings:write. A repeat create makes another request; clients should list before retrying.',
-    'This account can authorize the partner API or MCP. Customer tokens cannot read owner base prices, sailings or predictive pricing, or decide requests.',
+    'Customers can list available-rates with rates:read, list current-rate reference lookups (rate-date-ranges, origin-ports, destination-ports, contract-owners) with rates:read, list and read their company booking requests with bookings:read, and create with bookings:write. A repeat create makes another request; clients should list before retrying.',
+    'This account can authorize the partner API or MCP. Customer tokens cannot read owner base prices, sailings, predictive pricing, sailing date ranges or predictive date ranges, or decide requests.',
     'The key on /api/v1 is a shared demonstration key. It is not this company\'s private credential. The testbed calls that demo API.',
     'Nothing on this page is a key, client secret, access token, or password.'
 ];

@@ -162,6 +162,12 @@ Equivalent authorized requests return the same data and metadata on the partner 
 | Sailing search and pagination | `GET /api/partner/v1/me/sailings` | `rateninja_list_my_sailings` | `sailings:read` |
 | One authorized sailing | `GET /api/partner/v1/me/sailings/{sailingId}` | `rateninja_get_my_sailing` | `sailings:read` |
 | Predictive pricing | `GET /api/partner/v1/me/predictive-pricing` | `rateninja_get_my_predictive_pricing` | `rates:read` |
+| Current rate date ranges | `GET /api/partner/v1/me/rate-date-ranges` | `rateninja_list_rate_date_ranges` | `rates:read` |
+| Current origin ports | `GET /api/partner/v1/me/origin-ports` | `rateninja_list_valid_origin_ports` | `rates:read` |
+| Current destination ports | `GET /api/partner/v1/me/destination-ports` | `rateninja_list_valid_destination_ports` | `rates:read` |
+| Current contract owners | `GET /api/partner/v1/me/contract-owners` | `rateninja_list_valid_contract_owners` | `rates:read` |
+| Sailing date ranges | `GET /api/partner/v1/me/sailing-date-ranges` | `rateninja_list_sailing_date_ranges` | `sailings:read` |
+| Predictive date ranges | `GET /api/partner/v1/me/predictive-date-ranges` | `rateninja_list_predictive_date_ranges` | `rates:read` |
 | Booking request search and pagination | `GET /api/partner/v1/me/booking-requests` | `rateninja_list_my_booking_requests` | `bookings:read` |
 | One booking request | `GET /api/partner/v1/me/booking-requests/{id}` | `rateninja_get_my_booking_request` | `bookings:read` |
 | Approve or decline a booking request | `POST /api/partner/v1/me/booking-requests/{id}/decision` | `rateninja_decide_booking_request` | `bookings:write` |
@@ -180,6 +186,12 @@ An MCP `tools/call` is checked against the tool's `inputSchema` before the tool 
 | `rateninja_list_my_sailings` | `sailings:read` | none | `carrier`, `originPort`, `after`, `page`, `pageSize` |
 | `rateninja_get_my_sailing` | `sailings:read` | `sailingId` | none |
 | `rateninja_get_my_predictive_pricing` | `rates:read` | `after` | `carrier`, `originPort`, `page`, `pageSize` |
+| `rateninja_list_rate_date_ranges` | `rates:read` | none | `carrier`, `originPort`, `destinationPort`, `page`, `pageSize` |
+| `rateninja_list_valid_origin_ports` | `rates:read` | none | `page`, `pageSize` |
+| `rateninja_list_valid_destination_ports` | `rates:read` | none | `page`, `pageSize` |
+| `rateninja_list_valid_contract_owners` | `rates:read` | none | `page`, `pageSize` |
+| `rateninja_list_sailing_date_ranges` | `sailings:read` | none | `originPort`, `page`, `pageSize` |
+| `rateninja_list_predictive_date_ranges` | `rates:read` | none | `originPort`, `destinationPort`, `page`, `pageSize` |
 | `rateninja_list_my_booking_requests` | `bookings:read` | none | `status` (`pending`, `approved`, or `declined`), `page`, `pageSize` |
 | `rateninja_get_my_booking_request` | `bookings:read` | `requestId` | none |
 | `rateninja_decide_booking_request` | `bookings:write` | `requestId`, `decision` (`approved` or `declined`) | none |
@@ -464,4 +476,6 @@ Customers use GET /api/partner/v1/me/available-rates (rates:read; MCP rateninja_
 
 Customers use POST /api/partner/v1/me/booking-requests (bookings:write; MCP rateninja_create_booking_request) with { "rateId", "containerSize", "slots" }; the API returns 201 { data, meta }. A repeat create makes another request; clients should list before retrying. Customers list and read only their company requests with bookings:read through the existing booking routes and tools. Their view never includes the deciding user. Reads leave unread state unchanged; a new request is unread for the owner. Hidden rates and another customer's request ids return the same not_found as missing ids.
 
-Customer tokens never receive base prices, margins or owner company ids. Owner rates, sailings, predictive pricing and decisions return 403 owner_only to customers. Owners receive 403 customer_only on available-rates and create. MCP calls enforce company type before scopes and arguments; tools/list shows customers exactly profile, available rates, booking list, booking read and booking create. Owner discovery is unchanged. Create annotations are readOnlyHint false, destructiveHint false and idempotentHint false; the tool changes data. The available-rates list is read-only. Company type is live on each call. Scopes remain independently required, and discovery still advertises only the three read scopes. Connected apps lets both supported types list and revoke grants; revoked credentials stop working.
+Customer tokens never receive base prices, margins or owner company ids. Owner rates, sailings, predictive pricing, sailing date ranges, predictive date ranges and decisions return 403 owner_only to customers. Owners receive 403 customer_only on available-rates and create. MCP calls enforce company type before scopes and arguments; tools/list shows customers profile, the four current-rate reference lookups (rate-date-ranges, origin-ports, destination-ports, contract-owners), available rates, booking list, booking read and booking create. Owner discovery keeps the prior owner tools and adds the six reference lookups. Create annotations are readOnlyHint false, destructiveHint false and idempotentHint false; the tool changes data. The available-rates list is read-only. Company type is live on each call. Scopes remain independently required, and discovery still advertises only the three read scopes. Connected apps lets both supported types list and revoke grants; revoked credentials stop working.
+
+Current-rate reference lookups (rate-date-ranges, origin-ports, destination-ports, contract-owners) use the same linked-owner current-rate set as available-rates for customers and the owner's own current rates for owners. A rate is current when it is not soft-deleted and its expiration allows use today in UTC (blank expiration or expiring today qualifies); rates not yet effective are included. These responses never include prices.
