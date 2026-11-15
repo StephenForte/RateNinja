@@ -62,9 +62,9 @@ export function companyIndicator(permissions) {
 }
 
 // Company-scoped admin screens 409 until a system admin picks a company.
-// OAuth clients stay available: that list does not require a company context.
+// OAuth clients and Ports stay available: those lists do not require a company context.
 export function adminSectionNeedsCompany(permissions, section) {
-    if (!section || section.area !== 'admin' || section.id === 'oauth-clients') return false;
+    if (!section || section.area !== 'admin' || section.id === 'oauth-clients' || section.id === 'ports') return false;
     if (!permissions || permissions.systemAdmin !== true) return false;
     const id = permissions.companyContext && permissions.companyContext.id;
     return typeof id !== 'string' || id === '';
