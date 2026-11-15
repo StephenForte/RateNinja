@@ -11,8 +11,21 @@ const { insertCompany, insertUser, insertRate, insertMargin, activate, login, ca
 const { partnerSend } = require('./helpers/r1-21');
 const ALL = 'profile:read rates:read sailings:read bookings:read bookings:write';
 const ROOT = '/api/partner/v1/me';
-const customerTools = ['rateninja_get_my_profile', 'rateninja_list_my_booking_requests',
-    'rateninja_get_my_booking_request', 'rateninja_list_available_rates', 'rateninja_create_booking_request'];
+const customerTools = [
+    'rateninja_get_my_profile',
+    'rateninja_list_rate_date_ranges',
+    'rateninja_list_valid_origin_ports',
+    'rateninja_list_valid_destination_ports',
+    'rateninja_list_valid_contract_owners',
+    'rateninja_list_my_booking_requests',
+    'rateninja_get_my_booking_request',
+    'rateninja_list_available_rates',
+    'rateninja_create_booking_request'
+];
+const ownerOnlyReferenceTools = [
+    'rateninja_list_sailing_date_ranges',
+    'rateninja_list_predictive_date_ranges'
+];
 
 describe('R1-22 customer partner boundary', { concurrency: 1 }, () => {
     let app, buyer, sibling, client, token, ownerToken, readToken, ratesToken, createdId;
@@ -131,17 +144,32 @@ describe('R1-22 customer partner boundary', { concurrency: 1 }, () => {
         }
     });
 
-    it('publishes exactly five customer tools and byte-identical owner discovery to main', async () => {
+    it('publishes the prior customer tools plus four reference lookups, without owner-only lookups', async () => {
         const listed = await mcpCall(app.baseUrl, token.access_token, 'tools/list', {});
         assert.deepEqual(listed.body.result.tools.map(t => t.name), customerTools);
+        for (const name of ownerOnlyReferenceTools) {
+            assert.equal(listed.body.result.tools.some(t => t.name === name), false);
+        }
         const createTool = listed.body.result.tools.find(t => t.name === 'rateninja_create_booking_request');
         assert.deepEqual(createTool.annotations, { readOnlyHint: false, destructiveHint: false, idempotentHint: false });
         assert.match(createTool.description, /repeat call creates another request/);
-        // SHA-256 of JSON.stringify(tools/list body, id 1) from main 9a5534b.
-        // Pin the full bytes without requiring history in CI's shallow checkout.
+        // Owner discovery must keep every prior owner tool and add the six R1-24 lookups.
         const actual = await mcpCall(app.baseUrl, ownerToken.access_token, 'tools/list', {});
-        const digest = require('node:crypto').createHash('sha256').update(JSON.stringify(actual.body)).digest('hex');
-        assert.equal(digest, '872126b25ad6a6bfc9493bf372d18f9e232c32c4491466ad0076a28344d901be');
+        const names = actual.body.result.tools.map(t => t.name);
+        for (const name of [
+            'rateninja_get_my_profile',
+            'rateninja_list_my_rates',
+            'rateninja_get_my_rate',
+            'rateninja_list_my_sailings',
+            'rateninja_get_my_sailing',
+            'rateninja_get_my_predictive_pricing',
+            ...customerTools.filter(name => !['rateninja_list_available_rates', 'rateninja_create_booking_request'].includes(name)),
+            ...ownerOnlyReferenceTools,
+            'rateninja_decide_booking_request'
+        ]) {
+            assert.equal(names.includes(name), true, name);
+        }
+        assert.equal(names.includes('rateninja_list_available_rates'), false);
     });
 
     it('creates through API and MCP using the shared snapshot rules and audit context', async () => {
@@ -165,12 +193,12 @@ describe('R1-22 customer partner boundary', { concurrency: 1 }, () => {
     });
 
     it('enforces audience before arguments, body reads, ids and scopes on API and MCP', async () => {
-        for (const p of [`${ROOT}/rates`, `${ROOT}/rates/priced`, `${ROOT}/sailings`, `${ROOT}/sailings/fake`, `${ROOT}/predictive-pricing`]) {
+        for (const p of [`${ROOT}/rates`, `${ROOT}/rates/priced`, `${ROOT}/sailings`, `${ROOT}/sailings/fake`, `${ROOT}/predictive-pricing`, `${ROOT}/sailing-date-ranges`, `${ROOT}/predictive-date-ranges`]) {
             const r = await get(token.access_token, p); assert.equal(r.status, 403, r.text); assert.equal(r.body.error, 'owner_only');
         }
         const denied = await partnerSend(app.baseUrl, token.access_token, 'POST', `${ROOT}/booking-requests/${createdId}/decision`, { raw: '{' });
         assert.equal(denied.status, 403); assert.equal(denied.body.error, 'owner_only');
-        for (const name of ['rateninja_list_my_rates', 'rateninja_get_my_rate', 'rateninja_list_my_sailings', 'rateninja_get_my_sailing', 'rateninja_get_my_predictive_pricing', 'rateninja_decide_booking_request']) {
+        for (const name of ['rateninja_list_my_rates', 'rateninja_get_my_rate', 'rateninja_list_my_sailings', 'rateninja_get_my_sailing', 'rateninja_get_my_predictive_pricing', 'rateninja_list_sailing_date_ranges', 'rateninja_list_predictive_date_ranges', 'rateninja_decide_booking_request']) {
             const r = await rpc(ratesToken.access_token, name, { requestId: createdId, decision: 'approved', unexpected: true });
             assert.equal(r.body.result.isError, true); assert.equal(r.body.result.structuredContent.error, 'owner_only', r.text);
         }

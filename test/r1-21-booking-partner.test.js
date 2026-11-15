@@ -734,28 +734,37 @@ describe('owner booking requests on the partner API and MCP', { concurrency: 1 }
         const tools = listed.body.result.tools;
         assert.deepEqual(tools.slice(0, 6).map(tool => tool.name), EXISTING_TOOLS);
         for (const tool of tools.slice(0, 6)) {
-            assert.deepEqual(Object.keys(tool), ['name', 'description', 'inputSchema']);
+            assert.deepEqual(Object.keys(tool).filter(key => key !== 'annotations'), ['name', 'description', 'inputSchema']);
         }
         assert.deepEqual(tools[0].inputSchema, { type: 'object', properties: {}, additionalProperties: false });
         assert.match(tools[5].description, /read-only/i);
-        assert.deepEqual(tools.slice(6).map(tool => tool.name), [
+        // R1-24 inserts six reference lookups between predictive and booking tools.
+        assert.deepEqual(tools.slice(6, 12).map(tool => tool.name), [
+            'rateninja_list_rate_date_ranges',
+            'rateninja_list_valid_origin_ports',
+            'rateninja_list_valid_destination_ports',
+            'rateninja_list_valid_contract_owners',
+            'rateninja_list_sailing_date_ranges',
+            'rateninja_list_predictive_date_ranges'
+        ]);
+        assert.deepEqual(tools.slice(12).map(tool => tool.name), [
             'rateninja_list_my_booking_requests',
             'rateninja_get_my_booking_request',
             'rateninja_decide_booking_request'
         ]);
-        assert.deepEqual(tools[6].annotations, { readOnlyHint: true });
-        assert.deepEqual(tools[7].annotations, { readOnlyHint: true });
-        assert.deepEqual(tools[8].annotations, {
+        assert.deepEqual(tools[12].annotations, { readOnlyHint: true });
+        assert.deepEqual(tools[13].annotations, { readOnlyHint: true });
+        assert.deepEqual(tools[14].annotations, {
             readOnlyHint: false,
             destructiveHint: true,
             idempotentHint: false
         });
-        assert.match(tools[8].description, /changes data/);
-        assert.match(tools[8].description, /final/);
-        assert.equal(validateToolArguments(tools[8].inputSchema, { requestId: 'x', decision: 'maybe' }).ok, false);
-        assert.equal(validateToolArguments(tools[8].inputSchema, { requestId: 'x', decision: 'approved' }).ok, true);
-        assert.equal(validateToolArguments(tools[6].inputSchema, { status: 'nope' }).ok, false);
-        assert.equal(validateToolArguments(tools[6].inputSchema, { status: 'pending' }).ok, true);
+        assert.match(tools[14].description, /changes data/);
+        assert.match(tools[14].description, /final/);
+        assert.equal(validateToolArguments(tools[14].inputSchema, { requestId: 'x', decision: 'maybe' }).ok, false);
+        assert.equal(validateToolArguments(tools[14].inputSchema, { requestId: 'x', decision: 'approved' }).ok, true);
+        assert.equal(validateToolArguments(tools[12].inputSchema, { status: 'nope' }).ok, false);
+        assert.equal(validateToolArguments(tools[12].inputSchema, { status: 'pending' }).ok, true);
 
         const reads = app.db.prepare(`
             SELECT client_id, detail FROM audit_events WHERE event_type = 'partner_booking_requests_read'

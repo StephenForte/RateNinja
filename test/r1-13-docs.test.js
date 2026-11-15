@@ -17,6 +17,12 @@ const coverage = [
     ['GET /api/partner/v1/me/sailings', 'rateninja_list_my_sailings', 'sailings:read'],
     ['GET /api/partner/v1/me/sailings/{sailingId}', 'rateninja_get_my_sailing', 'sailings:read'],
     ['GET /api/partner/v1/me/predictive-pricing', 'rateninja_get_my_predictive_pricing', 'rates:read'],
+    ['GET /api/partner/v1/me/rate-date-ranges', 'rateninja_list_rate_date_ranges', 'rates:read'],
+    ['GET /api/partner/v1/me/origin-ports', 'rateninja_list_valid_origin_ports', 'rates:read'],
+    ['GET /api/partner/v1/me/destination-ports', 'rateninja_list_valid_destination_ports', 'rates:read'],
+    ['GET /api/partner/v1/me/contract-owners', 'rateninja_list_valid_contract_owners', 'rates:read'],
+    ['GET /api/partner/v1/me/sailing-date-ranges', 'rateninja_list_sailing_date_ranges', 'sailings:read'],
+    ['GET /api/partner/v1/me/predictive-date-ranges', 'rateninja_list_predictive_date_ranges', 'rates:read'],
     ['GET /api/partner/v1/me/booking-requests', 'rateninja_list_my_booking_requests', 'bookings:read'],
     ['GET /api/partner/v1/me/booking-requests/{id}', 'rateninja_get_my_booking_request', 'bookings:read'],
     ['POST /api/partner/v1/me/booking-requests/{id}/decision', 'rateninja_decide_booking_request', 'bookings:write']
