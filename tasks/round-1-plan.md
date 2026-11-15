@@ -81,7 +81,7 @@ Model names are the planner's proposal; operator overrides recorded in the Run c
 | R1-21 | Booking requests on the partner API and MCP, owner side (`bookings:read`, `bookings:write`) | D-028 | R1-19 | S / Opus 5.5 | merged 2026-11-03, PR #56 |
 | R1-22 | Partner OAuth for customer accounts, customer-priced rates, and customer booking requests | D-029 | R1-21 | S / Opus 5.5 | merged 2026-11-04, PR #57 (`be2b694`); Cursor checked by the operator |
 | R1-23 | Port reference table: migration 011, system-admin Ports page, `lib/ports.js` resolver | D-030 | — | M / Sonnet 5.5 | merged 2026-11-14, PR #60 (`a1eaf86`) |
-| R1-24 | Reference lookups and current date ranges: six MCP tools + six partner routes | D-030 | R1-23 merged | S / Opus 5.5 | ready to dispatch 2026-11-14 (R1-23 merged at `a1eaf86`) |
+| R1-24 | Reference lookups and current date ranges: six MCP tools + six partner routes | D-030 | R1-23 merged | S / Opus 5.5 | approved 2026-11-14, PR #61 (`4dbb4a7`) |
 
 ### Run order (waves)
 
@@ -176,6 +176,8 @@ Every migration task must also prove: fresh DB, prod-shaped copy, and re-run (id
 - Real MCP client check (R1-12, R1-14) needs the operator: production has `PARTNER_OAUTH_ENABLED=false`; run locally.
 
 ## Review log
+
+- 2026-11-14 · **R1-24, PR #61: approved at `4dbb4a7`, merge as-is.** Base `a1eaf86` = main. Fresh clone on Node 26 with a temp DB: 252 tests, 249 pass, 0 fail, 3 todo (+6 over post-R1-23); CI, Bugbot, and Security Reviewer pass. Four mutants each fail the R1-24 suite: customer reading every owner, no expiration filter, sailing ranges opened to customers, and `earliestDepartingAfter` = today+90 unchecked. MCP `tools/list` from main and the branch, owner and customer: every prior tool definition is byte-identical (owner 9 to 15, customer 5 to 9, order kept). That matters because the worker replaced the R1-22 owner `tools/list` SHA pin with presence checks; future additions must be checked the same way. Worker run took 15m35s.
 
 - 2026-11-14 · **R1-23, PR #60: approved at `d513ede`, merge as-is.** Base `db6d067` = main. Fresh clone on Node 26 with a temp DB: 246 tests, 243 pass, 0 fail, 3 todo, matching the handoff; CI and Security Reviewer pass. Scope adds `public/js/permissions.js` (one line exempting Ports from the company-context gate; the Bugbot fix, disclosed). Probes: code beats name across two ports (`LALB`/"Los Angeles" vs `LAX`/"lalb"); owner admin and customer PATCH and DELETE give 403; PATCH and DELETE without CSRF give 403; a case-variant code collision gives 409; numeric code and null body give 400. Mutants: name-first precedence fails the resolver test, and no system-admin check fails the routes test. Audit detail uses `portKey` because `sanitizeDetail` strips keys matching /code/. Worker run took 711 s.
 
