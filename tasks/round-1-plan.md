@@ -83,7 +83,7 @@ Model names are the planner's proposal; operator overrides recorded in the Run c
 | R1-23 | Port reference table: migration 011, system-admin Ports page, `lib/ports.js` resolver | D-030 | — | M / Sonnet 5.5 | merged 2026-11-14, PR #60 (`a1eaf86`) |
 | R1-24 | Reference lookups and current date ranges: six MCP tools + six partner routes | D-030 | R1-23 merged | S / Opus 5.5 | approved 2026-11-14, PR #61 (`4dbb4a7`) |
 | R1-25 | Admin API key, admin reference routes (six reads + companies), and the `rateninja-admin` CLI | D-031 | R1-24 merged | S / Opus 5.5 | approved 2026-11-15, PR #63 (`617c603`) |
-| R1-26 | Admin CLI option 9 / `post-cloudbbs`: post the six reference reads to the CloudBBS project announcement | D-032 | R1-25 merged; CloudBBS T27 for the live post only | S / Opus 5.5 | approved 2026-11-15, PR #65 (`051f4a2`) |
+| R1-26 | Admin CLI option 9 / `post-cloudbbs`: post the six reference reads to the CloudBBS project announcement | D-032 | R1-25 merged; CloudBBS T27 for the live post only | S / Opus 5.5 | merged 2026-11-15, PR #65 (`5101935`); live post waits on CloudBBS T27 (PR #42) |
 
 ### Run order (waves)
 
