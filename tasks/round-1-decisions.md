@@ -391,3 +391,42 @@ pending product review.
 - **Connected apps:** customers get the page and the revoke API, since a grant must be revocable.
 - **Repeat requests stay allowed (D-027).** There is no idempotency key, so a client retry can
   create a second request. Accepted for now.
+
+### D-030 — Reference lookups and current date ranges on the partner API and MCP (2026-11-14)
+
+Tasks R1-23 (port reference table) and R1-24 (six read tools). Operator asked for six new MCP
+calls on 2026-11-14 and chose, the same day: a port reference table for codes, sailings grouped by
+origin with destination when set, predictive ranges with an open end, and MCP plus partner API
+together (FR 11). The rest are planner defaults pending product review.
+
+- **"Current" has one definition:** a rate is current when `expirationAllows(rateExpirationDate)`
+  in `lib/booking-requests.js` is true (UTC date; expiring today counts; a blank expiration counts).
+  Rates not yet effective are included. The operator's wording "expiration <= today" was read as
+  "expiration on or after today", which is what the examples show. Soft-deleted rows never count.
+- **Ports (R1-23):** new table `ports` (migration 011): `code` unique case-insensitive, `name`.
+  Global reference data, maintained by system admins only, audited. A stored rate or sailing port
+  value matches a port when it equals the port's code or name, trimmed, case-insensitive. Rates and
+  sailings keep storing their text; nothing is rewritten. An unmatched value is still listed with
+  `code: null` and `name` = the stored value, so an empty table changes nothing but the codes. No
+  codes are seeded; the operator enters them.
+- **Lookup row shape:** `{ value, code, name }`. `value` is the stored text a client passes back as
+  a filter; `code` and `name` come from `ports`.
+- **The six reads (R1-24)**, each an MCP tool and a `GET /api/partner/v1/me/...` route through one
+  shared function:
+  1. rate date ranges: one row per distinct (origin, destination, effective, expiration) among
+     current rates, with a rate count. Periods are not merged.
+  2. valid origin ports and 3. valid destination ports: distinct ports on current rates.
+  4. valid contract owners: distinct `contract_owner` text on current rates, `{ value, code, name }`
+     with code and name equal to the stored text (no owner reference table), plus `ownerCompanyName`.
+  5. sailing date ranges: per departure port and arrival port (null when not stored), first and
+     last departure on or after today, with a count. The local copy has `arrival_port` empty on all
+     38,850 sailings (2026-11-14), so expect null destinations until imports fill it.
+  6. predictive date ranges: per origin and destination among the routes the predictive tool
+     prices (`latestPredictiveRateRecords`), `earliestDepartingAfter` = the first date the
+     predictive tool accepts (more than 90 full UTC days ahead), `latestDepartingAfter: null`, and
+     the latest base-rate expiration it is derived from.
+- **Audience:** 1–4 are for owners and customers (customers over their linked owners' rates, the
+  same set as the customer rate listing; no owner company id reaches a customer). 5 and 6 stay
+  owner-only, as D-029 keeps sailings and predictive pricing owner-only.
+- **Scopes:** no new ones. 1–4 and 6 need `rates:read`; 5 needs `sailings:read`.
+- No prices appear in any of the six responses.
