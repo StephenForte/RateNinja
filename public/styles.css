@@ -2555,3 +2555,29 @@ body {
     font-size: 12px;
     font-weight: 600;
 }
+
+/* R1-23 */
+.ports-form {
+    margin-bottom: 1.25rem;
+}
+
+.ports-table input {
+    width: 100%;
+    min-width: 6rem;
+    box-sizing: border-box;
+}
+
+.ports-unmatched-heading {
+    margin-top: 1.5rem;
+}
+
+.ports-unmatched-list {
+    margin: 0;
+    padding-left: 1.25rem;
+}
+
+.ports-unmatched-empty {
+    list-style: none;
+    margin-left: -1.25rem;
+    color: #486581;
+}
