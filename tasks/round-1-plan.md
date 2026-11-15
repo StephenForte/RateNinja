@@ -45,9 +45,10 @@ Owner of this file and the decisions log: the planner. **Workers never edit eith
 | 008 | `lib/migrations/008-import-jobs.js` | R1-11a |
 | 009 | reserved | R1-12 (use only if needed) |
 | 010 | `lib/migrations/010-booking-requests.js` | R1-19 |
-| 011+ | unassigned | ask the planner |
+| 011 | `lib/migrations/011-ports.js` | R1-23 |
+| 012+ | unassigned | ask the planner |
 
-Next free: **011**. (007 and 009 were reserved and never used; don't reuse them without a planner decision.)
+Next free: **012**. (007 and 009 were reserved and never used; don't reuse them without a planner decision.)
 
 ## Task tree
 
@@ -75,12 +76,16 @@ Model names are the planner's proposal; operator overrides recorded in the Run c
 | R1-16 | P2: duplicate handling | FR13 | R1-11a | S | not planned in detail |
 | R1-17 | Partner/MCP return null for a missing price (not 0) | FR 8, FR 11 | R1-11a | M / Sonnet 5.5 | merged 2026-10-14, PR #41 |
 | R1-18 | User-create company confirmation (R114-4); guard the Airtable migration script (D-026) | FR1, FR6 | R1-14 | M / Sonnet 5.5 | approved 2026-10-14, PR #45 |
-| R1-19 | Booking requests P1: grid button, requests table, approve/decline, in-app notifications | D-027 | — | S / Opus 5.5 | approved 2026-11-03, PR #54 |
+| R1-19 | Booking requests P1: grid button, requests table, approve/decline, in-app notifications | D-027 | — | S / Opus 5.5 | merged 2026-11-04, PR #54 (`7b800a2`) |
 | R1-20 | P2: booking request emails via `lib/resend.js` | D-027 | R1-19 | M | not planned in detail; production `/api/health` reports `resendConfigured: false` (2026-11-03) |
 | R1-21 | Booking requests on the partner API and MCP, owner side (`bookings:read`, `bookings:write`) | D-028 | R1-19 | S / Opus 5.5 | merged 2026-11-03, PR #56 |
-| R1-22 | Partner OAuth for customer accounts, customer-priced rates, and customer booking requests | D-029 | R1-21 | S / Opus 5.5 | approved 2026-11-03, PR #57 |
+| R1-22 | Partner OAuth for customer accounts, customer-priced rates, and customer booking requests | D-029 | R1-21 | S / Opus 5.5 | merged 2026-11-04, PR #57 (`be2b694`); Cursor checked by the operator |
+| R1-23 | Port reference table: migration 011, system-admin Ports page, `lib/ports.js` resolver | D-030 | — | M / Sonnet 5.5 | dispatched 2026-11-14 |
+| R1-24 | Reference lookups and current date ranges: six MCP tools + six partner routes | D-030 | R1-23 merged | S / Opus 5.5 | planned 2026-11-14; dispatch after R1-23 merges |
 
 ### Run order (waves)
+
+- **Reference lookups (2026-11-14):** R1-23, then R1-24 once R1-23 is merged (R1-24 reads `lib/ports.js`). Serial, one worker each, main checkout.
 
 - **W0** (serial, one worker): R1-00 → R1-01.
 - **W1** (parallel, after R1-01 merges): R1-02, R1-03, R1-12. Merge order: any order, except R1-03 after R1-02 (it consumes D-009). R1-12 must merge before R1-07/R1-08 start (`lib/visibility.js`).
@@ -117,6 +122,8 @@ Peak concurrency is 4 (W2). If the operator runs fewer agents, drop R1-05 to W3 
 | R1-19 | `lib/migrations/010-*`, `lib/booking-requests.js`, `lib/routes/booking-requests.js`, `public/js/rates/booking-requests.js`, `public/js/booking-notifications.js`, `docs/booking-requests.md`, `test/r1-19-*`, `test/helpers/r1-19.js` | `lib/routes/index.js` (one line), `lib/limits.js`, `lib/permissions.js` (add predicates only), `public/js/registry.js`, `public/js/shell.js`, `public/js/rates/browse.js`, `public/index.html` (bell and dialog), `public/styles.css` (append-only, R1-19 block), `README.md` (feature line), `lib/migrations/README.md` only if needed, tests that assert the applied-id list, route modules, or menu paths |
 | R1-21 | `lib/routes/partner-bookings.js`, `test/r1-21-*`, `test/helpers/r1-21.js` | `lib/booking-requests.js` (add paged list and decision audit context), `lib/constants.js` (`SCOPES`), `lib/oauth.js` (seed client scopes, consent wording), `lib/mcp.js`, `lib/mcp-schema.js`, `lib/routes/index.js` (one line), `public/js/admin/oauth-clients.js` (scope list), `public/js/admin/integrations.js`, `API-README.md`, `docs/partner-integration.md`, `docs/booking-requests.md`, `public/api-docs.html`, tests that assert routes, tools, scopes, or docs coverage |
 | R1-22 | `test/r1-22-*`, `test/helpers/r1-22.js` | `lib/oauth.js` (five access checks, consent wording), `lib/permissions.js` (add predicates), `lib/partner-http.js`, `lib/routes/partner-bookings.js`, `lib/routes/partner.js`, `lib/booking-requests.js`, `lib/visibility.js` (add a customer listing only), `lib/mcp.js`, `server.js` (partner handlers' audience, connected-apps checks), `public/js/registry.js`, `public/js/admin/integrations.js`, `public/js/profile/connected-apps.js`, partner docs, tests that assert customer refusal, routes, tools, or menus |
+| R1-23 | `lib/migrations/011-ports.js`, `lib/ports.js`, `lib/routes/ports.js`, `public/js/admin/ports.js`, `test/r1-23-*`, `test/helpers/r1-23.js` | `lib/routes/index.js` (one line), `public/js/registry.js` (one system-admin section), `public/index.html` (section container only, if the registry needs one), `public/styles.css` (append-only, R1-23 block), `lib/audit.js` (event names only), tests that assert the applied-id list, route modules, or menu paths |
+| R1-24 | `lib/reference-ranges.js`, `test/r1-24-*`, `test/helpers/r1-24.js` | `lib/mcp.js`, `lib/routes/partner.js`, `lib/partner-http.js` (only if a helper is missing), `lib/audit.js` (event names only), `API-README.md`, `docs/partner-integration.md`, `public/api-docs.html`, `public/js/admin/integrations.js` (tool list only), tests that assert routes, tools, or docs coverage |
 
 ### Pre-registered modules (so nobody edits a registry)
 
@@ -169,6 +176,8 @@ Every migration task must also prove: fresh DB, prod-shaped copy, and re-run (id
 - Real MCP client check (R1-12, R1-14) needs the operator: production has `PARTNER_OAUTH_ENABLED=false`; run locally.
 
 ## Review log
+
+- 2026-11-14 · **R1-23 and R1-24 planned (D-030), migration 011.** Baseline `db6d067`. Read on main: no port table exists; rates store port text (`origin_port`, `destination_port`) and sailings store `departure_port` plus `arrival_port` (migration 008). The local copy (`data/rateninja.db`, 2026-10-13, read-only) has 14 origin and 13 destination values, a mix of names and code-like text (`Port Klang`, `LALB`), 4 `contract_owner` values, every rate expired (max 2026-08-30), and `arrival_port` empty on all 38,850 sailings; production data was not read. Sailings and predictive stay owner-only per D-029. The predictive tool has no end date, so its range is open-ended. R1-19 and R1-22 rows corrected to merged (PRs #54, #57).
 
 _(planner appends: task, PR, verdict, what was independently verified and how)_
 
