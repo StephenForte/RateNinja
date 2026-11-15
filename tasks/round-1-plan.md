@@ -82,7 +82,7 @@ Model names are the planner's proposal; operator overrides recorded in the Run c
 | R1-22 | Partner OAuth for customer accounts, customer-priced rates, and customer booking requests | D-029 | R1-21 | S / Opus 5.5 | merged 2026-11-04, PR #57 (`be2b694`); Cursor checked by the operator |
 | R1-23 | Port reference table: migration 011, system-admin Ports page, `lib/ports.js` resolver | D-030 | — | M / Sonnet 5.5 | merged 2026-11-14, PR #60 (`a1eaf86`) |
 | R1-24 | Reference lookups and current date ranges: six MCP tools + six partner routes | D-030 | R1-23 merged | S / Opus 5.5 | approved 2026-11-14, PR #61 (`4dbb4a7`) |
-| R1-25 | Admin API key, admin reference routes (six reads + companies), and the `rateninja-admin` CLI | D-031 | R1-24 merged | S / Opus 5.5 | dispatched 2026-11-15 |
+| R1-25 | Admin API key, admin reference routes (six reads + companies), and the `rateninja-admin` CLI | D-031 | R1-24 merged | S / Opus 5.5 | approved 2026-11-15, PR #63 (`617c603`) |
 
 ### Run order (waves)
 
@@ -179,6 +179,8 @@ Every migration task must also prove: fresh DB, prod-shaped copy, and re-run (id
 - Real MCP client check (R1-12, R1-14) needs the operator: production has `PARTNER_OAUTH_ENABLED=false`; run locally.
 
 ## Review log
+
+- 2026-11-15 · **R1-25, PR #63: approved at `617c603`, merge as-is.** Base `303e8e1` = main; scope inside the R1-25 row. Fresh clone on Node 26.12.1: main 252/249/0/3, PR 269 tests, 266 pass, 0 fail, 3 todo; no passing test name on main is missing from the PR. The handoff said 268/265; the extra test is the Bugbot regression added in `617c603`. Mutants caught: no 32-character minimum, admin key equal to the demo key allowed, unset key as empty string, sailing ranges opened to customers, `company=` always an owner view. Survives: dropping the Contract Owner filter in all-owners mode (code correct on reading, not pinned by a test). CLI probes: network failure and an invalid URL exit 1 without the key; an unset admin key does not fall back to `RATE_NINJA_API_KEY` (exit 2). Bugbot finding on `60614b1` (menu exits on any request error) was real and is fixed. Production and a real-TTY menu were not exercised. Worker run took ~26 min.
 
 - 2026-11-15 · **R1-25 planned (D-031), no migration.** Baseline `303e8e1`. Read on main: no admin token or admin API exists (`lib/permissions.js` `isSystemAdmin` is session-only); the six reads take `access.companyRecordId` and `access.companyType` (`lib/reference-ranges.js` lines 83–105, 182, 235); partner access tokens last 600 s (`lib/config.js:15`) and refresh tokens rotate (`lib/oauth.js:508-530`); the operator's non-expiring `.env` token is the demo key, which partner routes reject (`lib/partner-http.js:21-22`). D-020 amended for this admin API only. The CLI calls REST only: the operator first chose REST plus MCP for a partner token, and the admin key does not reach `/mcp`.
 
