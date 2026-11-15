@@ -80,7 +80,7 @@ Model names are the planner's proposal; operator overrides recorded in the Run c
 | R1-20 | P2: booking request emails via `lib/resend.js` | D-027 | R1-19 | M | not planned in detail; production `/api/health` reports `resendConfigured: false` (2026-11-03) |
 | R1-21 | Booking requests on the partner API and MCP, owner side (`bookings:read`, `bookings:write`) | D-028 | R1-19 | S / Opus 5.5 | merged 2026-11-03, PR #56 |
 | R1-22 | Partner OAuth for customer accounts, customer-priced rates, and customer booking requests | D-029 | R1-21 | S / Opus 5.5 | merged 2026-11-04, PR #57 (`be2b694`); Cursor checked by the operator |
-| R1-23 | Port reference table: migration 011, system-admin Ports page, `lib/ports.js` resolver | D-030 | — | M / Sonnet 5.5 | dispatched 2026-11-14 |
+| R1-23 | Port reference table: migration 011, system-admin Ports page, `lib/ports.js` resolver | D-030 | — | M / Sonnet 5.5 | approved 2026-11-14, PR #60 (`d513ede`) |
 | R1-24 | Reference lookups and current date ranges: six MCP tools + six partner routes | D-030 | R1-23 merged | S / Opus 5.5 | planned 2026-11-14; dispatch after R1-23 merges |
 
 ### Run order (waves)
@@ -176,6 +176,8 @@ Every migration task must also prove: fresh DB, prod-shaped copy, and re-run (id
 - Real MCP client check (R1-12, R1-14) needs the operator: production has `PARTNER_OAUTH_ENABLED=false`; run locally.
 
 ## Review log
+
+- 2026-11-14 · **R1-23, PR #60: approved at `d513ede`, merge as-is.** Base `db6d067` = main. Fresh clone on Node 26 with a temp DB: 246 tests, 243 pass, 0 fail, 3 todo, matching the handoff; CI and Security Reviewer pass. Scope adds `public/js/permissions.js` (one line exempting Ports from the company-context gate; the Bugbot fix, disclosed). Probes: code beats name across two ports (`LALB`/"Los Angeles" vs `LAX`/"lalb"); owner admin and customer PATCH and DELETE give 403; PATCH and DELETE without CSRF give 403; a case-variant code collision gives 409; numeric code and null body give 400. Mutants: name-first precedence fails the resolver test, and no system-admin check fails the routes test. Audit detail uses `portKey` because `sanitizeDetail` strips keys matching /code/. Worker run took 711 s.
 
 - 2026-11-14 · **R1-23 and R1-24 planned (D-030), migration 011.** Baseline `db6d067`. Read on main: no port table exists; rates store port text (`origin_port`, `destination_port`) and sailings store `departure_port` plus `arrival_port` (migration 008). The local copy (`data/rateninja.db`, 2026-10-13, read-only) has 14 origin and 13 destination values, a mix of names and code-like text (`Port Klang`, `LALB`), 4 `contract_owner` values, every rate expired (max 2026-08-30), and `arrival_port` empty on all 38,850 sailings; production data was not read. Sailings and predictive stay owner-only per D-029. The predictive tool has no end date, so its range is open-ended. R1-19 and R1-22 rows corrected to merged (PRs #54, #57).
 
