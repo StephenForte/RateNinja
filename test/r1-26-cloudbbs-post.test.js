@@ -250,8 +250,9 @@ describe('R1-26 fail-closed posting', { concurrency: 1 }, () => {
 
     it('oversized body prints the size and sends zero requests', async () => {
         const pages = emptyPagesByPath();
-        // Compact JSON of many long strings exceeds the 16384-byte body cap.
-        pages['/api/admin/v1/reference/origin-ports'] = Array.from({ length: 400 }, (_, index) => ({
+        // Compact JSON of many long strings exceeds the 262144-byte body cap
+        // (was 400 rows / ~63 KB against the old 16384 cap; grow past D-033).
+        pages['/api/admin/v1/reference/origin-ports'] = Array.from({ length: 2000 }, (_, index) => ({
             value: `Very-Long-Origin-Port-Name-${String(index).padStart(4, '0')}-${'x'.repeat(40)}`,
             code: `C${index}`,
             name: `Name-${index}-${'y'.repeat(40)}`
