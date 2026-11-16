@@ -77,4 +77,4 @@ Commands: `rate-date-ranges`, `origin-ports`, `destination-ports`, `contract-own
 
 ### Post to CloudBBS
 
-Option 9 / `post-cloudbbs` fetches the six D-030 reference reads (no company filter, every page) and replaces the CloudBBS project announcement (`PUT …/api/v1/projects/{project}/announcement`). The companies list is not included. Title is `RateNinja reference data`; the body is Markdown with schema `rateninja.reference.v1`. Bodies over 16384 UTF-8 bytes are refused without posting. The menu confirms with `[y/N]` before the PUT; the one-shot form requires `--yes`.
+Option 9 / `post-cloudbbs` fetches the six D-030 reference reads (no company filter, every page) and replaces the CloudBBS project announcement (`PUT …/api/v1/projects/{project}/announcement`). The companies list is not included. Title is `RateNinja reference data`; the body is Markdown with schema `rateninja.reference.v1`. Bodies over 262144 UTF-8 bytes are refused without posting. The menu confirms with `[y/N]` before the PUT; the one-shot form requires `--yes`.
