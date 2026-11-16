@@ -470,3 +470,44 @@ for this read-only admin API only. Rate and sailing browsing in the app keeps D-
   key and never falls back to `RATE_NINJA_API_KEY`.
 - **Production:** `render.yaml` declares `RATE_NINJA_ADMIN_API_KEY` with `sync: false`; the
   operator sets the value in the Render dashboard. Until then production refuses with 503.
+
+### D-032 — Admin CLI posts the six reference reads to the CloudBBS project announcement (2026-11-15, operator request)
+
+- **Command:** menu option 9, "Post this information to the CloudBBS" (8 stays Quit), and the
+  one-shot `post-cloudbbs`. It runs the six D-030 reads through the admin routes (D-031) at post
+  time, all companies, every page. The companies list is not posted (operator).
+- **Destination:** CloudBBS D-043, `PUT {CLOUDBBS_URL}/api/v1/projects/{CLOUDBBS_PROJECT}/announcement`
+  with `Authorization: Bearer {CLOUDBBS_TOKEN}`. Defaults `CLOUDBBS_URL=https://cloudbbs.ai`,
+  `CLOUDBBS_PROJECT=rn`. The token is an owner-issued CloudBBS token with the
+  "set project announcements" flag; it lives only in the operator's local `.env` (the CLI runs
+  locally; nothing goes on Render). Each post replaces the previous announcement.
+- **Format (for agents):** title `RateNinja reference data`. Body: Markdown with one line giving
+  generation time (ISO 8601 UTC) and the RateNinja base URL, one line naming the schema, then one
+  fenced `json` block holding compact JSON
+  `{"schema":"rateninja.reference.v1","generatedAt":…,"source":…,"reads":{"rateDateRanges":[…],"originPorts":[…],"destinationPorts":[…],"contractOwners":[…],"sailingDateRanges":[…],"predictiveDateRanges":[…]}}`,
+  each array exactly the admin API's `data` items concatenated over pages.
+- **Size:** CloudBBS caps the body at 16384 bytes (D-042). Over the cap, post nothing, print the
+  size, and fail; never truncate. Production size is unmeasured (the local DB returns no current
+  rows).
+- **Confirmation:** the menu asks `Replace the announcement on <url>/<project> with <n> bytes?
+  [y/N]` before the PUT; `post-cloudbbs` needs `--yes`.
+- **Visibility (operator, 2026-11-15):** `rn` is a public project and D-043 shows project
+  announcements on public pages, so this data, contract owner names included, becomes public.
+  The operator accepted that. This narrows D-031's admin-only reading for these six reads in
+  this snapshot form only; the admin API itself is unchanged.
+
+### D-033 — CloudBBS body cap raised to 262144 bytes for the reference post (2026-11-15, operator request; amends D-032 "Size")
+
+- **Measured:** the first live run of option 9 refused to post: body 118,415 bytes, cap 16384.
+  Per read (production, 2026-11-15): rateDateRanges 364 items / 73,007 bytes,
+  predictiveDateRanges 182 / 39,947, sailingDateRanges 14 / 3,273, originPorts 14 / 766,
+  destinationPorts 13 / 678, contractOwners 4 / 349. The two per-lane reads cover 182 lanes.
+- **Decision (operator: "increase field size"):** CloudBBS D-044 raises the announcement body cap
+  to 262144 bytes; the CLI's cap follows to 262144. Everything else in D-032 holds: over the cap,
+  post nothing, print the size, fail, never truncate. The payload is unchanged.
+- **Disclosed, not changed:** the two per-lane reads carry `ownerCompanyId` and
+  `ownerCompanyName` on every row, so the company name is published even though the companies
+  list is not (one company today). Raised with the operator on 2026-11-15; they chose only the
+  cap change.
+- **Order:** a post above 16384 bytes succeeds only once CloudBBS T28 is deployed; before that,
+  CloudBBS answers `400 content_too_large` and the CLI reports it.
