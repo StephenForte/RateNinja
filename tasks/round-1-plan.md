@@ -84,7 +84,7 @@ Model names are the planner's proposal; operator overrides recorded in the Run c
 | R1-24 | Reference lookups and current date ranges: six MCP tools + six partner routes | D-030 | R1-23 merged | S / Opus 5.5 | approved 2026-11-14, PR #61 (`4dbb4a7`) |
 | R1-25 | Admin API key, admin reference routes (six reads + companies), and the `rateninja-admin` CLI | D-031 | R1-24 merged | S / Opus 5.5 | approved 2026-11-15, PR #63 (`617c603`) |
 | R1-26 | Admin CLI option 9 / `post-cloudbbs`: post the six reference reads to the CloudBBS project announcement | D-032 | R1-25 merged; CloudBBS T27 for the live post only | S / Opus 5.5 | merged 2026-11-15, PR #65 (`5101935`); first live run refused: 118,415 bytes > 16384 (D-033) |
-| R1-27 | Raise the CloudBBS post body cap to 262144 bytes | D-033 | R1-26 merged; CloudBBS T28 for posts over 16384 bytes | S / Sonnet 5.5 | dispatched 2026-11-15 |
+| R1-27 | Raise the CloudBBS post body cap to 262144 bytes | D-033 | R1-26 merged; CloudBBS T28 for posts over 16384 bytes | S / Sonnet 5.5 | approved — PR #66 (`cfd9890`) |
 
 ### Run order (waves)
 
@@ -186,6 +186,7 @@ Every migration task must also prove: fresh DB, prod-shaped copy, and re-run (id
 
 ## Review log
 
+- 2026-11-15 · **R1-27, PR #66: approved at `cfd9890`, merge as-is.** Base `5101935` = main; 3 files in the R1-27 row. Fresh clone: 284/281/0/3 = main. Comparison is `>`, so 262144 posts and 262145 is refused (matches CloudBBS D-044). The oversize fixture grew from 400 to 2000 rows with every assertion kept. Surviving mutant: if the cap is reverted to 16384, the suite still passes; no test fixes the value. The live post waits on CloudBBS T28.
 - 2026-11-15 · **R1-27 planned (D-033), no migration.** First live option 9 run printed `Announcement body is 118415 bytes; CloudBBS cap is 16384. Not posting.` Planner measured each read read-only against production with the local admin key: rateDateRanges 73,007 B, predictiveDateRanges 39,947 B (182 lanes, 1 company); the other four ~5 KB. Operator chose to raise the cap; CloudBBS D-044 / T28 raise it to 262144.
 - 2026-11-15 · **R1-26, PR #65: approved at `051f4a2`, merge as-is.** Base `68ca809` = main; 7 files inside the R1-26 row; no existing test changed. Fresh clone on Node 26.12.1: 284 tests, 281 pass, 0 fail, 3 todo (main + 15). Nine mutants each fail the R1-26 suite: no size cap, menu skips confirm, read error swallowed, first page only, one-shot without `--yes`, `companies` in payload, CloudBBS token on success or error line, admin key in `source`. Menu probe with dead admin and CloudBBS ports: error printed, menu kept, 8 quits with exit 0, no secret in output. Pagination `pageSize=100` matches the server maximum. Not verified: live PUT (waits on CloudBBS T27) and production payload size.
 - 2026-11-15 · **R1-26 planned (D-032), no migration.** Baseline `68ca809`. Read in CloudBBS: D-042 lets only the org owner edit a project announcement, in the browser; MCP tokens are denied (capability matrix rows 48–49), and the only HTTP API is `/api/mcp`. CloudBBS D-043 / T27 add the token PUT and public display. The body cap is 16384 bytes (D-042); production payload size is unmeasured because the six reads on a copy of `data/rateninja.db` return no current rows. The operator chose to make the data public and to leave out the companies list.
