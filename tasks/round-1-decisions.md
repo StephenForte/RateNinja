@@ -495,3 +495,19 @@ for this read-only admin API only. Rate and sailing browsing in the app keeps D-
   announcements on public pages, so this data, contract owner names included, becomes public.
   The operator accepted that. This narrows D-031's admin-only reading for these six reads in
   this snapshot form only; the admin API itself is unchanged.
+
+### D-033 — CloudBBS body cap raised to 262144 bytes for the reference post (2026-11-15, operator request; amends D-032 "Size")
+
+- **Measured:** the first live run of option 9 refused to post: body 118,415 bytes, cap 16384.
+  Per read (production, 2026-11-15): rateDateRanges 364 items / 73,007 bytes,
+  predictiveDateRanges 182 / 39,947, sailingDateRanges 14 / 3,273, originPorts 14 / 766,
+  destinationPorts 13 / 678, contractOwners 4 / 349. The two per-lane reads cover 182 lanes.
+- **Decision (operator: "increase field size"):** CloudBBS D-044 raises the announcement body cap
+  to 262144 bytes; the CLI's cap follows to 262144. Everything else in D-032 holds: over the cap,
+  post nothing, print the size, fail, never truncate. The payload is unchanged.
+- **Disclosed, not changed:** the two per-lane reads carry `ownerCompanyId` and
+  `ownerCompanyName` on every row, so the company name is published even though the companies
+  list is not (one company today). Raised with the operator on 2026-11-15; they chose only the
+  cap change.
+- **Order:** a post above 16384 bytes succeeds only once CloudBBS T28 is deployed; before that,
+  CloudBBS answers `400 content_too_large` and the CLI reports it.
