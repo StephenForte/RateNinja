@@ -60,22 +60,26 @@ Missing `carrier`, `originPort`, or `after` on demo sailings or demo predictive 
 
 For a local demo, open `/api-testbed.html` while the server is running. The testbed calls these v1 routes. It does not store a company credential.
 
-## Buyer API key for one test account (D-035)
+## Per-buyer API keys (D-037)
 
-For a local test client, set `RATE_NINJA_BUYER_API_KEY` (at least 32 characters) and
-`RATE_NINJA_BUYER_USER_ID` (the test buyer's user row id) on the server. Send the key in
-`X-Buyer-API-Key` to partner REST routes. This key belongs to one test account; it is not a
-partner credential. Use OAuth for partner integrations. Rotate it by changing the server setting.
-The bound user must be enabled and belong to a `Freight Forwarder/Customer` company; the server
-reads that account and company live on every call. Production settings are configured in Render.
+Sign in as an active `Freight Forwarder/Customer` user and open **Profile → API keys**
+(`/profile/api-keys`). Enter a required label (up to 80 characters) and choose **Create key**.
+Copy the `rnb_` key immediately: it is shown only once. Each user can have at most five active
+keys. The list shows only that user's labels, prefixes, creation time, last use and revocation
+time. Choose **Revoke** to stop a key immediately; create a replacement to rotate it.
 
-Unset or short keys, a key equal to the demo or admin key, or an unset user id fail with
-503 `buyer_api_disabled`. A missing, disabled or unsupported bound account returns 403
-`buyer_access_denied`; a wrong key returns 401 `invalid_token`. Sending a bearer credential and
-the buyer header together returns 400 `invalid_request`.
+Send the key in `X-Buyer-API-Key` to partner REST routes. Keys have no expiry and do not need
+server configuration. The server stores only a SHA-256 hash; audit events contain only the key id
+and prefix. Creation and revocation require the buyer's session and CSRF token. Contract owners
+and other company types cannot create keys or manage another user's keys.
+
+Unknown or revoked keys return 401 `invalid_token`. A missing or disabled owner, or an owner
+whose company is no longer a customer, returns 403 `buyer_access_denied`; those checks read the
+live account and company on every call. Sending a bearer credential and the buyer header
+together returns 400 `invalid_request`.
 
 The key has exactly `profile:read rates:read sailings:read`. The partner limit of 60 requests per
-60 seconds applies per bound user using client id `buyer-api-key`; excess requests return 429.
+60 seconds applies per user using client id `buyer-api-key`; excess requests return 429.
 Booking reads, creates and decisions return 403 `insufficient_scope`. Owner-only operations still
 refuse customer access. The header authenticates no MCP, OAuth, admin, demo or session route.
 
@@ -83,7 +87,7 @@ refuse customer access. The header authenticates no MCP, OAuth, admin, demo or s
   returns the same body as `/oauth/userinfo`: `sub`, `name`, `companyId`, `companyName`,
   `companyType`, `active`. It accepts a partner bearer token or the buyer key. OAuth userinfo
   itself continues accepting bearer tokens only.
-- `GET /api/partner/v1/me/available-rates` returns the bound customer's prices through active links.
+- `GET /api/partner/v1/me/available-rates` returns the calling customer's prices through active links.
 - `GET /api/partner/v1/me/sailings` requires `sailings:read` and accepts customer OAuth tokens
   as well as the buyer key. For a customer, `data` contains the same row objects as the session
   sailing list, restricted to active linked owners, with optional case-insensitive exact `carrier`
