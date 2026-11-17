@@ -209,3 +209,15 @@ it('R1-32 an answered longer destination does not suppress a distinct prefix por
     assert.equal(fake.writes.filter(row => row.args.root_id === 'other').length, 1);
     assert.match(fake.writes.find(row => row.args.root_id === 'other').args.body, /Alternative check: Origin 0 → Miami:/);
 });
+
+it('R1-32 accepts fenced alternatives with the existing Claude JSON parser', async t => {
+    const fake = await fakeRun(t, {
+        ranges: ranges(1), poorCount: 1,
+        alternativeText: '```json\n[{"origin":"Origin 0","destination":"Boston","alternatives":["Miami"]}]\n```'
+    });
+    const result = await fake.run();
+    assert.equal(result.status, 0);
+    assert.doesNotMatch(result.stdout, /Alternatives pass skipped/);
+    assert.equal(fake.requests.length, 11); // profile + 4 lanes × 2 + one alternative × 2
+    assert.match(fake.writes[0].args.body, /## Alternatives/);
+});
