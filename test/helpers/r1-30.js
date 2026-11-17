@@ -107,7 +107,8 @@ function startFakeRateNinja({
     profileStatus = 200,
     profileError = null,
     laneFail = null,
-    rateRowsForLane = null
+    rateRowsForLane = null,
+    sailingsForOrigin = null
 } = {}) {
     const requests = [];
     const server = http.createServer((req, res) => {
@@ -205,15 +206,20 @@ function startFakeRateNinja({
                 res.end(JSON.stringify({ error: laneFail.error || 'server_error' }));
                 return;
             }
-            const destination = url.searchParams.get('destinationPort');
-            const rows = [{
-                id: `sail-${origin}-1`,
-                carrier: 'MSC',
-                originPort: origin,
-                destinationPort: destination || 'LALB',
-                departureDate: '2026-11-20',
-                vesselName: 'Demo Vessel'
-            }];
+            // Real partner customer sailings: mapSailingRecord + arrivalPort (no departureDate/destinationPort).
+            const rows = sailingsForOrigin
+                ? sailingsForOrigin({ origin, after: url.searchParams.get('after') || '' })
+                : [{
+                    id: `sail-${origin}-1`,
+                    departure: '2026-11-20',
+                    arrival: '2026-12-10',
+                    transitTime: 20,
+                    vessel: 'Demo Vessel',
+                    voyage: 'V1',
+                    service: 'Demo',
+                    ownerCompanyId: 'owner-1',
+                    arrivalPort: 'LALB'
+                }];
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ data: rows, meta: { total: rows.length, page: 1, pageSize: 100, returned: rows.length } }));
             return;

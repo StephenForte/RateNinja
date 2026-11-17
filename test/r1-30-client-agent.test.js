@@ -10,6 +10,8 @@ const {
     validateVerdicts,
     weekOfTitle,
     SEVEN_DAYS_MS,
+    filterSailingsForLane,
+    nextSailingDate,
     runClientAgent,
     clientAgentSettings
 } = require('../lib/client-agent');
@@ -130,6 +132,51 @@ describe('R1-30 pure helpers', () => {
         ], lanes);
         assert.equal(ok[0].verdict, 'poor');
         assert.equal(ok[1].verdict, 'fair');
+    });
+
+    it('filters sailings by arrivalPort and reads departure (excludes missing arrivalPort)', () => {
+        const rows = [
+            {
+                id: 'rot-first',
+                departure: '2026-11-18',
+                arrival: '2026-12-01',
+                transitTime: 13,
+                vessel: 'Rot Ship',
+                voyage: 'R1',
+                service: 'EU',
+                ownerCompanyId: 'owner-1',
+                arrivalPort: 'Rotterdam'
+            },
+            {
+                id: 'mia-later',
+                departure: '2026-11-25',
+                arrival: '2026-12-20',
+                transitTime: 25,
+                vessel: 'Mia Ship',
+                voyage: 'M1',
+                service: 'USEC',
+                ownerCompanyId: 'owner-1',
+                arrivalPort: 'Miami'
+            },
+            {
+                id: 'no-port',
+                departure: '2026-11-17',
+                arrival: '2026-11-30',
+                transitTime: 13,
+                vessel: 'Unknown',
+                voyage: 'U1',
+                service: 'X',
+                ownerCompanyId: 'owner-1'
+            }
+        ];
+        const kept = filterSailingsForLane(rows, 'Miami');
+        assert.deepEqual(kept.map(row => row.id), ['mia-later']);
+        assert.equal(kept.length, 1);
+        assert.equal(nextSailingDate(kept, { todayUtc: '2026-11-16' }), '2026-11-25');
+        // Case-insensitive match; blank arrivalPort never kept.
+        assert.equal(filterSailingsForLane(rows, 'miami').length, 1);
+        assert.equal(filterSailingsForLane(rows, 'Miami').some(row => row.id === 'no-port'), false);
+        assert.equal(filterSailingsForLane(rows, 'Miami').some(row => row.id === 'rot-first'), false);
     });
 });
 
