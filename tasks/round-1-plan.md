@@ -85,7 +85,7 @@ Model names are the planner's proposal; operator overrides recorded in the Run c
 | R1-25 | Admin API key, admin reference routes (six reads + companies), and the `rateninja-admin` CLI | D-031 | R1-24 merged | S / Opus 5.5 | approved 2026-11-15, PR #63 (`617c603`) |
 | R1-26 | Admin CLI option 9 / `post-cloudbbs`: post the six reference reads to the CloudBBS project announcement | D-032 | R1-25 merged; CloudBBS T27 for the live post only | S / Opus 5.5 | merged 2026-11-15, PR #65 (`5101935`); first live run refused: 118,415 bytes > 16384 (D-033) |
 | R1-27 | Raise the CloudBBS post body cap to 262144 bytes | D-033 | R1-26 merged; CloudBBS T28 for posts over 16384 bytes | S / Sonnet 5.5 | merged 2026-11-15, PR #66 (`c1e3093`); live post v1 (118,415 bytes) 2026-11-16 |
-| R1-28 | Booking code line and `bookingCode` key in the reference post | D-034 | R1-27 merged | S / Sonnet 5.5 | approved — PR #68 (`486c642`) |
+| R1-28 | Booking code line and `bookingCode` key in the reference post | D-034 | R1-27 merged | S / Sonnet 5.5 | merged 2026-11-16, PR #68 (`cbf2717`) |
 | R1-29 | Buyer API key; customer sailings and `me/profile` on the partner REST API | D-035 | — | S / Opus 5.5 | planned 2026-11-16 |
 | R1-30 | Admin CLI option 10 / `client-agent`: buyer search over 10 random lanes, Claude verdicts, weekly CloudBBS thread | D-036 | R1-28 merged; R1-29 deployed for the live run only | S / Opus 5.5 | planned 2026-11-16 |
 
