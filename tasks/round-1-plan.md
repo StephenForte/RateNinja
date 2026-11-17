@@ -46,9 +46,10 @@ Owner of this file and the decisions log: the planner. **Workers never edit eith
 | 009 | reserved | R1-12 (use only if needed) |
 | 010 | `lib/migrations/010-booking-requests.js` | R1-19 |
 | 011 | `lib/migrations/011-ports.js` | R1-23 |
-| 012+ | unassigned | ask the planner |
+| 012 | `lib/migrations/012-buyer-api-keys.js` | R1-31 |
+| 013+ | unassigned | ask the planner |
 
-Next free: **012**. (007 and 009 were reserved and never used; don't reuse them without a planner decision.)
+Next free: **013**. (007 and 009 were reserved and never used; don't reuse them without a planner decision.)
 
 ## Task tree
 
@@ -86,12 +87,13 @@ Model names are the planner's proposal; operator overrides recorded in the Run c
 | R1-26 | Admin CLI option 9 / `post-cloudbbs`: post the six reference reads to the CloudBBS project announcement | D-032 | R1-25 merged; CloudBBS T27 for the live post only | S / Opus 5.5 | merged 2026-11-15, PR #65 (`5101935`); first live run refused: 118,415 bytes > 16384 (D-033) |
 | R1-27 | Raise the CloudBBS post body cap to 262144 bytes | D-033 | R1-26 merged; CloudBBS T28 for posts over 16384 bytes | S / Sonnet 5.5 | merged 2026-11-15, PR #66 (`c1e3093`); live post v1 (118,415 bytes) 2026-11-16 |
 | R1-28 | Booking code line and `bookingCode` key in the reference post | D-034 | R1-27 merged | S / Sonnet 5.5 | merged 2026-11-16, PR #68 (`cbf2717`) |
-| R1-29 | Buyer API key; customer sailings and `me/profile` on the partner REST API | D-035 | — | S / Opus 5.5 | approved — PR #69 (`56054a3`) |
+| R1-29 | Buyer API key; customer sailings and `me/profile` on the partner REST API | D-035 | — | S / Opus 5.5 | merged 2026-11-16, PR #69 (`b67cb4f`); env-bound key superseded by D-037 |
 | R1-30 | Admin CLI option 10 / `client-agent`: buyer search over 10 random lanes, Claude verdicts, weekly CloudBBS thread | D-036 | R1-28 merged; R1-29 deployed for the live run only | S / Opus 5.5 | planned 2026-11-16 |
+| R1-31 | Per-buyer API keys: migration 012, profile page create/revoke, replace the D-035 env pair | D-037 | R1-29 merged | S / Opus 5.5 | planned 2026-11-16 |
 
 ### Run order (waves)
 
-- **Client agent (2026-11-16):** R1-28 (main checkout) and R1-29 (clone `/Users/stephenforte/rn-R1-29`) in parallel; no shared files. R1-30 after R1-28 merges (main checkout; both touch `docs/admin-cli.md`), parallel with R1-29 if it is still open. R1-30 builds against D-035 with local fakes; its live run needs R1-29 deployed, Render env set, the test buyer account, a CloudBBS agent token and `ANTHROPIC_API_KEY`.
+- **Client agent (2026-11-16):** R1-28 (main checkout) and R1-29 (clone `/Users/stephenforte/rn-R1-29`) in parallel; no shared files. R1-30 after R1-28 merges (main checkout; both touch `docs/admin-cli.md`), parallel with R1-29 if it is still open. R1-30 builds against D-035 with local fakes; its live run needs R1-29 deployed, Render env set, the test buyer account, a CloudBBS agent token and `ANTHROPIC_API_KEY`. R1-31 (per-buyer keys, D-037) after R1-29, parallel with R1-30 in clone `/Users/stephenforte/rn-R1-31`.
 - **CloudBBS post (2026-11-15):** R1-26 alone, main checkout, in parallel with CloudBBS T27 (other repo). R1-26 builds against the D-043 contract with a local fake server; the live post waits for T27.
 - **CloudBBS cap (2026-11-15):** R1-27 alone, main checkout, in parallel with CloudBBS T28 (other repo). The live post needs both merged and T28 deployed.
 - **Admin CLI (2026-11-15):** R1-25 alone, one worker, main checkout. Base `303e8e1`.
@@ -140,6 +142,7 @@ Peak concurrency is 4 (W2). If the operator runs fewer agents, drop R1-05 to W3 
 | R1-28 | `lib/cloudbbs-post.js` (booking code only), `test/r1-28-*` | `docs/admin-cli.md` (format lines), `test/r1-26-*` (only assertions on the exact body or JSON keys; declare each) |
 | R1-29 | `lib/buyer-api-key.js` (new), `test/r1-29-*`, `test/helpers/r1-29.js` | `lib/partner-http.js` (key path in `requirePartnerAccess`), `server.js` (`handlePartnerSailings` audience, one profile route line), `lib/visibility.js` (reuse; add a customer sailing listing only if missing), `lib/config.js` (two settings), `lib/audit.js` (event names only), `render.yaml` (two `sync: false` entries), `docs/partner-integration.md`, `API-README.md`, tests that assert the route list |
 | R1-30 | `lib/client-agent.js` (new), `test/r1-30-*`, `test/helpers/r1-30.js` | `scripts/rateninja-admin.js` (menu item 10 and `client-agent`), `docs/admin-cli.md` (one section), `.env.example` (commented lines), `README.md` (one CLI line) |
+| R1-31 | `lib/migrations/012-buyer-api-keys.js`, `lib/buyer-api-key.js`, `public/js/profile/api-keys.js` (new), `test/r1-31-*`, `test/helpers/r1-31.js` | `lib/routes/account.js` or a new route module (register with one line in `lib/routes/index.js`), `public/js/registry.js` (one profile entry), `public/styles.css` (append-only), `lib/config.js` and `render.yaml` (remove the two D-035 entries), `lib/audit.js` (event names only), `test/r1-29-buyer-api.test.js` (credential setup only; declare), tests that assert the migration list or menu, `docs/partner-integration.md`, `API-README.md` |
 
 ### Pre-registered modules (so nobody edits a registry)
 
@@ -193,6 +196,7 @@ Every migration task must also prove: fresh DB, prod-shaped copy, and re-run (id
 
 ## Review log
 
+- 2026-11-16 · **R1-31 planned (D-037), migration 012.** Operator after R1-29 merged (`b67cb4f`): "this does not scale, RATE_NINJA_BUYER_USER_ID would allow only 1 client". Chose per-buyer keys created on the profile page; R1-29's sailings and profile routes stay; the env pair goes. Runs parallel with R1-30 (no shared files; same header).
 - 2026-11-16 · **R1-29, PR #69: approved at `56054a3`, merge as-is.** Base `dcea295` (main moved to `cbf2717`, no shared files). Fresh clone with current main merged: 299/296/0/3 (290 + 9 new). Key path reuses the rate-limit and audience checks; key-only scope check gives `insufficient_scope` on booking routes. Customer sailings go through session `ownerIdsFor` (active links) and skip deleted rows. Seven mutants caught (disabled user, admin/demo key reuse, extra owner, scope check removed, owner listing for customers, bearer+key). R1-22 customer sailings 403→200 is the D-035 change.
 - 2026-11-16 · **R1-28, PR #68: approved at `486c642`, merge as-is.** Base `dcea295` = main; 4 files in the R1-28 row. Fresh clone: 290/287/0/3 (main 284/281/0/3, +6 new). Code drawn after the reads and before size check/confirm (`scripts/rateninja-admin.js` l.303→311). Mutants: biased alphabet, dropped JSON key, constant code all caught; `Math.random` survives (not blocking: code is public, D-034). R1-26 format test change is a strengthening (exact five-key set).
 - 2026-11-16 · **R1-28, R1-29, R1-30 planned (D-034, D-035, D-036), no migration.** Baseline `dcea295`. Read on main: buyers have partner OAuth only (10-minute access token, rotating refresh token whose reuse revokes the family), so the operator chose a buyer API key; `GET /api/partner/v1/me/sailings` is owner-only (`server.js` `handlePartnerSailings`) and there is no REST profile route, so R1-29 adds both. Operator answers 2026-11-16: buyer key, Claude judges, `rn` stays public (booking code public), weekly thread (reply if the newest is under 7 days old, else new). R1-27 row fixed to merged.
