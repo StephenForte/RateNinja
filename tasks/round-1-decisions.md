@@ -511,3 +511,87 @@ for this read-only admin API only. Rate and sailing browsing in the app keeps D-
   cap change.
 - **Order:** a post above 16384 bytes succeeds only once CloudBBS T28 is deployed; before that,
   CloudBBS answers `400 content_too_large` and the CLI reports it.
+
+### D-034 — Booking code in the reference post (2026-11-16, operator request; amends D-032 "Format")
+
+- **What:** each option 9 / `post-cloudbbs` run generates a fresh 9-character code from `A–Z` and
+  `0–9` (for example `XYZ1239AB`) with `crypto.randomInt`, one draw per character. The body gets
+  the line `Today's Booking Code: <code>` directly after the `Generated …` line, and the JSON
+  object gets a top-level `"bookingCode":"<code>"` next to `generatedAt`. The schema name stays
+  `rateninja.reference.v1` (an added key). The confirm prompt, size cap and everything else in
+  D-032/D-033 are unchanged.
+- **Purpose:** a future feature (operator). Nothing reads or stores the code yet; it exists only in
+  the posted announcement.
+- **Public (operator, 2026-11-16):** `rn` stays a public project, so the code is readable by anyone
+  at https://cloudbbs.ai/supa/rn, signed out. A future feature must not treat it as a secret or as
+  proof of identity. The operator also confirmed that the contract owner's name in the post is
+  fine: subscribers are that owner's customers.
+
+### D-035 — Buyer API key for one test buyer account (2026-11-16, operator request)
+
+Partner access for a buyer today is OAuth only: 10-minute access tokens and a refresh token that
+rotates on every use, where reuse revokes the whole family (`lib/oauth.js` refresh path,
+`lib/config.js` `ACCESS_TOKEN_TTL_MS`, `REFRESH_TOKEN_TTL_MS`). A local client agent cannot keep that
+alive safely. The operator chose a server-side key bound to one buyer account.
+
+- **Credential:** env `RATE_NINJA_BUYER_API_KEY` plus `RATE_NINJA_BUYER_USER_ID` (the user row id of
+  the test buyer). The client sends header `X-Buyer-API-Key`, compared in constant time. No expiry;
+  rotation is changing the env value.
+- **Fail closed:** key unset, shorter than 32 characters, or equal to `RATE_NINJA_API_KEY` or
+  `RATE_NINJA_ADMIN_API_KEY`, or user id unset → the header is refused with 503
+  `buyer_api_disabled` on every route that would accept it. A bound user that is missing, disabled,
+  or not in a `Freight Forwarder/Customer` company (read live on every call, as D-029) → 403. A wrong
+  key → 401 `invalid_token`.
+- **What it is:** on the partner REST routes only, a valid key acts exactly as a partner access
+  token for the bound user with scopes `profile:read rates:read sailings:read` and no others. So
+  customer-priced available rates and the customer's sailings work; booking-request routes refuse
+  with 403 `insufficient_scope`. The key is not accepted on `/mcp`, the admin routes, OAuth, the demo
+  API or any session route. Partner rate limits apply per bound user. A request carrying both a
+  bearer token and the key is refused with 400.
+- **Two route gaps closed (needed by D-036; apply to customer OAuth tokens too):**
+  - `GET /api/partner/v1/me/sailings` is owner-only today (`server.js` `handlePartnerSailings`,
+    default audience `owner`). It now also serves a `Freight Forwarder/Customer` caller, returning
+    exactly the sailing rows that customer's browser session sees on `GET /api/sailings`
+    (`lib/visibility.js`), with the partner route's filters and paging. Owner behavior is unchanged.
+    MCP `rateninja_list_my_sailings` is unchanged.
+  - New `GET /api/partner/v1/me/profile` (`profile:read`): the same body as `GET /oauth/userinfo`
+    for the calling user, for any partner credential.
+- **Production:** `render.yaml` declares both variables `sync: false`. The operator creates the test
+  buyer account (a `Freight Forwarder/Customer` company with an active link to the contract owner)
+  and sets the values in the Render dashboard. Until then production refuses with 503.
+
+### D-036 — Admin CLI option 10: run the client agent (2026-11-16, operator request)
+
+- **Command:** menu option 10, "Run client agent" (8 stays Quit, 9 stays the post), and the one-shot
+  `client-agent`. Node built-ins only, like the rest of the CLI.
+- **Steps, in order:**
+  1. **RateNinja login:** `GET /api/partner/v1/me/profile` with `X-Buyer-API-Key` (D-035) and print
+     who it is signed in as. Any failure stops the run.
+  2. **CloudBBS read:** connect to CloudBBS MCP (`{CLOUDBBS_URL}/api/mcp`) with
+     `CLOUDBBS_AGENT_TOKEN`, an ordinary agent token granted project `rn`. This is not
+     `CLOUDBBS_TOKEN` (the announcement token, D-032) and never falls back to it. Read the `rn`
+     announcement in full (follow continuations) and parse its `rateninja.reference.v1` JSON block;
+     list active urgent or pinned threads. A missing or unparsable reference block stops the run.
+  3. **Pick lanes:** the distinct (`originPort`, `destinationPort`) pairs in `reads.rateDateRanges`;
+     pick 10 at random without repeats (all of them if fewer than 10).
+  4. **Query:** for each lane, through the partner REST routes with the buyer key: the buyer's
+     customer-priced rates (`GET /api/partner/v1/me/available-rates`) for that origin and
+     destination, and sailings (`GET /api/partner/v1/me/sailings`, D-035) from the origin port
+     after today's UTC date. Filter client-side where a route has no matching parameter.
+  5. **Judge:** one Claude Messages API call (`ANTHROPIC_API_KEY`; model env `CLIENT_AGENT_MODEL`,
+     default `claude-sonnet-5-5`) with the 10 lanes' results, asking for strict JSON: per lane a
+     verdict `good`, `fair` or `poor` and a one-line reason. The reply is validated (10 lanes, known
+     verdicts); anything else is a failure. Board threads and the announcement prose are not sent to
+     Claude; only the lane results are.
+  6. **Display:** a table per lane (origin, destination, number of rates, lowest customer price per
+     container type, next sailing, verdict, reason), the booking code from the announcement if
+     present, and the urgent/pinned thread titles.
+  7. **Post:** a summary to `rn`. Weekly thread rule (operator): find the most recent root thread
+     this agent authored whose title starts with `Client agent searches`; if it was created less
+     than 7 days ago, reply to it; otherwise post a new thread titled
+     `Client agent searches — week of <YYYY-MM-DD>` (the run's UTC date). Category `note`, never
+     urgent or pinned. The menu asks `Post the summary to <CLOUDBBS_URL>/<project>? [y/N]`;
+     `client-agent` needs `--yes` to post (without it, it runs steps 1–6 and posts nothing).
+- **Failures:** a failure in steps 1–5 posts nothing; it prints the step, the HTTP status and error
+  code, and exits 1 (the menu stays open). No token or key is ever printed or posted.
+- **Not in scope:** creating booking requests, using the booking code, or acting on board content.
