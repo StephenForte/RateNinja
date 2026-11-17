@@ -595,3 +595,26 @@ alive safely. The operator chose a server-side key bound to one buyer account.
 - **Failures:** a failure in steps 1–5 posts nothing; it prints the step, the HTTP status and error
   code, and exits 1 (the menu stays open). No token or key is ever printed or posted.
 - **Not in scope:** creating booking requests, using the booking code, or acting on board content.
+
+### D-037 — Per-buyer API keys (2026-11-16, operator request; supersedes D-035 "Credential", "Fail closed" and "Production")
+
+- **Why:** D-035 binds one key to one account (`RATE_NINJA_BUYER_USER_ID`), so only one buyer could
+  ever use it. The operator: "this does not scale". OAuth works for any number of buyers but cannot
+  run unattended. R1-29 (PR #69, merged `b67cb4f`) shipped the D-035 env pair; it is replaced here.
+- **Who and where:** any active user of a `Freight Forwarder/Customer` company creates keys for
+  themselves on their profile page (session + CSRF, like Connected apps). They see their own keys
+  (label, prefix, created, last used) and revoke them. At most 5 active keys per user. No one can
+  create a key for someone else, and contract owners and other company types cannot create one.
+- **Key:** `rnb_` + 32 random bytes, base64url. Shown once, at creation. Stored as SHA-256 with a
+  unique index, plus the first 8 characters after `rnb_` for display. Migration `012` adds table
+  `buyer_api_keys` (id, user_id, label, key_prefix, key_hash, created_at, last_used_at, revoked_at).
+- **Use:** unchanged from D-035 "What it is": header `X-Buyer-API-Key`, partner REST routes only,
+  scopes `profile:read rates:read sailings:read`, the same checks as R1-29, rate limit per user.
+  A key resolves to its owner; the owner's company type and disabled flag are read live on every
+  call (403 if no longer an active customer user). Unknown or revoked key: 401 `invalid_token`.
+- **Removed:** `RATE_NINJA_BUYER_API_KEY`, `RATE_NINJA_BUYER_USER_ID`, their `render.yaml` entries
+  and the 503 `buyer_api_disabled` path. With nothing configured the feature is on; a buyer with
+  no key simply has none.
+- **Audit:** `buyer_api_key_created`, `buyer_api_key_revoked` (key id and prefix, never the key).
+- **D-036 unchanged:** the client agent sends the test buyer's key, which that buyer creates on
+  their own profile page.
