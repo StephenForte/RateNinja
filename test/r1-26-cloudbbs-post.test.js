@@ -47,16 +47,30 @@ describe('R1-26 CloudBBS announcement format', () => {
             sailingDateRanges: [],
             predictiveDateRanges: [{ origin: 'X' }]
         };
+        // Before R1-28: no bookingCode arg; body was Generated → Schema → json.
+        // After: pass a fixed code so the body and key set stay deterministic under D-034.
         const announcement = buildAnnouncement({
             generatedAt: '2026-11-15T20:00:00.000Z',
             source: 'http://127.0.0.1:9',
-            reads
+            reads,
+            bookingCode: 'XYZ1239AB'
         });
         assert.equal(announcement.title, ANNOUNCEMENT_TITLE);
-        assert.match(announcement.body, /^Generated 2026-11-15T20:00:00\.000Z from http:\/\/127\.0\.0\.1:9\.\n/);
+        assert.match(
+            announcement.body,
+            /^Generated 2026-11-15T20:00:00\.000Z from http:\/\/127\.0\.0\.1:9\.\nToday's Booking Code: XYZ1239AB\n/
+        );
         assert.match(announcement.body, new RegExp(REFERENCE_SCHEMA));
         const parsed = extractJsonBlock(announcement.body);
         assert.equal(parsed.schema, REFERENCE_SCHEMA);
+        assert.equal(parsed.bookingCode, 'XYZ1239AB');
+        assert.deepEqual(Object.keys(parsed).sort(), [
+            'bookingCode',
+            'generatedAt',
+            'reads',
+            'schema',
+            'source'
+        ]);
         assert.deepEqual(parsed.reads.originPorts, reads.originPorts);
         assert.equal(Object.prototype.hasOwnProperty.call(parsed.reads, 'companies'), false);
         assert.equal(Object.prototype.hasOwnProperty.call(parsed, 'companies'), false);
