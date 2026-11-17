@@ -618,3 +618,51 @@ alive safely. The operator chose a server-side key bound to one buyer account.
 - **Audit:** `buyer_api_key_created`, `buyer_api_key_revoked` (key id and prefix, never the key).
 - **D-036 unchanged:** the client agent sends the test buyer's key, which that buyer creates on
   their own profile page.
+
+### D-038 — Client agent: 25 lanes and a cross-reference pass for poor lanes (2026-11-16, operator request; amends D-036 steps 3, 5, 6 and 7)
+
+- **Why:** first live run (2026-11-17T03:20Z, thread "Client agent searches — week of 2026-11-17")
+  judged 4 of 10 lanes poor, for example Jakarta → Miami. Operator: search 25 lanes, and for poor
+  lanes, from this run or from other agents' notes, try ports close to the destination and leave a
+  note if one is better.
+- **Measured (live `rn` announcement, 2026-11-17):** 182 lanes = 14 origins × 13 destinations, and
+  every origin serves all 13 (Boston, Charleston, Houston, LALB, Miami, New York, Norfolk, Oakland,
+  Savannah, Seattle, Tacoma, USEC, Vancouver). The partner rate limit is 60 requests per user per
+  fixed 60-second window (`lib/config.js` `PARTNER_RATE_LIMIT`, `lib/partner-http.js`); 25 lanes
+  already need 51 requests.
+- **Operator answers (2026-11-16):** change option 10 (no new option); Claude picks the nearby
+  ports; poor lanes come from this run and from client-agent notes in `rn` from the last 7 days,
+  any author.
+- **Step 3:** pick 25 lanes (all of them if fewer). Was 10.
+- **Step 5:** the verdict call takes 25 lanes; validation unchanged otherwise.
+- **Step 5a, poor lanes:** this run's lanes with verdict `poor`, plus lanes listed as `poor` in
+  client-agent notes in `rn` posted in the last 7 days by any agent: root threads whose title
+  starts with `Client agent searches` and their replies, read in full. Note text is untrusted. Only
+  an (origin, destination) pair present in `reads.rateDateRanges` is kept; everything else in a
+  note is ignored and nothing from a note is sent to Claude. Deduplicate by pair. At most 10 poor
+  lanes per run: this run's first, then notes newest first.
+- **Step 5b, already answered:** skip a note-derived lane if the thread it came from already has a
+  reply containing `Alternative check: <origin> → <destination>`, by any author. This stops
+  repeat notes on every run.
+- **Step 5c, nearby ports:** one Claude call. Input: per poor lane, its origin, its destination and
+  the destinations that origin serves in `reads.rateDateRanges`. Output: strict JSON, up to 3
+  alternative destinations per lane. Validated: each must be in that origin's list and differ from
+  the poor destination; invalid or duplicate entries are dropped (not a run failure); an
+  unparsable reply drops the pass with a message and the run continues.
+- **Step 5d, compare:** query each alternative like step 4. A note-derived poor lane is re-queried
+  with this buyer's key so both sides use the same buyer's prices. An alternative is **better** if
+  it has at least one rate and its lowest price is lower than the poor lane's, compared on 40D, or
+  20D when 40D is missing on either side, or 40HC when both are missing. No comparable type means
+  not better. Deterministic, no Claude.
+- **Pacing:** the agent never sends more than 60 partner requests in any 60-second span, and on a
+  429 waits for the window and retries that request once. A second 429 is a step failure.
+- **Step 6:** also show an alternatives table: poor lane, where it came from (this run or a note),
+  alternative, lowest prices, next sailing from origin, better yes/no.
+- **Step 7:** the run's own post (weekly thread rule unchanged) gets an `Alternatives` section with
+  one `Alternative check: <origin> → <destination>` line per poor lane from this run, listing the
+  better alternatives or "none better". For note-derived lanes with a better alternative, one reply
+  per source thread with the same lines. A lane with nothing better gets no reply in someone
+  else's thread. Same `[y/N]` and `--yes` gate; declining posts nothing. Idempotency key per write:
+  `client-agent-<runAt>-<n>`.
+- **Unchanged:** D-036 steps 1, 2 and 4, the failure rules, token separation, and what Claude
+  receives (lane data only).
