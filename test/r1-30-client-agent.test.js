@@ -134,7 +134,7 @@ describe('R1-30 pure helpers', () => {
         assert.equal(ok[1].verdict, 'fair');
     });
 
-    it('filters sailings by arrivalPort and reads departure (excludes missing arrivalPort)', () => {
+    it('keeps blank arrivalPort sailings; excludes other ports even when they depart first', () => {
         const rows = [
             {
                 id: 'rot-first',
@@ -166,17 +166,16 @@ describe('R1-30 pure helpers', () => {
                 vessel: 'Unknown',
                 voyage: 'U1',
                 service: 'X',
-                ownerCompanyId: 'owner-1'
+                ownerCompanyId: 'owner-1',
+                arrivalPort: null
             }
         ];
         const kept = filterSailingsForLane(rows, 'Miami');
-        assert.deepEqual(kept.map(row => row.id), ['mia-later']);
-        assert.equal(kept.length, 1);
-        assert.equal(nextSailingDate(kept, { todayUtc: '2026-11-16' }), '2026-11-25');
-        // Case-insensitive match; blank arrivalPort never kept.
-        assert.equal(filterSailingsForLane(rows, 'miami').length, 1);
-        assert.equal(filterSailingsForLane(rows, 'Miami').some(row => row.id === 'no-port'), false);
-        assert.equal(filterSailingsForLane(rows, 'Miami').some(row => row.id === 'rot-first'), false);
+        assert.deepEqual(kept.map(row => row.id).sort(), ['mia-later', 'no-port']);
+        assert.equal(kept.some(row => row.id === 'rot-first'), false);
+        // Earliest kept departure after today is the blank-arrivalPort row (11-17), not Rotterdam.
+        assert.equal(nextSailingDate(kept, { todayUtc: '2026-11-16' }), '2026-11-17');
+        assert.equal(filterSailingsForLane(rows, 'miami').length, 2);
     });
 });
 
