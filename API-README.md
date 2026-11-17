@@ -10,7 +10,7 @@ There are three ways to read rates. The partner guide, `docs/partner-integration
 | Demo API | Shared `X-API-Key` (`RATE_NINJA_API_KEY`) | Base contract prices for the demo database. This key is not a partner token and not a company's private key |
 | Partner API and MCP | OAuth bearer token | Owners: base contract prices and predictive estimates. Customers: their own prices through active links |
 
-A customer account can authorize the partner API and MCP for customer-priced rates and booking requests. Partner OAuth, the partner routes, and `POST /mcp` run only when `PARTNER_OAUTH_ENABLED` allows them: `true` is on, `false` is off, and unset is on unless `NODE_ENV` is `production`. On 2026-10-13 the operator confirmed that production is running with the gate open.
+A customer account can authorize the partner API and MCP for customer-priced rates and booking requests, and the REST API for sailing lists. Partner OAuth, bearer-authenticated partner calls, and `POST /mcp` run only when `PARTNER_OAUTH_ENABLED` allows them: `true` is on, `false` is off, and unset is on unless `NODE_ENV` is `production`. On 2026-10-13 the operator confirmed that production is running with the gate open.
 
 `rate20D` is number or null (no price on file). `rate40D` is number or null (no price on file). `rate40HC` is number or null (no price on file). Each present price is a whole dollar. A stored 0 stays 0. A missing base stays null on a predictive estimate.
 
@@ -60,9 +60,42 @@ Missing `carrier`, `originPort`, or `after` on demo sailings or demo predictive 
 
 For a local demo, open `/api-testbed.html` while the server is running. The testbed calls these v1 routes. It does not store a company credential.
 
+## Buyer API key for one test account (D-035)
+
+For a local test client, set `RATE_NINJA_BUYER_API_KEY` (at least 32 characters) and
+`RATE_NINJA_BUYER_USER_ID` (the test buyer's user row id) on the server. Send the key in
+`X-Buyer-API-Key` to partner REST routes. This key belongs to one test account; it is not a
+partner credential. Use OAuth for partner integrations. Rotate it by changing the server setting.
+The bound user must be enabled and belong to a `Freight Forwarder/Customer` company; the server
+reads that account and company live on every call. Production settings are configured in Render.
+
+Unset or short keys, a key equal to the demo or admin key, or an unset user id fail with
+503 `buyer_api_disabled`. A missing, disabled or unsupported bound account returns 403
+`buyer_access_denied`; a wrong key returns 401 `invalid_token`. Sending a bearer credential and
+the buyer header together returns 400 `invalid_request`.
+
+The key has exactly `profile:read rates:read sailings:read`. The partner limit of 60 requests per
+60 seconds applies per bound user using client id `buyer-api-key`; excess requests return 429.
+Booking reads, creates and decisions return 403 `insufficient_scope`. Owner-only operations still
+refuse customer access. The header authenticates no MCP, OAuth, admin, demo or session route.
+
+- `GET /api/partner/v1/me/profile` requires `profile:read`, supports either company type and
+  returns the same body as `/oauth/userinfo`: `sub`, `name`, `companyId`, `companyName`,
+  `companyType`, `active`. It accepts a partner bearer token or the buyer key. OAuth userinfo
+  itself continues accepting bearer tokens only.
+- `GET /api/partner/v1/me/available-rates` returns the bound customer's prices through active links.
+- `GET /api/partner/v1/me/sailings` requires `sailings:read` and accepts customer OAuth tokens
+  as well as the buyer key. For a customer, `data` contains the same row objects as the session
+  sailing list, restricted to active linked owners, with optional case-insensitive exact `carrier`
+  and `originPort` filters and exclusive `after` date. Pagination uses `page` and `pageSize`
+  (defaults 1 and 50, ceilings 10000 and 100), ordered by departure then id. The body is
+  `{data, meta}` with total, page, pageSize, returned and the allocation notice.
+  Owner response fields and ordering are unchanged. The single-sailing REST route and
+  `rateninja_list_my_sailings` on MCP remain owner-only.
+
 ## Partner API and MCP
 
-Contract owners authorize a registered OAuth client with PKCE S256. `POST /mcp` and `/api/partner/v1/me/*` then return that owner's base rates, sailings, and predictive estimates, and, with the booking scopes, that owner's booking requests. A booking response uses the customer price stored on the request, and the requester, and it does not include the base price. Customer accounts can authorize a partner for customer-priced rates and booking requests. Customers can list, read and create their own booking requests on these routes. The demo key is not accepted on these routes.
+Contract owners authorize a registered OAuth client with PKCE S256. `POST /mcp` and `/api/partner/v1/me/*` then return that owner's base rates, sailings, and predictive estimates, and, with the booking scopes, that owner's booking requests. A booking response uses the customer price stored on the request, and the requester, and it does not include the base price. Customer accounts can authorize a partner for customer-priced rates, REST sailing lists, profile and booking requests. Customers can list, read and create their own booking requests on these routes. The demo key is not accepted on these routes.
 
 Scopes are `profile:read`, `rates:read`, `sailings:read`, `bookings:read`, and `bookings:write`. Predictive pricing uses `rates:read`. `bookings:read` lists and reads booking requests. `bookings:write` lets owners approve or decline them (a final decision), and lets customers create requests. A read scope does not include the write. Discovery advertises only `profile:read`, `rates:read`, and `sailings:read`. The booking scopes are not advertised in discovery. A client must request them explicitly, for example with `scopes` in Cursor's `mcp.json` auth block, and the client must be allowed them. Profile, rate, sailing, and predictive tools stay read-only. Revoke from Connected apps (`DELETE /oauth/consents/{clientId}`) or `POST /oauth/revoke`.
 
@@ -190,4 +223,4 @@ Customers use GET /api/partner/v1/me/available-rates (rates:read; MCP rateninja_
 
 Customers use POST /api/partner/v1/me/booking-requests (bookings:write; MCP rateninja_create_booking_request) with { "rateId", "containerSize", "slots" }; the API returns 201 { data, meta }. A repeat create makes another request; clients should list before retrying. Customers list and read only their company requests with bookings:read through the existing booking routes and tools. Their view never includes the deciding user. Reads leave unread state unchanged; a new request is unread for the owner. Hidden rates and another customer's request ids return the same not_found as missing ids.
 
-Customer tokens never receive base prices, margins or owner company ids. Owner rates, sailings, predictive pricing, sailing date ranges, predictive date ranges and decisions return 403 owner_only to customers. Owners receive 403 customer_only on available-rates and create. MCP calls enforce company type before scopes and arguments; tools/list shows customers profile, the four current-rate reference lookups (rate-date-ranges, origin-ports, destination-ports, contract-owners), available rates, booking list, booking read and booking create. Owner discovery keeps the prior owner tools and adds the six reference lookups. Create annotations are readOnlyHint false, destructiveHint false and idempotentHint false; the tool changes data. The available-rates list is read-only. Company type is live on each call. Scopes remain independently required, and discovery still advertises only the three read scopes. Connected apps lets both supported types list and revoke grants; revoked credentials stop working.
+Customer rate and booking responses never receive base prices, margins or owner company ids. Customer REST sailing list rows match the session view, including its ownerCompanyId field. Owner rates, single sailings, predictive pricing, sailing date ranges, predictive date ranges and decisions return 403 owner_only to customer OAuth tokens. MCP sailing tools remain owner-only. Owners receive 403 customer_only on available-rates and create. MCP calls enforce company type before scopes and arguments; tools/list shows customers profile, the four current-rate reference lookups (rate-date-ranges, origin-ports, destination-ports, contract-owners), available rates, booking list, booking read and booking create. Owner discovery keeps the prior owner tools and adds the six reference lookups. Create annotations are readOnlyHint false, destructiveHint false and idempotentHint false; the tool changes data. The available-rates list is read-only. Company type is live on each call. Scopes remain independently required, and discovery still advertises only the three read scopes. Connected apps lets both supported types list and revoke grants; revoked credentials stop working.
