@@ -195,3 +195,17 @@ it('R1-32 two 429s during alternative queries fail before any summary or note re
     assert.equal(fake.writes.length, 0);
     assert.ok(fake.requests[10].at - fake.requests[9].at > 60000);
 });
+
+it('R1-32 an answered longer destination does not suppress a distinct prefix port', async t => {
+    const fake = await fakeRun(t, {
+        ranges: ['Miami', 'Miami Beach', 'Boston'].map(destinationPort => ({ originPort: 'Origin 0', destinationPort })),
+        threads: [root('other', note([['Origin 0', 'Miami']]), 1, [{
+            createdAt: new Date(START - 5000).toISOString(),
+            body: 'Alternative check: Origin 0 → Miami Beach: none better'
+        }])]
+    });
+    assert.equal((await fake.run()).status, 0);
+    assert.equal(fake.claude.length, 2);
+    assert.equal(fake.writes.filter(row => row.args.root_id === 'other').length, 1);
+    assert.match(fake.writes.find(row => row.args.root_id === 'other').args.body, /Alternative check: Origin 0 → Miami:/);
+});
