@@ -89,7 +89,7 @@ Model names are the planner's proposal; operator overrides recorded in the Run c
 | R1-28 | Booking code line and `bookingCode` key in the reference post | D-034 | R1-27 merged | S / Sonnet 5.5 | merged 2026-11-16, PR #68 (`cbf2717`) |
 | R1-29 | Buyer API key; customer sailings and `me/profile` on the partner REST API | D-035 | — | S / Opus 5.5 | merged 2026-11-16, PR #69 (`b67cb4f`); env-bound key superseded by D-037 |
 | R1-30 | Admin CLI option 10 / `client-agent`: buyer search over 10 random lanes, Claude verdicts, weekly CloudBBS thread | D-036 | R1-28 merged; R1-29 deployed for the live run only | S / Opus 5.5 | changes requested — PR #70 (`bec9364`): sailing row shape |
-| R1-31 | Per-buyer API keys: migration 012, profile page create/revoke, replace the D-035 env pair | D-037 | R1-29 merged | S / Opus 5.5 | approved — PR #71 (`8cd1d73`) |
+| R1-31 | Per-buyer API keys: migration 012, profile page create/revoke, replace the D-035 env pair | D-037 | R1-29 merged | S / Opus 5.5 | merged 2026-11-16, PR #71 (`d559e71`) |
 
 ### Run order (waves)
 
