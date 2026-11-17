@@ -23,7 +23,7 @@ describe('app shell routes', () => {
         const { sections } = await import('../public/js/registry.js');
         const { resolveRoute } = await import('../public/js/router.js');
         for (const section of sections) {
-            const decision = resolveRoute(section.path, everyRole);
+            const decision = resolveRoute(section.path, section.id === 'api-keys' ? member : everyRole);
             assert.equal(decision.kind, 'section', section.path);
             assert.equal(decision.section.id, section.id);
             assert.equal(decision.section.area, section.area);
@@ -77,6 +77,7 @@ describe('menu matches the role', () => {
             '/profile/account',
             '/profile/security',
             '/profile/preferences',
+            '/profile/api-keys',
             '/profile/connected-apps'
         ]);
         assert.deepEqual(paths(customerAdmin), [
@@ -85,6 +86,7 @@ describe('menu matches the role', () => {
             '/profile/account',
             '/profile/security',
             '/profile/preferences',
+            '/profile/api-keys',
             '/profile/connected-apps',
             '/admin/users',
             '/admin/integrations'

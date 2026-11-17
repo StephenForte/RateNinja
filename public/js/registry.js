@@ -70,6 +70,15 @@ export const sections = [
     },
     {
         area: 'profile',
+        id: 'api-keys',
+        label: 'API keys',
+        group: 'Profile',
+        path: '/profile/api-keys',
+        allow: permissions => signedIn(permissions) && permissions.companyType === 'Freight Forwarder/Customer',
+        load: () => import('./profile/api-keys.js')
+    },
+    {
+        area: 'profile',
         id: 'connected-apps',
         label: 'Connected apps',
         group: 'Profile',

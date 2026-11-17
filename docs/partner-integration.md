@@ -8,26 +8,30 @@ Rate access depends on the credential and account.
 | Demo API | Anyone who has the shared demo key | `X-API-Key` | Base contract price for the whole demo database. Not a company's private credential |
 | Partner API and MCP | A Contract Owner or Freight Forwarder/Customer user who approved a registered OAuth client | Bearer access token, audience `rn:partner-api` | Owners: base contract prices and predictive estimates. Customers: their own prices through active links |
 
-Contract Owner and Freight Forwarder/Customer accounts can authorize the partner API and MCP. The demo key is rejected there: MCP reads a bearer access token; partner REST also supports the test buyer key described below.
+Contract Owner and Freight Forwarder/Customer accounts can authorize the partner API and MCP. The demo key is rejected there: MCP reads a bearer access token; partner REST also supports the buyer keys described below.
 
 Booking requests are the exception on price. Those responses carry the customer price stored on the request (and the requester in the owner view), and they do not carry the base price. A contract owner lists and reads them with `bookings:read` and approves or declines them with `bookings:write`. That decision changes data and is final. Customers can list, read and create their own booking requests through the partner API and MCP.
 
-## Buyer API key for one test account (D-035)
+## Per-buyer API keys (D-037)
 
-For a local test client, set `RATE_NINJA_BUYER_API_KEY` (at least 32 characters) and
-`RATE_NINJA_BUYER_USER_ID` (the test buyer's user row id) on the server. Send the key in
-`X-Buyer-API-Key` to partner REST routes. This key belongs to one test account; it is not a
-partner credential. Use OAuth for partner integrations. Rotate it by changing the server setting.
-The bound user must be enabled and belong to a `Freight Forwarder/Customer` company; the server
-reads that account and company live on every call. Production settings are configured in Render.
+Sign in as an active `Freight Forwarder/Customer` user and open **Profile → API keys**
+(`/profile/api-keys`). Enter a required label (up to 80 characters) and choose **Create key**.
+Copy the `rnb_` key immediately: it is shown only once. Each user can have at most five active
+keys. The list shows only that user's labels, prefixes, creation time, last use and revocation
+time. Choose **Revoke** to stop a key immediately; create a replacement to rotate it.
 
-Unset or short keys, a key equal to the demo or admin key, or an unset user id fail with
-503 `buyer_api_disabled`. A missing, disabled or unsupported bound account returns 403
-`buyer_access_denied`; a wrong key returns 401 `invalid_token`. Sending a bearer credential and
-the buyer header together returns 400 `invalid_request`.
+Send the key in `X-Buyer-API-Key` to partner REST routes. Keys have no expiry and do not need
+server configuration. The server stores only a SHA-256 hash; audit events contain only the key id
+and prefix. Creation and revocation require the buyer's session and CSRF token. Contract owners
+and other company types cannot create keys or manage another user's keys.
+
+Unknown or revoked keys return 401 `invalid_token`. A missing or disabled owner, or an owner
+whose company is no longer a customer, returns 403 `buyer_access_denied`; those checks read the
+live account and company on every call. Sending a bearer credential and the buyer header
+together returns 400 `invalid_request`.
 
 The key has exactly `profile:read rates:read sailings:read`. The partner limit of 60 requests per
-60 seconds applies per bound user using client id `buyer-api-key`; excess requests return 429.
+60 seconds applies per user using client id `buyer-api-key`; excess requests return 429.
 Booking reads, creates and decisions return 403 `insufficient_scope`. Owner-only operations still
 refuse customer access. The header authenticates no MCP, OAuth, admin, demo or session route.
 
@@ -35,7 +39,7 @@ refuse customer access. The header authenticates no MCP, OAuth, admin, demo or s
   returns the same body as `/oauth/userinfo`: `sub`, `name`, `companyId`, `companyName`,
   `companyType`, `active`. It accepts a partner bearer token or the buyer key. OAuth userinfo
   itself continues accepting bearer tokens only.
-- `GET /api/partner/v1/me/available-rates` returns the bound customer's prices through active links.
+- `GET /api/partner/v1/me/available-rates` returns the calling customer's prices through active links.
 - `GET /api/partner/v1/me/sailings` requires `sailings:read` and accepts customer OAuth tokens
   as well as the buyer key. For a customer, `data` contains the same row objects as the session
   sailing list, restricted to active linked owners, with optional case-insensitive exact `carrier`
@@ -47,8 +51,8 @@ refuse customer access. The header authenticates no MCP, OAuth, admin, demo or s
 
 ## Deployment gate
 
-This gate controls OAuth and bearer-authenticated access, including MCP. The separately configured
-buyer API key on REST does not depend on OAuth being enabled.
+This gate controls OAuth and bearer-authenticated access, including MCP. The per-buyer
+API key on REST does not depend on OAuth being enabled.
 
 `partnerOauthEnabled()` in `lib/config.js` is the only switch.
 

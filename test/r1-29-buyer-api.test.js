@@ -9,8 +9,9 @@ const { startApp } = require('./helpers/app');
 const { authorizeAndToken, partnerGet, mcpCall, REDIRECT_URI } = require('./helpers/r1-12');
 const { insertCompany, insertUser, insertRate, insertMargin, activate, login, call,
     COMPANY_TYPE_CUSTOMER: CUSTOMER, COMPANY_TYPE_CONTRACT_OWNER: OWNER } = require('./helpers/r1-19');
+const { createKey } = require('./helpers/r1-31');
 const ROOT = '/api/partner/v1/me';
-const KEY = 'b'.repeat(32);
+let KEY;
 
 describe('R1-29 buyer credential boundary', { concurrency: 1 }, () => {
     let app, config, buyer, token, ownerToken;
@@ -34,12 +35,12 @@ describe('R1-29 buyer credential boundary', { concurrency: 1 }, () => {
         app = await startApp();
         app.db.prepare('UPDATE users SET is_system_admin=1 WHERE username=?').run(app.username);
         config = require('../lib/config').config;
-        config.buyerApiKey = KEY; config.buyerUserId = 'buyer-user';
         for (const [id, type] of [['buyer', CUSTOMER], ['owner-b', OWNER], ['inactive', OWNER]]) {
             insertCompany(app.db, { id, name: `Synthetic ${id}`, type });
         }
         insertUser(app.db, { id: 'buyer-user', username: 'synthetic-buyer', companyId: 'buyer', displayName: 'Test Buyer' });
         activate('synthetic-buyer'); buyer = await login(app.baseUrl, 'synthetic-buyer');
+        KEY = (await createKey(app.baseUrl, buyer)).key;
         insertMargin(app.db, { id: 'active-link', owner: app.company.id, customer: 'buyer', percent: 0.1, number: 7 });
         insertMargin(app.db, { id: 'inactive-link', owner: 'inactive', customer: 'buyer', percent: 0.2, status: 'revoked' });
         insertRate(app.db, { id: 'priced', owner: app.company.id });
@@ -131,18 +132,17 @@ describe('R1-29 buyer credential boundary', { concurrency: 1 }, () => {
             await denied(ROOT + path, 403, 'owner_only');
         }
     });
-    it('fails closed for every invalid configuration and never falls back to bearer', async () => {
-        const original = { ...config };
-        for (const patch of [{buyerApiKey:undefined}, {buyerApiKey:''}, {buyerApiKey:'x'.repeat(31)},
-            
-            {buyerApiKey:'d'.repeat(32),publicApiKey:'d'.repeat(32)}, {buyerApiKey:config.adminApiKey},
-            {buyerUserId:undefined}, {buyerUserId:''}, {buyerUserId:'  '}]) {
-            Object.assign(config, original, patch);
-            for (const path of ['/profile', '/sailings', '/available-rates', '/booking-requests']) {
-                await denied(ROOT + path, 503, 'buyer_api_disabled');
+    it('refuses unknown, revoked and reused keys', async () => {
+        const revoked = await createKey(app.baseUrl, buyer, 'To revoke');
+        assert.equal((await call(app.baseUrl, buyer, 'DELETE', '/api/account/api-keys/' + revoked.apiKey.id)).status, 200);
+        for (const path of ['/profile', '/sailings', '/available-rates', '/booking-requests']) {
+            for (const key of ['rnb_' + 'z'.repeat(43), revoked.key, config.publicApiKey, config.adminApiKey]) {
+                await denied(ROOT + path, 401, 'invalid_token', { key });
             }
+            app.db.prepare("UPDATE users SET disabled=1 WHERE id='buyer-user'").run();
+            try { await denied(ROOT + path, 403, 'buyer_access_denied'); }
+            finally { app.db.prepare("UPDATE users SET disabled=0 WHERE id='buyer-user'").run(); }
         }
-        Object.assign(config, original);
         const { verifyBuyerApiKey } = require('../lib/buyer-api-key');
         assert.equal(verifyBuyerApiKey(KEY + 'extra').status, 401);
         await denied(ROOT + '/profile', 401, 'invalid_token', { key:'wrong' });
@@ -154,7 +154,9 @@ describe('R1-29 buyer credential boundary', { concurrency: 1 }, () => {
         }
     });
     it('reads the bound user and company live, including missing and disabled accounts', async () => {
-        config.buyerUserId = 'missing'; await denied(ROOT + '/profile', 403, 'buyer_access_denied'); config.buyerUserId = 'buyer-user';
+        app.db.prepare("UPDATE buyer_api_keys SET user_id='missing' WHERE user_id='buyer-user'").run();
+        await denied(ROOT + '/profile', 403, 'buyer_access_denied');
+        app.db.prepare("UPDATE buyer_api_keys SET user_id='buyer-user' WHERE user_id='missing'").run();
         app.db.prepare("UPDATE users SET disabled=1 WHERE id='buyer-user'").run();
         await denied(ROOT + '/profile', 403, 'buyer_access_denied');
         app.db.prepare("UPDATE users SET disabled=0 WHERE id='buyer-user'").run();
@@ -177,8 +179,8 @@ describe('R1-29 buyer credential boundary', { concurrency: 1 }, () => {
         try {
             for (let i=0; i<60; i++) assert.equal((await request(ROOT + (i%2 ? '/profile' : '/sailings'))).status, 200);
             await denied(ROOT + '/available-rates', 429, 'rate_limited');
-            config.buyerApiKey = 'rotated'.repeat(6);
-            await denied(ROOT + '/profile', 429, 'rate_limited', { key:config.buyerApiKey });
-        } finally { Date.now = realNow; config.buyerApiKey = KEY; }
+            const rotated = await createKey(app.baseUrl, buyer, 'Rotated key');
+            await denied(ROOT + '/profile', 429, 'rate_limited', { key:rotated.key });
+        } finally { Date.now = realNow; }
     });
 });
