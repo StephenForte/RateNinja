@@ -373,6 +373,15 @@ function startFakeCloudBbsMcp({
                 })));
                 return;
             }
+            // R1-32 adds a full-thread read to the call sequence; list excerpts are insufficient.
+            if (name === 'get_thread') {
+                const root = threads.find(thread => thread.id === args.root_id);
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify(jsonRpcResult(parsed.id, {
+                    root, replies: [], replyCount: 0, nextReplyCursor: null
+                })));
+                return;
+            }
             if (name === 'post_message' || name === 'reply_message') {
                 writes.push({ name, args });
                 res.writeHead(200, { 'Content-Type': 'application/json' });
