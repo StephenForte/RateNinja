@@ -24,6 +24,11 @@ services:
       # Admin reference API / CLI. Set in the dashboard; never commit the value.
       - key: RATE_NINJA_ADMIN_API_KEY
         sync: false
+      # One test buyer account, configured in the dashboard.
+      - key: RATE_NINJA_BUYER_API_KEY
+        sync: false
+      - key: RATE_NINJA_BUYER_USER_ID
+        sync: false
       - key: SESSION_SECRET
         generateValue: true
       - key: OAUTH_SIGNING_SECRET

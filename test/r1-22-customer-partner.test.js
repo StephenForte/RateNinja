@@ -193,9 +193,12 @@ describe('R1-22 customer partner boundary', { concurrency: 1 }, () => {
     });
 
     it('enforces audience before arguments, body reads, ids and scopes on API and MCP', async () => {
-        for (const p of [`${ROOT}/rates`, `${ROOT}/rates/priced`, `${ROOT}/sailings`, `${ROOT}/sailings/fake`, `${ROOT}/predictive-pricing`, `${ROOT}/sailing-date-ranges`, `${ROOT}/predictive-date-ranges`]) {
+        for (const p of [`${ROOT}/rates`, `${ROOT}/rates/priced`, `${ROOT}/sailings/fake`, `${ROOT}/predictive-pricing`, `${ROOT}/sailing-date-ranges`, `${ROOT}/predictive-date-ranges`]) {
             const r = await get(token.access_token, p); assert.equal(r.status, 403, r.text); assert.equal(r.body.error, 'owner_only');
         }
+        const sailings = await get(token.access_token, `${ROOT}/sailings`);
+        assert.equal(sailings.status, 200, sailings.text);
+        assert.deepEqual(sailings.body.data, []);
         const denied = await partnerSend(app.baseUrl, token.access_token, 'POST', `${ROOT}/booking-requests/${createdId}/decision`, { raw: '{' });
         assert.equal(denied.status, 403); assert.equal(denied.body.error, 'owner_only');
         for (const name of ['rateninja_list_my_rates', 'rateninja_get_my_rate', 'rateninja_list_my_sailings', 'rateninja_get_my_sailing', 'rateninja_get_my_predictive_pricing', 'rateninja_list_sailing_date_ranges', 'rateninja_list_predictive_date_ranges', 'rateninja_decide_booking_request']) {

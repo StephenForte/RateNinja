@@ -14,7 +14,7 @@ const {
     partnerOauthEnabled,
     oauthSigningKey
 } = require('./lib/config');
-const { COMPANY_TYPE_CONTRACT_OWNER } = require('./lib/constants');
+const { COMPANY_TYPE_CONTRACT_OWNER, COMPANY_TYPE_CUSTOMER } = require('./lib/constants');
 const { db } = require('./lib/db');
 const {
     getRatesByCarrierOrigin,
@@ -75,7 +75,7 @@ const {
     consumeLoginChallenge
 } = require('./lib/mfa');
 const { ensureFoundation } = require('./lib/foundation');
-const { appRates, appPredictiveRates, appSailings, listPartnerRates, getPartnerRate, listPartnerSailings, getPartnerSailing } = require('./lib/visibility');
+const { appRates, appPredictiveRates, appSailings, listPartnerRates, getPartnerRate, listCustomerSailings, listPartnerSailings, getPartnerSailing } = require('./lib/visibility');
 const oauth = require('./lib/oauth');
 const { handleMcp, SUPPORTED_PROTOCOL_VERSIONS } = require('./lib/mcp');
 const { predictiveWindow, demoPredictiveData } = require('./lib/predictive');
@@ -689,11 +689,13 @@ function handlePartnerRate(request, response, rateId) {
 }
 
 function handlePartnerSailings(request, response, url) {
-    const access = requirePartnerAccess(request, response, 'sailings:read');
+    const access = requirePartnerAccess(request, response, 'sailings:read', 'either');
     if (!access) return;
     const query = pageArgs(url.searchParams);
     if (query.error) return sendOAuthError(response, 400, 'invalid_request', query.error);
-    const payload = listPartnerSailings(access, query);
+    const payload = access.companyType === COMPANY_TYPE_CUSTOMER
+        ? listCustomerSailings(access, query)
+        : listPartnerSailings(access, query);
     recordAudit('partner_sailings_read', { actorUserId: access.sub, clientId: access.clientId, detail: { count: payload.data.length } });
     sendJson(response, 200, payload, securityHeaders());
 }
@@ -1033,6 +1035,12 @@ const server = http.createServer(async (request, response) => {
         if (pathname === '/api/v1/predictive-pricing' && request.method === 'GET') return handlePredictivePricing(request, response, url);
 
         if (pathname === '/api/partner/v1/me/rates' && request.method === 'GET') return handlePartnerRates(request, response, url);
+        if (pathname === '/api/partner/v1/me/profile' && request.method === 'GET') {
+            const access = requirePartnerAccess(request, response, 'profile:read', 'either');
+            if (!access) return;
+            return sendJson(response, 200, { sub: access.sub, name: access.username, companyId: access.companyRecordId,
+                companyName: access.companyName, companyType: access.companyType, active: access.active }, securityHeaders());
+        }
         if (pathname === '/api/partner/v1/me/sailings' && request.method === 'GET') return handlePartnerSailings(request, response, url);
         const partnerRateMatch = pathname.match(/^\/api\/partner\/v1\/me\/rates\/([\w-]+)$/);
         if (partnerRateMatch && request.method === 'GET') return handlePartnerRate(request, response, partnerRateMatch[1]);
