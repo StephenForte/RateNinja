@@ -120,7 +120,21 @@ it('R1-32 unparsable alternative response prints skip and still posts own summar
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /Alternatives pass skipped/);
     assert.equal(fake.writes.length, 1);
-    assert.match(fake.writes[0].args.body, /Alternative check: Origin 0 → Boston: none better/);
+    assert.match(fake.writes[0].args.body, /^Not checked: Origin 0 → Boston$/m);
+    assert.doesNotMatch(fake.writes[0].args.body, /Alternative check:/);
+});
+
+it('R1-32 twelve poor lanes produce ten checked markers and two unchecked lines', async t => {
+    const fake = await fakeRun(t, { poorCount: 12 });
+    const result = await fake.run();
+    assert.equal(result.status, 0, result.stderr);
+    const body = fake.writes[0].args.body;
+    assert.equal((body.match(/^Alternative check:/gm) || []).length, 10);
+    assert.equal((body.match(/^Not checked:/gm) || []).length, 2);
+    assert.match(body, /^Not checked: Origin 2 → Norfolk$/m);
+    assert.match(body, /^Not checked: Origin 2 → Savannah$/m);
+    assert.doesNotMatch(body, /Alternative check: Origin 2 → (Norfolk|Savannah)/);
+    assert.equal(fake.requests.length, 111); // profile + 25 lanes × 2 + 10 poor × 3 alternatives × 2
 });
 
 it('R1-32 better compares lowest 40D then 20D then 40HC, never equal or empty', () => {
