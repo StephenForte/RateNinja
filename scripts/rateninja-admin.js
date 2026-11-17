@@ -16,10 +16,12 @@ const {
     collectReferenceReads,
     putAnnouncement
 } = require('../lib/cloudbbs-post');
+const { runClientAgent } = require('../lib/client-agent');
 
 const DEFAULT_BASE_URL = 'https://rate-ninja.onrender.com';
 const QUIT_MENU_INDEX = 8;
 const CLOUDBBS_MENU_INDEX = 9;
+const CLIENT_AGENT_MENU_INDEX = 10;
 
 const COMMANDS = [
     {
@@ -78,7 +80,7 @@ const FILTER_TO_QUERY = {
 function usage() {
     const names = COMMANDS.map(command => command.name).join('|');
     stderr.write(
-        `Usage: node scripts/rateninja-admin.js [list|${names}|post-cloudbbs] [--company ID] [--carrier X] [--origin-port X] [--destination-port X] [--page N] [--page-size N] [--json] [--yes]\n`
+        `Usage: node scripts/rateninja-admin.js [list|${names}|post-cloudbbs|client-agent] [--company ID] [--carrier X] [--origin-port X] [--destination-port X] [--page N] [--page-size N] [--json] [--yes]\n`
     );
 }
 
@@ -104,6 +106,7 @@ function printMenu() {
     }
     stdout.write(`${QUIT_MENU_INDEX}. quit\n`);
     stdout.write(`${CLOUDBBS_MENU_INDEX}. Post this information to the CloudBBS\n`);
+    stdout.write(`${CLIENT_AGENT_MENU_INDEX}. Run client agent\n`);
 }
 
 function findCommand(name) {
@@ -114,7 +117,7 @@ function parseArgs(argv) {
     if (argv.length === 0) return { mode: 'menu' };
     const commandName = argv[0];
     if (commandName === 'list') return { mode: 'list' };
-    if (commandName === 'post-cloudbbs') {
+    if (commandName === 'post-cloudbbs' || commandName === 'client-agent') {
         let yes = false;
         for (let index = 1; index < argv.length; index += 1) {
             const arg = argv[index];
@@ -125,7 +128,7 @@ function parseArgs(argv) {
             usage();
             process.exit(2);
         }
-        return { mode: 'post-cloudbbs', yes };
+        return { mode: commandName, yes };
     }
     if (commandName.startsWith('-')) {
         usage();
@@ -373,6 +376,10 @@ async function runMenu() {
                 await runPostCloudBbs({ confirmed: false, ask: prompter.ask });
                 continue;
             }
+            if (choice === String(CLIENT_AGENT_MENU_INDEX)) {
+                await runClientAgent({ confirmed: false, ask: prompter.ask });
+                continue;
+            }
             const index = Number(choice);
             const command = Number.isInteger(index) && index >= 1 && index <= COMMANDS.length
                 ? COMMANDS[index - 1]
@@ -392,6 +399,9 @@ async function runMenu() {
 
 async function main() {
     const parsed = parseArgs(process.argv.slice(2));
+    if (parsed.mode === 'client-agent') {
+        process.exit(await runClientAgent({ confirmed: Boolean(parsed.yes) }));
+    }
     requireAdminKey();
     if (parsed.mode === 'list') {
         printMenu();
