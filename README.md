@@ -5,7 +5,7 @@ Rate Ninja is a small web application for browsing ocean freight rates, sailing 
 ## Run locally
 
 1. Use Node.js 22 or later. Render runs Node.js 26.12.1; that pin is not required on a local machine.
-2. Copy `.env.example` to `.env` and set `SESSION_SECRET` (and `RATE_NINJA_API_KEY` if you want the public demo API). For the admin reference CLI (including CloudBBS post option 9), see `docs/admin-cli.md`.
+2. Copy `.env.example` to `.env` and set `SESSION_SECRET` (and `RATE_NINJA_API_KEY` if you want the public demo API). For the admin reference CLI (CloudBBS post option 9 and client-agent option 10), see `docs/admin-cli.md`.
 3. Ensure a SQLite database exists at `data/rateninja.db` (or set `SQLITE_DB_PATH`).
 4. Start the app:
 
