@@ -2762,3 +2762,126 @@ body {
 .agent-button.agent-primary { background: #0b6b7d; border-color: #0b6b7d; color: white; }
 .agent-button.agent-primary:hover:not(:disabled) { background: #095769; }
 .agent-button.agent-delete { color: #a02d2d; }
+
+/* Managed agents table */
+.managed-agents {
+    max-width: 1240px;
+}
+
+.agent-form-host {
+    width: 100%;
+    max-width: 940px;
+}
+
+.agent-filters {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 144px), 1fr));
+}
+
+.agent-grid-hint {
+    display: none;
+}
+
+@media (max-width: 1100px) {
+    .agent-grid-hint:not([hidden]) {
+        display: block;
+        margin-bottom: -6px;
+    }
+}
+
+@media (max-width: 600px) {
+    .agent-filters {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .agent-filters label:first-child {
+        grid-column: 1 / -1;
+    }
+}
+.managed-agents > .agent-list {
+    min-width: 0;
+}
+
+.agent-grid-scroll {
+    min-width: 0;
+    overflow-x: auto;
+    container-type: inline-size;
+    border: 1px solid var(--border, #d9e2ec);
+    border-radius: 10px;
+    background: #fff;
+}
+
+.agent-grid {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .875rem;
+    text-align: left;
+}
+
+.agent-grid th, .agent-grid td {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border, #d9e2ec);
+}
+
+.agent-grid th {
+    background: #f1f6f8;
+    white-space: nowrap;
+}
+
+.agent-grid-row td {
+    min-width: 0;
+    max-width: 185px;
+    overflow-wrap: anywhere;
+}
+
+.agent-grid-row .agent-status, .agent-grid-time {
+    white-space: nowrap;
+}
+
+.agent-grid-time span {
+    display: block;
+}
+
+.agent-grid-time span + span {
+    color: var(--muted);
+    font-size: .8rem;
+}
+
+.agent-grid-row:hover, .agent-grid-detail {
+    background: #f8fbfc;
+}
+
+.agent-grid-detail td {
+    padding: 0;
+}
+
+.agent-detail-panel {
+    position: sticky;
+    left: 0;
+    width: 100cqw;
+    box-sizing: border-box;
+    display: grid;
+    gap: 12px;
+    padding: 16px;
+    overflow-wrap: anywhere;
+}
+
+.agent-expand {
+    width: 34px;
+    min-height: 34px;
+    padding: 0;
+    font-size: 1.1rem;
+}
+
+.agent-sort {
+    padding: 4px 0;
+    border: 0;
+    background: transparent;
+    color: #234157;
+    font: inherit;
+    cursor: pointer;
+}
+
+.agent-sort:hover, .agent-sort[aria-pressed="true"] {
+    color: #0b6173;
+    text-decoration: underline;
+}

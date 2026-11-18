@@ -201,20 +201,54 @@ function editor(options, initial, remove) {
     };
 }
 
-function agentCard(agent, edit, remove) {
-    const card = document.createElement('article');
-    card.className = 'agent-card';
-    const top = document.createElement('div');
-    top.className = 'agent-bar';
-    top.append(
-        textCell(`${agent.originPort} → ${agent.destinationPort}`, 'h3'),
-        textCell(agent.status, 'span', `agent-status agent-status-${agent.status}`)
+const searchFields = ['originPort', 'destinationPort', 'rateType', 'companyName', 'creatorName', 'resultSummary'];
+
+const filters = [
+    ['Status', 'status', agent => agent.status],
+    ['Container', 'container', agent => agent.containerType],
+    ['Booking', 'booking', agent => agent.allowBookingRequest ? 'On' : 'Off'],
+    ['Creator', 'creator', agent => agent.creatorName],
+    ['Company', 'company', agent => agent.companyName]
+];
+
+function formatTime(value) {
+    return value ? new Date(value).toLocaleString() : '—';
+}
+
+function timeCell(value) {
+    const cell = document.createElement('td');
+    cell.className = 'agent-grid-time';
+    if (!value) {
+        cell.textContent = '—';
+        return cell;
+    }
+    const timestamp = new Date(value);
+    const time = document.createElement('time');
+    time.dateTime = value;
+    time.append(
+        textCell(timestamp.toLocaleDateString(), 'span'),
+        textCell(timestamp.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), 'span')
     );
-    const created = new Date(agent.createdAt).toLocaleString();
+    cell.append(time);
+    return cell;
+}
+
+function compareAgents(a, b, key, direction) {
+    const left = a[key];
+    const right = b[key];
+    if (left === right) return 0;
+    if (left == null || left === '') return right == null || right === '' ? 0 : 1;
+    if (right == null || right === '') return -1;
+    if (key === 'createdAt' || key === 'finishedAt' || key === 'sailingDate') {
+        return direction * (left < right ? -1 : 1);
+    }
+    return direction * left.localeCompare(right);
+}
+
+function agentDetail(agent, edit, remove) {
+    const card = document.createElement('div');
+    card.className = 'agent-detail-panel';
     const values = [
-        ['Rate type', agent.rateType],
-        ['Sailing date', agent.sailingDate],
-        ['Container', agent.containerType],
         ['Alternative routes', agent.allowAlternativeRoutes ? 'Allowed' : 'Off'],
         ['Booking request', agent.allowBookingRequest ? 'Allowed' : 'Off']
     ];
@@ -222,7 +256,9 @@ function agentCard(agent, edit, remove) {
         values.push(['Slots', String(agent.bookingSlots)]);
         values.push(['Price (USD per container)', `${currency.format(agent.priceMin)} – ${currency.format(agent.priceMax)}`]);
     }
-    if (agent.finishedAt) values.push(['Finished', new Date(agent.finishedAt).toLocaleString()]);
+    if (agent.savedQueryId) values.push(['Saved query', agent.savedQueryId]);
+    if (agent.startedAt) values.push(['Started', formatTime(agent.startedAt)]);
+    if (agent.finishedAt) values.push(['Finished', formatTime(agent.finishedAt)]);
     const details = document.createElement('dl');
     details.className = 'agent-details';
     for (const [label, value] of values) {
@@ -230,7 +266,7 @@ function agentCard(agent, edit, remove) {
         item.append(textCell(label, 'dt'), textCell(value, 'dd'));
         details.append(item);
     }
-    card.append(top, paragraph('agent-hint', [agent.companyName, agent.creatorName, created].filter(Boolean).join(' · ')), details);
+    card.append(details);
     if (agent.resultSummary) card.append(paragraph('agent-result-summary', agent.resultSummary));
     if (agent.bookingRequestId) {
         const link = textCell('View booking requests', 'a');
@@ -247,6 +283,187 @@ function agentCard(agent, edit, remove) {
     return card;
 }
 
+function agentRows(agent, showCompany, expanded, edit, remove) {
+    const row = document.createElement('tr');
+    row.className = 'agent-grid-row';
+    const lane = `${agent.originPort} → ${agent.destinationPort}`;
+    const detailRow = document.createElement('tr');
+    detailRow.className = 'agent-grid-detail';
+    const detail = agentDetail(agent, edit, remove);
+    detail.id = `agent-detail-${agent.id}`;
+    const detailCell = document.createElement('td');
+    detailCell.colSpan = showCompany ? 11 : 10;
+    detailCell.append(detail);
+    detailRow.append(detailCell);
+
+    const expand = button('', () => {
+        if (expanded.has(agent.id)) expanded.delete(agent.id);
+        else expanded.add(agent.id);
+        updateExpansion();
+    }, 'agent-button agent-expand');
+    expand.setAttribute('aria-controls', detail.id);
+
+    function updateExpansion() {
+        const isOpen = expanded.has(agent.id);
+        expand.textContent = isOpen ? '−' : '+';
+        expand.setAttribute('aria-expanded', String(isOpen));
+        expand.setAttribute('aria-label', `${isOpen ? 'Hide' : 'Show'} details for ${lane}`);
+        detailRow.hidden = !isOpen;
+    }
+
+    updateExpansion();
+    const expandCell = document.createElement('td');
+    expandCell.append(expand);
+    const statusCell = document.createElement('td');
+    statusCell.append(textCell(agent.status, 'span', `agent-status agent-status-${agent.status}`));
+    const booking = agent.allowBookingRequest
+        ? `${agent.bookingSlots} ${agent.bookingSlots === 1 ? 'slot' : 'slots'}`
+        : 'Off';
+    row.append(
+        expandCell, statusCell, textCell(lane), textCell(agent.rateType), textCell(agent.sailingDate),
+        textCell(agent.containerType), textCell(booking), timeCell(agent.createdAt), timeCell(agent.finishedAt)
+    );
+    if (showCompany) row.append(textCell(agent.companyName || '—'));
+    row.append(textCell(agent.creatorName || '—'));
+    return [row, detailRow];
+}
+
+function agentGrid(host, edit, remove) {
+    const expanded = new Set();
+    let sortKey = 'createdAt';
+    let direction = -1;
+    let agents = [];
+    let showCompany;
+
+    const search = input('search', '');
+    search.placeholder = 'Search agents';
+    const controls = document.createElement('div');
+    controls.className = 'agent-fields agent-filters';
+    controls.append(fieldLabel('Search', search));
+    const filterControls = filters.map(([label, key, valueOf]) => {
+        const select = document.createElement('select');
+        const field = fieldLabel(label, select);
+        select.addEventListener('change', () => {
+            updateFilters();
+            renderRows();
+        });
+        if (key !== 'company') controls.append(field);
+        return { key, field, select, valueOf };
+    });
+
+    const count = paragraph('agent-hint agent-count', '');
+    count.setAttribute('role', 'status');
+    const noMatches = paragraph('agent-hint', 'No agents match');
+    const reset = button('Reset filters and search', () => {
+        search.value = '';
+        for (const { select } of filterControls) select.value = '';
+        updateFilters();
+        renderRows();
+        search.focus();
+    }, 'agent-button');
+
+    const table = document.createElement('table');
+    table.className = 'agent-grid';
+    table.setAttribute('aria-label', 'Managed agents');
+    const head = document.createElement('thead');
+    const body = document.createElement('tbody');
+    table.append(head, body);
+    const scrollArea = document.createElement('div');
+    scrollArea.className = 'agent-grid-scroll';
+    scrollArea.tabIndex = 0;
+    scrollArea.setAttribute('role', 'region');
+    scrollArea.setAttribute('aria-label', 'Managed agents table');
+    scrollArea.append(table);
+    const scrollHint = paragraph('agent-hint agent-grid-hint', 'Scroll the table to see more columns.');
+    host.append(controls, count, scrollHint, scrollArea, noMatches, reset);
+
+    const sortButtons = new Map();
+    function sortButton(label, key) {
+        const control = button(label, () => {
+            direction = sortKey === key ? -direction : key === 'createdAt' ? -1 : 1;
+            sortKey = key;
+            updateSortButtons();
+            renderRows();
+        }, 'agent-sort');
+        sortButtons.set(key, { control, label });
+        return control;
+    }
+
+    function updateSortButtons() {
+        for (const [key, { control, label }] of sortButtons) {
+            const active = sortKey === key;
+            const order = direction === 1 ? 'ascending' : 'descending';
+            control.textContent = active ? `${label} ${direction === 1 ? '↑' : '↓'}` : label;
+            control.setAttribute('aria-pressed', String(active));
+            control.setAttribute('aria-label', active ? `Sort by ${label}, currently ${order}` : `Sort by ${label}`);
+        }
+    }
+
+    function renderHeader() {
+        const row = document.createElement('tr');
+        sortButtons.clear();
+        const headings = [
+            ['Details'], [sortButton('Status', 'status')],
+            [sortButton('Origin', 'originPort'), ' → ', sortButton('Destination', 'destinationPort')],
+            ['Rate type'], [sortButton('Sailing date', 'sailingDate')], ['Container'], ['Booking'],
+            [sortButton('Created', 'createdAt')], [sortButton('Finished', 'finishedAt')]
+        ];
+        if (showCompany) headings.push(['Company']);
+        headings.push(['Creator']);
+        for (const contents of headings) {
+            const cell = document.createElement('th');
+            cell.scope = 'col';
+            cell.append(...contents);
+            row.append(cell);
+        }
+        head.replaceChildren(row);
+        updateSortButtons();
+    }
+
+    function updateFilters() {
+        for (const { key, select, valueOf } of filterControls) {
+            const available = key !== 'company' || showCompany;
+            const values = available ? agents.map(valueOf).filter(Boolean) : [];
+            // Retain an active value even if the last matching agent was deleted or edited.
+            if (select.value && available) values.push(select.value);
+            setOptions(select, 'All', stringsAsOptions(values));
+        }
+    }
+
+    function renderRows() {
+        const term = search.value.trim().toLowerCase();
+        const visible = agents.filter(agent => filterControls.every(({ select, valueOf }) =>
+            !select.value || select.value === valueOf(agent))
+            && (!term || searchFields.some(key => agent[key]?.toLowerCase().includes(term))));
+        visible.sort((a, b) => compareAgents(a, b, sortKey, direction));
+        body.replaceChildren(...visible.flatMap(agent => agentRows(agent, showCompany, expanded,
+            () => edit(agent), () => remove(agent))));
+        count.textContent = `Showing ${visible.length} of ${agents.length} agents`;
+        scrollArea.hidden = scrollHint.hidden = !visible.length;
+        noMatches.hidden = reset.hidden = visible.length > 0
+            || (!term && filterControls.every(({ select }) => !select.value));
+    }
+
+    search.addEventListener('input', renderRows);
+    return {
+        update(nextAgents) {
+            agents = nextAgents;
+            expanded.clear();
+            // An empty refresh carries no new information about which columns were supplied.
+            const hasCompany = agents.length ? agents.some(agent => Object.hasOwn(agent, 'companyName')) : Boolean(showCompany);
+            if (showCompany !== hasCompany) {
+                showCompany = hasCompany;
+                const companyField = filterControls.find(({ key }) => key === 'company').field;
+                if (showCompany) controls.append(companyField);
+                else companyField.remove();
+                renderHeader();
+            }
+            updateFilters();
+            renderRows();
+        }
+    };
+}
+
 export async function mount(container) {
     let active = true;
     deactivate = () => { active = false; };
@@ -259,6 +476,7 @@ export async function mount(container) {
     toolbar.className = 'agent-bar';
     toolbar.append(heading('Managed agents'));
     const formHost = document.createElement('div');
+    formHost.className = 'agent-form-host';
     const listHost = document.createElement('div');
     listHost.className = 'agent-list';
     container.append(toolbar, announcement, pageError.box, formHost, listHost);
@@ -283,8 +501,11 @@ export async function mount(container) {
     if (options.canManageAgents) toolbar.append(newButton);
     else announcement.textContent = 'Your account must belong to a company to manage agents.';
 
+    const grid = agentGrid(listHost, editAgent, deleteAgent);
+
     function renderList() {
-        listHost.replaceChildren(...agents.map(agent => agentCard(agent, () => editAgent(agent), () => deleteAgent(agent))));
+        listHost.querySelector('.agent-empty')?.remove();
+        grid.update(agents);
         if (!agents.length && options.canManageAgents && !openForm) {
             listHost.append(paragraph('agent-empty', 'No managed agents yet. Select New agents to queue your first search.'));
         }
