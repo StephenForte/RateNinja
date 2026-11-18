@@ -43,7 +43,7 @@ it('R1-33 migration 013 preserves populated 012 data and does no work on the nex
 
         boot(dbPath, root, migrations);
         db = new DatabaseSync(dbPath);
-        assert.deepEqual(ids(), [...beforeIds, '013']);
+        assert.deepEqual(ids(), [...beforeIds, '013', '014']);
         const { managed_agents: agentsHash, ...after } = tableHashes(db);
         assert.ok(agentsHash);
         assert.deepEqual(after, before);
@@ -59,7 +59,7 @@ it('R1-33 migration 013 preserves populated 012 data and does no work on the nex
 
         boot(dbPath, root, migrations);
         db = new DatabaseSync(dbPath);
-        assert.deepEqual(ids(), [...beforeIds, '013']);
+        assert.deepEqual(ids(), [...beforeIds, '013', '014']);
         assert.deepEqual(tableHashes(db), { ...before, managed_agents: agentsHash });
         assert.deepEqual(db.prepare("SELECT applied_at FROM schema_migrations WHERE id = '013'").get(), applied);
         assert.deepEqual(fs.readdirSync(backupDir), backups);

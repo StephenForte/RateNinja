@@ -21,6 +21,7 @@ const routeNames = [
     'partner-bookings',
     'partner',
     'ports',
+    'admin-managed-agents',
     'admin-reference'
 ];
 
@@ -191,6 +192,13 @@ describe('r1-01 routes and exact documents', { concurrency: 1 }, () => {
             } else if (name === 'ports') {
                 assert.equal(mod.routes.length, 4);
                 assert.ok(mod.routes.every(route => route.access === 'session'));
+            } else if (name === 'admin-managed-agents') {
+                assert.equal(mod.routes.length, 3);
+                assert.deepEqual(mod.routes.map(route => [route.method, route.path || route.pattern.source, route.access]), [
+                    ['GET', '/api/admin/v1/managed-agents', 'public'],
+                    ['GET', '^\\/api\\/admin\\/v1\\/managed-agents\\/([^/]+)\\/matches$', 'public'],
+                    ['POST', '^\\/api\\/admin\\/v1\\/managed-agents\\/([^/]+)\\/booking-requests$', 'public']
+                ]);
             } else if (name === 'admin-reference') {
                 assert.equal(mod.routes.length, 7);
                 assert.deepEqual(mod.routes.map(route => [route.method, route.path, route.access]), [
