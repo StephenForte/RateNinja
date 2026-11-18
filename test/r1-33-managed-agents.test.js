@@ -188,6 +188,22 @@ describe('R1-33 managed agents', () => {
         assert.equal(stored(agent.id).destination_port, 'LAX');
     });
 
+    it('rejects booking-enabled edits from a system admin without booking permission', async () => {
+        const [agent] = await queue('creator', search(booking));
+        const suffix = `/${agent.id}`;
+        const before = stored(agent.id);
+        await rejectRow('nonCustomerAdmin', 'PUT', suffix, search({ ...booking, containerType: '40D' }), 1, 'cannot request bookings');
+        assert.deepEqual(stored(agent.id), before);
+
+        const disabled = await api('nonCustomerAdmin', 'PUT', suffix, search({ containerType: '40D' }));
+        assert.equal(disabled.status, 200, disabled.text);
+        assert.deepEqual(
+            [disabled.json.agent.allowBookingRequest, disabled.json.agent.priceMin, disabled.json.agent.priceMax],
+            [false, null, null]
+        );
+        assert.equal(disabled.json.agent.companyId, BUYER_BUSINESS_ID);
+    });
+
     it('lists by home company and gives system admins the cross-company view regardless of selected context', async () => {
         const [foreign] = await queue('otherBuyer', search());
         const [own] = await queue('creator', search(booking));

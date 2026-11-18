@@ -32,6 +32,7 @@ function seedManagedAgents(db) {
         otherBuyer: { companyId: OTHER_BUYER },
         owner: { companyId: OWNER },
         systemAdmin: { companyId: BUYER, systemAdmin: true },
+        nonCustomerAdmin: { companyId: OWNER, systemAdmin: true },
         companyless: { companyId: null }
     };
     for (const [key, values] of Object.entries(users)) {

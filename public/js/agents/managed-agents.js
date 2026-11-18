@@ -298,6 +298,7 @@ export async function mount(container) {
         if (busy) return;
         pageError.hide();
         announcement.textContent = '';
+        const clearsBooking = agent?.allowBookingRequest && !options.canRequestBooking;
         const form = document.createElement('form');
         form.className = 'agent-list';
         const actions = document.createElement('div');
@@ -340,7 +341,12 @@ export async function mount(container) {
             row.focus();
         }
 
-        form.append(textCell(agent ? 'Edit agent' : 'New agents', 'h3'), rowsHost);
+        form.append(textCell(agent ? 'Edit agent' : 'New agents', 'h3'));
+        if (clearsBooking) {
+            form.append(paragraph('agent-hint',
+                'Your company cannot request bookings. Saving this edit will turn off booking and clear the price range.'));
+        }
+        form.append(rowsHost);
         if (!agent) actions.append(add, count);
         actions.append(save, cancel);
         form.append(actions);
@@ -361,6 +367,7 @@ export async function mount(container) {
                 rows[missingDate].showError('Select a lane with a current rate window and enter a sailing date.');
                 return;
             }
+            if (clearsBooking && !window.confirm('Save changes and clear the booking permission and price range?')) return;
             busy = true;
             save.disabled = cancel.disabled = add.disabled = true;
             rows.forEach(row => { row.card.disabled = true; });
