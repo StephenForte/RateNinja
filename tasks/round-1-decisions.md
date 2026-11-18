@@ -751,15 +751,15 @@ alive safely. The operator chose a server-side key bound to one buyer account.
     (first five; keep rows whose arrival port is blank or equals the destination, the R1-30 rule).
     `destinationPort` replaces the destination for an alternative search and is allowed only when the
     agent allows alternative routes (else 403 `alternatives_not_allowed`).
-  - `POST /{id}/booking-requests` `{ "rateId", "slots" }`: creates a booking request **as the
+  - `POST /{id}/booking-requests` `{ "rateId" }`: creates a booking request **as the
     agent's creator** through the existing `createRequest` path (same validation, customer price,
     owner company, unread state). Extra rules, all refused before any write: the agent allows
     booking (403 `booking_not_allowed`); status is `queued` or `running` (409); the creator still
     belongs to the agent's company and can request bookings (409 `agent_creator_unavailable`); the
     rate is one of the agent's matches for its destination or an allowed alternative (404); the
     customer price for the agent's container type is inside the agent's range (400
-    `price_out_of_range`). Container size always comes from the agent; the body cannot set it. One
-    booking per agent: migration 014 adds `managed_agents.booking_request_id`, set in the same
+    `price_out_of_range`). Container size and slots always come from the agent; the body cannot set
+    them. One booking per agent: migration 014 adds `managed_agents.booking_request_id`, set in the same
     transaction as the insert; a second call gets 409 `already_booked`. Audit
     `booking_request_created` with `channel: 'admin_agent'` and the agent id.
   - No MCP tool: the runner is the CLI with the admin key, and `/mcp` is partner OAuth only.
@@ -773,7 +773,10 @@ alive safely. The operator chose a server-side key bound to one buyer account.
   qualifies. `--json` prints the same as JSON.
 - **Preview only:** option 11 makes no writes anywhere: no agent status change, no booking call, no
   CloudBBS post, no Claude call. It never prints a key.
-- **Slots (operator decision pending):** agents have no slot count. Until the operator decides, the
-  displayed call uses `"slots": 1`; the endpoint requires `slots` (1 to `MAX_BOOKING_SLOTS`).
+- **Slots (operator, 2026-11-17: "Add a slots field"; amends D-039 "Settings"):** each agent with
+  booking on has a whole-number slot count, 1 to `MAX_BOOKING_SLOTS` (1000), required, entered on the
+  `/agents` form next to the price range, shown in the list and editable while queued; null when
+  booking is off. Migration 014 adds `managed_agents.booking_slots` and sets it to 1 on existing rows
+  that have booking on (production already has agents). The booking call uses the agent's slots.
 - **Not now:** running the prompts, status changes (`running`/`completed`/`failed`), writing
   `result_summary`.
