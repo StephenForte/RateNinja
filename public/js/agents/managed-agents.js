@@ -114,17 +114,21 @@ function editor(options, initial, remove) {
         setOptions(originPort, 'Select origin', stringsAsOptions(origins.map(lane => lane.originPort)), origin);
         originPort.disabled = !origins.length;
         updateDestinations(destination);
-        savedQuery.disabled = !rateType.value || !options.savedQueries.length;
+        savedQuery.disabled = !rateType.value || !queryChoices.length;
     }
 
     setOptions(rateType, 'Select rate type', stringsAsOptions(options.rateTypes), initial.rateType);
     setOptions(containerType, 'Select container type', options.containerTypes.map(type => [type, type]), initial.containerType);
-    setOptions(savedQuery, 'Choose a saved query', options.savedQueries.map(query => [query.id, query.name]), initial.savedQueryId);
+    const queryChoices = options.savedQueries.map(query => [query.id, query.name]);
+    if (initial.savedQueryId && !options.savedQueries.some(query => query.id === initial.savedQueryId)) {
+        queryChoices.unshift([initial.savedQueryId, 'Keep existing saved query reference']);
+    }
+    setOptions(savedQuery, 'Choose a saved query', queryChoices, initial.savedQueryId);
     updateOrigins(initial.originPort, initial.destinationPort);
     togglePrices();
 
     function resetQuery() {
-        savedQuery.value = '';
+        if (savedQuery.value !== initial.savedQueryId) savedQuery.value = '';
         queryNote.textContent = '';
     }
 
@@ -263,7 +267,7 @@ export async function mount(container) {
     else announcement.textContent = 'Your account must belong to a company to manage agents.';
 
     function renderList() {
-        listHost.replaceChildren(...agents.map(agent => agentCard(agent, () => showForm(agent), () => deleteAgent(agent))));
+        listHost.replaceChildren(...agents.map(agent => agentCard(agent, () => editAgent(agent), () => deleteAgent(agent))));
         if (!agents.length && options.canManageAgents && !openForm) {
             listHost.append(paragraph('agent-empty', 'No managed agents yet. Select New agents to queue your first search.'));
         }
@@ -294,11 +298,29 @@ export async function mount(container) {
         }
     }
 
-    function showForm(agent) {
+    async function editAgent(agent) {
+        if (busy) return;
+        busy = true;
+        pageError.hide();
+        announcement.textContent = 'Loading editing options…';
+        let editOptions;
+        try {
+            editOptions = await request(`${endpoint}/options?agentId=${encodeURIComponent(agent.id)}`);
+        } catch (error) {
+            if (active) {
+                announcement.textContent = '';
+                pageError.show(error.message);
+            }
+        } finally {
+            busy = false;
+        }
+        if (active && editOptions) showForm(agent, editOptions);
+    }
+
+    function showForm(agent, formOptions = options) {
         if (busy) return;
         pageError.hide();
         announcement.textContent = '';
-        const clearsBooking = agent?.allowBookingRequest && !options.canRequestBooking;
         const form = document.createElement('form');
         form.className = 'agent-list';
         const actions = document.createElement('div');
@@ -321,13 +343,13 @@ export async function mount(container) {
 
         function updateCount() {
             rows.forEach((row, index) => row.number(index + 1, rows.length > 1));
-            count.textContent = `${rows.length} of ${options.maxSearches}`;
-            add.disabled = rows.length >= options.maxSearches;
+            count.textContent = `${rows.length} of ${formOptions.maxSearches}`;
+            add.disabled = rows.length >= formOptions.maxSearches;
         }
 
         function addRow(initial = {}) {
-            if (rows.length >= options.maxSearches) return;
-            const row = editor(options, initial, agent ? null : () => {
+            if (rows.length >= formOptions.maxSearches) return;
+            const row = editor(formOptions, initial, agent ? null : () => {
                 if (busy || rows.length <= 1) return;
                 const index = rows.indexOf(row);
                 rows.splice(index, 1);
@@ -341,12 +363,7 @@ export async function mount(container) {
             row.focus();
         }
 
-        form.append(textCell(agent ? 'Edit agent' : 'New agents', 'h3'));
-        if (clearsBooking) {
-            form.append(paragraph('agent-hint',
-                'Your company cannot request bookings. Saving this edit will turn off booking and clear the price range.'));
-        }
-        form.append(rowsHost);
+        form.append(textCell(agent ? 'Edit agent' : 'New agents', 'h3'), rowsHost);
         if (!agent) actions.append(add, count);
         actions.append(save, cancel);
         form.append(actions);
@@ -367,7 +384,6 @@ export async function mount(container) {
                 rows[missingDate].showError('Select a lane with a current rate window and enter a sailing date.');
                 return;
             }
-            if (clearsBooking && !window.confirm('Save changes and clear the booking permission and price range?')) return;
             busy = true;
             save.disabled = cancel.disabled = add.disabled = true;
             rows.forEach(row => { row.card.disabled = true; });

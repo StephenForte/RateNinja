@@ -10,7 +10,6 @@ const OWNER = 'managed-owner';
 const OTHER_OWNER = 'managed-private-owner';
 const BUYER = 'managed-buyer';
 const OTHER_BUYER = 'managed-other-buyer';
-const BUYER_BUSINESS_ID = 'managed-buyer-business';
 const RATE_TYPE = 'Port to Port';
 const OTHER_RATE_TYPE = 'Synthetic Inland';
 
@@ -24,7 +23,7 @@ function seedManagedAgents(db) {
         insertCompany(db, { id, name, type });
     }
     // Exercise the difference between companies.id and users.company_id.
-    db.prepare('UPDATE companies SET company_id = ? WHERE id = ?').run(BUYER_BUSINESS_ID, BUYER);
+    db.prepare('UPDATE companies SET company_id = ? WHERE id = ?').run('3.0', BUYER);
     const users = {
         creator: { companyId: BUYER, displayName: 'Synthetic Creator' },
         member: { companyId: BUYER },
@@ -32,14 +31,15 @@ function seedManagedAgents(db) {
         otherBuyer: { companyId: OTHER_BUYER },
         owner: { companyId: OWNER },
         systemAdmin: { companyId: BUYER, systemAdmin: true },
-        nonCustomerAdmin: { companyId: OWNER, systemAdmin: true },
+        nonCustomerAdmin: { companyId: OTHER_OWNER, systemAdmin: true },
         companyless: { companyId: null }
     };
     for (const [key, values] of Object.entries(users)) {
         const id = `managed-${key}`;
         insertUser(db, { id, username: id, ...values });
         if (values.companyId === BUYER) {
-            db.prepare('UPDATE users SET company_id = ? WHERE id = ?').run(BUYER_BUSINESS_ID, id);
+            const legacyId = ['member', 'companyAdmin'].includes(key) ? '3' : '3.0';
+            db.prepare('UPDATE users SET company_id = ? WHERE id = ?').run(legacyId, id);
         }
         users[key] = id;
     }
@@ -86,4 +86,4 @@ function tableHashes(db) {
     }));
 }
 
-module.exports = { seedManagedAgents, tableHashes, search, BUYER_BUSINESS_ID, OTHER_BUYER, OTHER_RATE_TYPE, RATE_TYPE };
+module.exports = { seedManagedAgents, tableHashes, search, BUYER, OTHER_BUYER, OTHER_RATE_TYPE, RATE_TYPE };

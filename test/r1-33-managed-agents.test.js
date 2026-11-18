@@ -7,7 +7,7 @@ const path = require('node:path');
 const { describe, before, after, it } = require('node:test');
 const { startApp } = require('./helpers/app');
 const { activate, login, call, utcDay } = require('./helpers/r1-19');
-const { seedManagedAgents, search, BUYER_BUSINESS_ID, OTHER_BUYER, OTHER_RATE_TYPE, RATE_TYPE } = require('./helpers/r1-33');
+const { seedManagedAgents, search, BUYER, OTHER_BUYER, OTHER_RATE_TYPE, RATE_TYPE } = require('./helpers/r1-33');
 
 const endpoint = '/api/managed-agents';
 const booking = { allowBookingRequest: true, priceMin: 0, priceMax: 1350.75 };
@@ -147,7 +147,7 @@ describe('R1-33 managed agents', () => {
         assert.equal(accepted.length, 25);
         assert.equal(count(), size + 25);
         assert.equal(new Set(accepted.map(agent => agent.batchId)).size, 1);
-        assert.ok(accepted.every(agent => agent.batchId && agent.companyId === BUYER_BUSINESS_ID && agent.status === 'queued'));
+        assert.ok(accepted.every(agent => agent.batchId && agent.companyId === BUYER && agent.status === 'queued'));
     });
 
     it('stores each agent’s settings and validates price ranges and booking permission', async () => {
@@ -188,36 +188,79 @@ describe('R1-33 managed agents', () => {
         assert.equal(stored(agent.id).destination_port, 'LAX');
     });
 
-    it('rejects booking-enabled edits from a system admin without booking permission', async () => {
-        const [agent] = await queue('creator', search(booking));
+    it('validates admin edits against the agent company and preserves its booking and saved-query reference', async () => {
+        const { createQuery, deleteQuery } = require('../lib/preferences');
+        const query = createQuery(users.creator, { name: 'Customer lane', criteria: { originPort: 'SHA', destinationPort: 'LAX' } });
+        const settings = search({ ...booking, savedQueryId: query.id });
+        const [agent] = await queue('creator', settings);
+        deleteQuery(users.creator, query.id);
         const suffix = `/${agent.id}`;
+
+        const homeOptions = await api('nonCustomerAdmin', 'GET', '/options');
+        assert.equal(homeOptions.json.canRequestBooking, false);
+        assert.ok(homeOptions.json.lanes.some(lane => lane.originPort === 'SIN' && lane.destinationPort === 'NYC'));
+        const editOptions = await api('nonCustomerAdmin', 'GET', `/options?agentId=${agent.id}`);
+        const customerOptions = await api('creator', 'GET', '/options');
+        assert.equal(editOptions.status, 200, editOptions.text);
+        assert.equal(editOptions.json.canRequestBooking, true);
+        assert.deepEqual(editOptions.json.lanes, customerOptions.json.lanes);
+        assert.deepEqual(editOptions.json.rateTypes, customerOptions.json.rateTypes);
+        assert.deepEqual(editOptions.json.savedQueries, []);
+
         const before = stored(agent.id);
-        await rejectRow('nonCustomerAdmin', 'PUT', suffix, search({ ...booking, containerType: '40D' }), 1, 'cannot request bookings');
+        await rejectRow('nonCustomerAdmin', 'PUT', suffix, {
+            ...settings, rateType: 'Private rate type', originPort: 'SIN', destinationPort: 'NYC'
+        }, 1, 'visible lane');
+        await rejectRow('nonCustomerAdmin', 'PUT', suffix, { ...settings, sailingDate: utcDay(31) }, 1, 'rate window');
         assert.deepEqual(stored(agent.id), before);
 
-        const disabled = await api('nonCustomerAdmin', 'PUT', suffix, search({ containerType: '40D' }));
-        assert.equal(disabled.status, 200, disabled.text);
+        const result = await api('nonCustomerAdmin', 'PUT', suffix, { ...settings, containerType: '40D' });
+        assert.equal(result.status, 200, result.text);
+        const updated = result.json.agent;
         assert.deepEqual(
-            [disabled.json.agent.allowBookingRequest, disabled.json.agent.priceMin, disabled.json.agent.priceMax],
-            [false, null, null]
+            [updated.allowBookingRequest, updated.priceMin, updated.priceMax, updated.savedQueryId],
+            [true, booking.priceMin, booking.priceMax, query.id]
         );
-        assert.equal(disabled.json.agent.companyId, BUYER_BUSINESS_ID);
+        assert.equal(updated.containerType, '40D');
+        assert.equal(updated.companyId, BUYER);
+    });
+
+    it('limits edit options to callers allowed to edit a queued agent', async () => {
+        const [agent] = await queue('creator', search());
+        const options = `/options?agentId=${agent.id}`;
+        for (const [who, status] of [['member', 403], ['otherBuyer', 404], ['companyless', 403], [null, 401]]) {
+            const result = await api(who, 'GET', options);
+            assert.equal(result.status, status, result.text);
+            assert.equal(result.json.lanes, undefined);
+            assert.equal(result.json.savedQueries, undefined);
+        }
+        assert.equal((await api('companyAdmin', 'GET', options)).status, 200);
+        app.db.prepare("UPDATE managed_agents SET status = 'running' WHERE id = ?").run(agent.id);
+        assert.equal((await api('creator', 'GET', options)).status, 409);
+        assert.equal((await api('nonCustomerAdmin', 'GET', options)).status, 409);
     });
 
     it('lists by home company and gives system admins the cross-company view regardless of selected context', async () => {
         const [foreign] = await queue('otherBuyer', search());
+        const [memberAgent] = await queue('member', search());
         const [own] = await queue('creator', search(booking));
+        const identity = app.db.prepare('SELECT company_id, company_record_id FROM users WHERE id = ?');
+        assert.deepEqual({ ...identity.get(users.creator) }, { company_id: '3.0', company_record_id: BUYER });
+        assert.deepEqual({ ...identity.get(users.member) }, { company_id: '3', company_record_id: BUYER });
+        assert.equal(stored(own.id).company_id, BUYER);
+        assert.equal(stored(memberAgent.id).company_id, BUYER);
         const member = await api('member', 'GET');
         assert.equal(member.json.agents[0].id, own.id);
         assert.equal(member.json.agents[0].canEdit, false);
         assert.equal(member.json.agents[0].canDelete, false);
-        assert.ok(member.json.agents.every(agent => agent.companyId === BUYER_BUSINESS_ID && !('companyName' in agent)));
+        assert.ok(member.json.agents.every(agent => agent.companyId === BUYER && !('companyName' in agent)));
+        assert.ok((await api('creator', 'GET')).json.agents.some(agent => agent.id === memberAgent.id));
         const other = await api('otherBuyer', 'GET');
         assert.deepEqual(other.json.agents.map(agent => agent.id), [foreign.id]);
         const context = await call(app.baseUrl, sessions.systemAdmin, 'POST', '/api/admin/context', { companyId: OTHER_BUYER });
         assert.equal(context.status, 200, context.text);
         const [adminCreated] = await queue('systemAdmin', search());
-        assert.equal(stored(adminCreated.id).company_id, BUYER_BUSINESS_ID);
+        assert.equal(stored(adminCreated.id).company_id, BUYER);
         const system = await api('systemAdmin', 'GET');
         assert.equal(system.json.agents.find(agent => agent.id === foreign.id).companyName, 'Synthetic Other Buyer');
         assert.equal(system.json.agents.find(agent => agent.id === own.id).companyName, 'Synthetic Buyer');
@@ -253,7 +296,7 @@ describe('R1-33 managed agents', () => {
             WHERE json_extract(detail, '$.agentId') = ? ORDER BY rowid
         `).all(agent.id);
         assert.deepEqual(events.map(event => [event.event_type, event.actor_user_id]), expectedAudits);
-        assert.ok(events.every(event => JSON.parse(event.detail).companyId === BUYER_BUSINESS_ID));
+        assert.ok(events.every(event => JSON.parse(event.detail).companyId === BUYER));
 
         const [creatorDelete] = await queue('creator', search());
         assert.equal((await api('creator', 'DELETE', `/${creatorDelete.id}`)).status, 204);
