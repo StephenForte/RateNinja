@@ -726,3 +726,63 @@ alive safely. The operator chose a server-side key bound to one buyer account.
   company id, user id).
 - **Not now:** the runner and any other status change, partner API or MCP access, more filters
   (operator may add later; each needs its own decision and a migration).
+
+### D-040 — Admin CLI option 11: preview managed agent prompts, plus the admin agent API (2026-11-17, operator request)
+
+- **Why:** operator: add CLI option 11 that reads the queued managed agents (D-039) as Kings and
+  builds, for each one, the prompt the client agent would be given, with the agent's metadata filled
+  in, using the option 10 approach (CloudBBS, AI picks alternatives when allowed, a rate query whose
+  results are limited to what the agent asked for). This dispatch only displays the prompts; nothing
+  is run. Format the booking call the agent would make, and add the API it needs.
+- **Credential:** the admin API key (`X-Admin-API-Key`, `requireAdminApiAccess`). "As Kings" means
+  this key; no browser session, no buyer key, no partner token.
+- **Admin agent API** (base `/api/admin/v1/managed-agents`):
+  - `GET ?status=queued` (default `queued`; any D-039 status accepted): every company's agents,
+    oldest first, with company name, company type and creator name. Same fields as the `/agents`
+    list.
+  - `GET /{id}/matches` (optional `destinationPort`): the rates **the agent's company** sees, at that
+    company's customer prices (the `appRates`/`customerPricedRate` path; never a base price, margin
+    or owner company id), limited to the agent's request: same rate type, origin and destination,
+    `rateEffectiveDate ≤ sailingDate ≤ rateExpirationDate` (blank expiration = open), and a non-null
+    price for the agent's container type. Each match: rate id, carrier, contract owner, owner company
+    name, price for that container type, effective and expiration dates, `bookable` (unexpired
+    today UTC), and `withinPriceRange` (only when booking is on: `priceMin ≤ price ≤ priceMax`,
+    inclusive). Plus the lane's sailings from the origin with departure on or after the sailing date
+    (first five; keep rows whose arrival port is blank or equals the destination, the R1-30 rule).
+    `destinationPort` replaces the destination for an alternative search and is allowed only when the
+    agent allows alternative routes (else 403 `alternatives_not_allowed`).
+  - `POST /{id}/booking-requests` `{ "rateId" }`: creates a booking request **as the
+    agent's creator** through the existing `createRequest` path (same validation, customer price,
+    owner company, unread state). Extra rules, all refused before any write: the agent allows
+    booking (403 `booking_not_allowed`); status is `queued` or `running` (409); the creator still
+    belongs to the agent's company and can request bookings (409 `agent_creator_unavailable`); the
+    rate is one of the agent's matches for its destination or an allowed alternative (404); the
+    customer price for the agent's container type is inside the agent's range (400
+    `price_out_of_range`). Container size and slots always come from the agent; the body cannot set
+    them. One booking per agent: migration 014 adds `managed_agents.booking_request_id`, set in the same
+    transaction as the insert; a second call gets 409 `already_booked`. Audit
+    `booking_request_created` with `channel: 'admin_agent'` and the agent id.
+  - No MCP tool: the runner is the CLI with the admin key, and `/mcp` is partner OAuth only.
+- **Option 11** (one-shot `managed-agent-prompts`): lists queued agents, and for each prints one
+  prompt block: the agent's metadata (company, creator, search, container type, permissions, price
+  range), its matches, and the instructions. With alternatives allowed it reads the CloudBBS `rn`
+  announcement (as option 10, `CLOUDBBS_AGENT_TOKEN`) and lists that origin's other known
+  destinations from `reads.rateDateRanges` for the AI to choose up to three nearby ones. With booking
+  allowed it prints the exact booking call (method, URL, headers with the key shown as
+  `<RATE_NINJA_ADMIN_API_KEY>`, JSON body) for the best match inside the range, or says none
+  qualifies. `--json` prints the same as JSON.
+- **Preview only:** option 11 changes no business data: its RateNinja calls are GETs only; its
+  CloudBBS calls are MCP JSON-RPC (HTTP POST to `/api/mcp`, as option 10) limited to the read tools
+  `connect_agent`, `list_projects` and `check_board`, never `post_message`, `reply_message`,
+  `update_message` or the announcement PUT; no booking call, no Claude call. It never prints a key. The server records
+  `admin_managed_agents_read` audit rows for the admin GETs, as every admin-key read does
+  (`lib/routes/admin-reference.js`); audit rows are not business data. *(Clarified 2026-11-17 twice after
+  the R1-34 worker stopped: first on "no writes anywhere" vs audit rows, then on "zero POST" vs the
+  CloudBBS MCP transport. Both planner wording errors.)*
+- **Slots (operator, 2026-11-17: "Add a slots field"; amends D-039 "Settings"):** each agent with
+  booking on has a whole-number slot count, 1 to `MAX_BOOKING_SLOTS` (1000), required, entered on the
+  `/agents` form next to the price range, shown in the list and editable while queued; null when
+  booking is off. Migration 014 adds `managed_agents.booking_slots` and sets it to 1 on existing rows
+  that have booking on (production already has agents). The booking call uses the agent's slots.
+- **Not now:** running the prompts, status changes (`running`/`completed`/`failed`), writing
+  `result_summary`.
