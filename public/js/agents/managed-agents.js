@@ -222,6 +222,7 @@ function agentCard(agent, edit, remove) {
         values.push(['Slots', String(agent.bookingSlots)]);
         values.push(['Price (USD per container)', `${currency.format(agent.priceMin)} – ${currency.format(agent.priceMax)}`]);
     }
+    if (agent.finishedAt) values.push(['Finished', new Date(agent.finishedAt).toLocaleString()]);
     const details = document.createElement('dl');
     details.className = 'agent-details';
     for (const [label, value] of values) {
@@ -230,6 +231,12 @@ function agentCard(agent, edit, remove) {
         details.append(item);
     }
     card.append(top, paragraph('agent-hint', [agent.companyName, agent.creatorName, created].filter(Boolean).join(' · ')), details);
+    if (agent.resultSummary) card.append(paragraph('agent-result-summary', agent.resultSummary));
+    if (agent.bookingRequestId) {
+        const link = textCell('View booking requests', 'a');
+        link.href = '/profile/booking-requests';
+        card.append(link);
+    }
     if (agent.canEdit || agent.canDelete) {
         const actions = document.createElement('div');
         actions.className = 'agent-actions';
