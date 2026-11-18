@@ -786,3 +786,60 @@ alive safely. The operator chose a server-side key bound to one buyer account.
   that have booking on (production already has agents). The booking call uses the agent's slots.
 - **Not now:** running the prompts, status changes (`running`/`completed`/`failed`), writing
   `result_summary`.
+
+### D-041 — Managed agent runner: admin CLI option 12 runs the queued agents (2026-11-18, operator request)
+
+- **Why:** operator, after the live option 11 check on 2026-11-18: "Plan the runner". Option 11 (D-040)
+  shows the prompt for each queued agent; this runs it: Claude judges the matches, the CLI books when
+  allowed, and the customer sees the result on `/agents`.
+- **Operator answers (2026-11-18):** Claude picks the rate to book; one confirmation per run; the
+  customer sees status, summary and booking; a CloudBBS note is posted, but it is "just an info that
+  they ran and anything 'abnormal' like down time, malformed rate, etc".
+- **Credential and transport:** as D-040: admin API key for RateNinja, `CLOUDBBS_AGENT_TOKEN` for
+  CloudBBS, `ANTHROPIC_API_KEY` and `CLIENT_AGENT_MODEL` (default as option 10) for Claude. No browser
+  session, no buyer key, no direct database access from the CLI.
+- **New admin routes** (base `/api/admin/v1/managed-agents`, `requireAdminApiAccess`):
+  - `POST /{id}/start`: `queued` → `running`, sets `started_at`, in one statement
+    (`... WHERE id = ? AND status = 'queued'`). Otherwise 409 `not_queued` (404 if missing). This is the
+    D-039 race: a customer edit or delete and the start cannot both win.
+  - `POST /{id}/finish` `{ "status": "completed" | "failed", "resultSummary": "<text>" }`:
+    `running` → that status, sets `finished_at` and `result_summary`, in one statement. Otherwise 409
+    `not_running`. `resultSummary` is plain text, 1–1000 characters after trim (400 `invalid_request`
+    otherwise). It never changes `booking_request_id`.
+  - Audit `managed_agent_started` and `managed_agent_finished` (with the status). No other status
+    writes; `cancelled` stays unwritten.
+- **Option 12** (one-shot `managed-agents-run`, `--yes` skips the prompt):
+  1. Lists the queued agents (as option 11) and any agents already `running` (left by a crashed run;
+     reported, not touched). Shows the count and asks once for `y`. No agents: says so, exits 0,
+     no post.
+  2. For each queued agent, in order: `start` (409 → skip, record "changed before start"); read
+     matches for its destination; when alternatives are allowed, one Claude call picks up to three
+     destinations from the option 11 list (the origin's other known destinations in the `rn`
+     announcement) and the CLI reads their matches; one Claude call judges all matches and returns
+     JSON: the chosen `rateId` or null, and a customer-facing summary.
+  3. **Booking (Claude picks, code guards):** only when the agent allows booking and Claude returned
+     a `rateId` that is one of this agent's fetched matches with `bookable` and `withinPriceRange`
+     both true. Anything else books nothing and says why in the summary. The server checks again
+     (D-040); a refusal is recorded in the summary, the agent still finishes `completed`.
+  4. `finish`: `completed` when the judgment ran (with or without a booking); `failed` when a step
+     could not run (RateNinja, Claude or CloudBBS error, invalid Claude JSON after one retry). The
+     summary of a failed agent names the failed step, never a stack trace or key.
+  5. One agent's failure never stops the run. Admin calls are paced to stay under the admin quota
+     (60 per 60 s, `ADMIN_API_RATE_LIMIT`/`ADMIN_API_WINDOW_MS`) and a 429 waits and retries once,
+     instead of the option 11 exit.
+  6. Prints a table: agent id, company, outcome, booking id.
+- **Summary content:** what was found (best price and carrier, sailing used), the alternatives
+  checked, and the booking outcome. Customer prices only: the matches API never returns owner
+  contract prices, and Claude is shown nothing else.
+- **CloudBBS run note** (operator: info that they ran, plus anything abnormal): after the run, one
+  `post_message` thread in `rn` as the agent token, titled `Managed agent run — <UTC timestamp>`.
+  Body: agents run, completed, failed, bookings made, agents found already `running`, and an
+  "Abnormal" list (HTTP errors by step and status, Claude parse failures, malformed matches such as a
+  null price or unreadable date, 429 retries). **No company names, user names, ports, prices, rate
+  ids or summaries:** other customers' agents read `rn`. Agent ids are allowed. A failed post is
+  reported on stderr; it does not change any agent's status.
+- **Customer page `/agents`:** each agent shows its status, finished time, `resultSummary`, and when
+  `bookingRequestId` is set a link to the booking requests view. The summary is model output and must be
+  rendered as text (no HTML).
+- **Not now:** a scheduled or server-side runner, cancelling, re-running a finished agent, resetting a
+  stuck `running` agent (reported only; ask the planner if it happens), an MCP tool, email.
