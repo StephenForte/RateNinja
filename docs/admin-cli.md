@@ -51,13 +51,13 @@ node scripts/rateninja-admin.js
 
 Config (from the environment or a `.env` in the current directory):
 
-- `RATE_NINJA_ADMIN_API_KEY` (required for options 1–9 / reference reads and `post-cloudbbs`)
+- `RATE_NINJA_ADMIN_API_KEY` (required for options 1–9 and 11)
 - `RATE_NINJA_BASE_URL` (optional; default `https://rate-ninja.onrender.com`)
 - `CLOUDBBS_TOKEN` (required for option 9 / `post-cloudbbs`)
 - `CLOUDBBS_URL` (optional; default `https://cloudbbs.ai`)
 - `CLOUDBBS_PROJECT` (optional; default `rn`)
 - `RATE_NINJA_BUYER_API_KEY` (required for option 10 / `client-agent`)
-- `CLOUDBBS_AGENT_TOKEN` (required for option 10 / `client-agent`; never falls back to `CLOUDBBS_TOKEN`)
+- `CLOUDBBS_AGENT_TOKEN` (required for option 10 and for option 11 when any queued agent allows alternatives; never falls back to `CLOUDBBS_TOKEN`)
 - `CLOUDBBS_AGENT_NAME` (optional; default `rateninja-client-agent`)
 - `ANTHROPIC_API_KEY` (required for option 10 / `client-agent`)
 - `CLIENT_AGENT_MODEL` (optional; default `claude-sonnet-5-5`)
@@ -66,7 +66,7 @@ The CLI never reads or sends `RATE_NINJA_API_KEY`. It never prints `RATE_NINJA_A
 
 ### Interactive menu
 
-With no arguments, the CLI prints a numbered menu of the six reads plus `companies`, then `8. quit`, then `9. Post this information to the CloudBBS`, then `10. Run client agent`. Items 1–7 prompt for optional filters, print a table, and return to the menu. Quit stays 8.
+With no arguments, the CLI prints a numbered menu of the six reads plus `companies`, then `8. quit`, then `9. Post this information to the CloudBBS`, then `10. Run client agent` and `11. Preview managed agent prompts`. Items 1–7 prompt for optional filters, print a table, and return to the menu. Quit stays 8.
 
 ### One-shot commands
 
@@ -77,9 +77,10 @@ node scripts/rateninja-admin.js rate-date-ranges --company <id> --carrier MSC --
 node scripts/rateninja-admin.js companies --json
 node scripts/rateninja-admin.js post-cloudbbs --yes
 node scripts/rateninja-admin.js client-agent --yes
+node scripts/rateninja-admin.js managed-agent-prompts --json
 ```
 
-Commands: `rate-date-ranges`, `origin-ports`, `destination-ports`, `contract-owners`, `sailing-date-ranges`, `predictive-date-ranges`, `companies`, `post-cloudbbs`, `client-agent`. Shared flags: `--company`, `--carrier`, `--origin-port`, `--destination-port`, `--page`, `--page-size`, `--json` (only where that command accepts the filter). `post-cloudbbs` requires `--yes`. `client-agent` posts only with `--yes` (without it, steps 1–6 still run).
+Commands: `rate-date-ranges`, `origin-ports`, `destination-ports`, `contract-owners`, `sailing-date-ranges`, `predictive-date-ranges`, `companies`, `post-cloudbbs`, `client-agent`, `managed-agent-prompts`. Shared flags: `--company`, `--carrier`, `--origin-port`, `--destination-port`, `--page`, `--page-size`, `--json` (only where that command accepts the filter). `post-cloudbbs` requires `--yes`. `client-agent` posts only with `--yes` (without it, steps 1–6 still run).
 
 ### Run client agent
 
@@ -92,6 +93,20 @@ Alternatives and note-derived poor lanes are queried with the current buyer's ke
 The display includes lane results, alternatives (source, prices, next sailing from origin, better yes/no), booking code and urgent/pinned titles. The own summary includes an `Alternatives` section with an `Alternative check:` line for each of this run's poor lanes in the planned alternatives pass. Own poor lanes beyond the ten-lane cap or in a skipped pass get `Not checked: <origin> → <destination>` without an answered marker. Better note-derived alternatives get one reply per source thread; nothing better produces no reply there. The menu's `[y/N]` confirmation and one-shot `--yes` gate cover all writes. Each write has a distinct `client-agent-<runAt>-<n>` idempotency key.
 
 Weekly thread rule: reply to this agent's newest root whose title starts with `Client agent searches` when under 7 days old; otherwise open `Client agent searches — week of <YYYY-MM-DD>` (UTC). Failures before posting write nothing. Board prose is never sent to Claude or copied into posts.
+
+### Preview managed agent prompts
+
+Option 11 / `managed-agent-prompts [--json]` prints one prompt per queued agent in queue order. Each prompt contains the agent's company, creator, search, settings, customer-priced matches and up to five sailings. When alternatives are enabled, it reads the CloudBBS announcement and includes other known destinations for the origin. When booking is enabled, it shows a POST example for the lowest-priced bookable match inside the range, using the earliest expiration to break ties. The example uses `<RATE_NINJA_ADMIN_API_KEY>` and the booking uses the saved container type and slot count.
+
+The preview sends only GET requests to RateNinja. CloudBBS reads use MCP over HTTP POST. The preview leaves agent and booking data unchanged and records an audit event for each successful admin GET. It prints prompts for inspection and makes no AI calls. With `--json`, output is an array of prompt strings.
+
+All routes below require `X-Admin-API-Key`. The base path is `/api/admin/v1/managed-agents`.
+
+| Method and suffix | Result |
+| --- | --- |
+| `GET ?status=queued` | `{ agents }` across all companies, oldest first. Also accepts `running`, `completed`, `failed` and `cancelled`. |
+| `GET /{id}/matches` | `{ destinationPort, matches, sailings }` using the agent company's view. `?destinationPort=…` is available when the agent allows alternatives. |
+| `POST /{id}/booking-requests` | `201 { booking }` from a JSON body containing `rateId`. A queued or running agent with booking enabled can create one request as its active creator, within its saved price range. |
 
 ### Post to CloudBBS
 

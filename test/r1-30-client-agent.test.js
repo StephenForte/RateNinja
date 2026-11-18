@@ -261,6 +261,7 @@ describe('R1-30 client-agent against local fakes', { concurrency: 1 }, () => {
         assert.match(listed.stdout, /^8\. quit$/m);
         assert.match(listed.stdout, /^9\. Post this information to the CloudBBS$/m);
         assert.match(listed.stdout, /^10\. Run client agent$/m);
+        assert.match(listed.stdout, /^11\. Preview managed agent prompts$/m);
 
         const menu = await runClientAgentCli([], {
             env: {

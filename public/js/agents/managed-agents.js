@@ -52,12 +52,16 @@ function editor(options, initial, remove) {
     const booking = input('checkbox', options.canRequestBooking && initial.allowBookingRequest);
     const priceMin = input('number', initial.priceMin);
     const priceMax = input('number', initial.priceMax);
+    const bookingSlots = input('number', initial.bookingSlots);
+    bookingSlots.min = '1';
+    bookingSlots.max = String(options.maxBookingSlots);
+    bookingSlots.step = '1';
     const windows = textCell('', 'span', 'agent-hint');
     const queryNote = textCell('', 'span', 'agent-hint');
     const rowError = errorBox();
     rowError.box.setAttribute('role', 'alert');
     queryNote.setAttribute('role', 'status');
-    [rateType, originPort, destinationPort, sailingDate, containerType, priceMin, priceMax]
+    [rateType, originPort, destinationPort, sailingDate, containerType, priceMin, priceMax, bookingSlots]
         .forEach(control => { control.required = true; });
     for (const price of [priceMin, priceMax]) {
         price.min = '0';
@@ -82,11 +86,15 @@ function editor(options, initial, remove) {
     }
     const prices = document.createElement('div');
     prices.className = 'agent-fields agent-prices';
-    prices.append(fieldLabel('Min price (USD per container)', priceMin), fieldLabel('Max price (USD per container)', priceMax));
+    prices.append(
+        fieldLabel('Min price (USD per container)', priceMin),
+        fieldLabel('Max price (USD per container)', priceMax),
+        fieldLabel('Slots', bookingSlots)
+    );
 
     function togglePrices() {
         prices.hidden = !booking.checked;
-        priceMin.disabled = priceMax.disabled = !booking.checked;
+        priceMin.disabled = priceMax.disabled = bookingSlots.disabled = !booking.checked;
     }
 
     function updateDate() {
@@ -187,7 +195,8 @@ function editor(options, initial, remove) {
             allowAlternativeRoutes: alternative.checked,
             allowBookingRequest: booking.checked,
             priceMin: booking.checked ? priceMin.valueAsNumber : null,
-            priceMax: booking.checked ? priceMax.valueAsNumber : null
+            priceMax: booking.checked ? priceMax.valueAsNumber : null,
+            bookingSlots: booking.checked ? bookingSlots.valueAsNumber : null
         })
     };
 }
@@ -210,6 +219,7 @@ function agentCard(agent, edit, remove) {
         ['Booking request', agent.allowBookingRequest ? 'Allowed' : 'Off']
     ];
     if (agent.allowBookingRequest) {
+        values.push(['Slots', String(agent.bookingSlots)]);
         values.push(['Price (USD per container)', `${currency.format(agent.priceMin)} – ${currency.format(agent.priceMax)}`]);
     }
     const details = document.createElement('dl');

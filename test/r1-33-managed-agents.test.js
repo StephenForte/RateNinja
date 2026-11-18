@@ -10,7 +10,7 @@ const { activate, login, call, utcDay } = require('./helpers/r1-19');
 const { seedManagedAgents, search, BUYER, OTHER_BUYER, OTHER_RATE_TYPE, RATE_TYPE } = require('./helpers/r1-33');
 
 const endpoint = '/api/managed-agents';
-const booking = { allowBookingRequest: true, priceMin: 0, priceMax: 1350.75 };
+const booking = { allowBookingRequest: true, priceMin: 0, priceMax: 1350.75, bookingSlots: 3 };
 let app;
 let users;
 let sessions;
@@ -160,10 +160,12 @@ describe('R1-33 managed agents', () => {
         assert.equal(on.containerType, '20D');
         assert.equal(stored(on.id).price_min, 0);
         assert.equal(stored(on.id).price_max, 1350.75);
+        assert.equal(stored(on.id).booking_slots, 3);
         assert.equal(off.containerType, '40D');
         assert.equal(off.allowAlternativeRoutes, false);
         assert.equal(stored(off.id).price_min, null);
         assert.equal(stored(off.id).price_max, null);
+        assert.equal(stored(off.id).booking_slots, null);
         for (const prices of [{ priceMin: undefined }, { priceMax: null }, { priceMin: -1 }, { priceMin: 1500 }, { priceMax: '1350' }]) {
             await rejectRow('creator', 'POST', '', [search({ ...booking, ...prices })], 1, 'price');
         }
@@ -218,8 +220,8 @@ describe('R1-33 managed agents', () => {
         assert.equal(result.status, 200, result.text);
         const updated = result.json.agent;
         assert.deepEqual(
-            [updated.allowBookingRequest, updated.priceMin, updated.priceMax, updated.savedQueryId],
-            [true, booking.priceMin, booking.priceMax, query.id]
+            [updated.allowBookingRequest, updated.priceMin, updated.priceMax, updated.bookingSlots, updated.savedQueryId],
+            [true, booking.priceMin, booking.priceMax, booking.bookingSlots, query.id]
         );
         assert.equal(updated.containerType, '40D');
         assert.equal(updated.companyId, BUYER);
