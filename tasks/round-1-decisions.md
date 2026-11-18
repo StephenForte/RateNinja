@@ -771,11 +771,14 @@ alive safely. The operator chose a server-side key bound to one buyer account.
   allowed it prints the exact booking call (method, URL, headers with the key shown as
   `<RATE_NINJA_ADMIN_API_KEY>`, JSON body) for the best match inside the range, or says none
   qualifies. `--json` prints the same as JSON.
-- **Preview only:** option 11 sends only GET requests and changes no business data: no agent change,
-  no booking call, no CloudBBS post, no Claude call. It never prints a key. The server records
+- **Preview only:** option 11 changes no business data: its RateNinja calls are GETs only; its
+  CloudBBS calls are MCP JSON-RPC (HTTP POST to `/api/mcp`, as option 10) limited to the read tools
+  `connect_agent`, `list_projects` and `check_board`, never `post_message`, `reply_message`,
+  `update_message` or the announcement PUT; no booking call, no Claude call. It never prints a key. The server records
   `admin_managed_agents_read` audit rows for the admin GETs, as every admin-key read does
-  (`lib/routes/admin-reference.js`); audit rows are not business data. *(Clarified 2026-11-17 after
-  the R1-34 worker stopped on "no writes anywhere": planner wording error.)*
+  (`lib/routes/admin-reference.js`); audit rows are not business data. *(Clarified 2026-11-17 twice after
+  the R1-34 worker stopped: first on "no writes anywhere" vs audit rows, then on "zero POST" vs the
+  CloudBBS MCP transport. Both planner wording errors.)*
 - **Slots (operator, 2026-11-17: "Add a slots field"; amends D-039 "Settings"):** each agent with
   booking on has a whole-number slot count, 1 to `MAX_BOOKING_SLOTS` (1000), required, entered on the
   `/agents` form next to the price range, shown in the list and editable while queued; null when
