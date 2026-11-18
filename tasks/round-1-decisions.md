@@ -666,3 +666,45 @@ alive safely. The operator chose a server-side key bound to one buyer account.
   `client-agent-<runAt>-<n>`.
 - **Unchanged:** D-036 steps 1, 2 and 4, the failure rules, token separation, and what Claude
   receives (lane data only).
+
+### D-039 — Managed agents: users queue agent search requests for Kings to run (2026-11-17, operator request)
+
+- **Why:** operator: a signed-in user can see the agents that have run for them with their status
+  (the agent's metadata), and create a new agent that is queued for the admin (Kings) to run later.
+  The page must be easy to find: a tab on the main page, not only the hamburger menu.
+- **This decision covers** the request form, storage and the list. Running an agent is not built
+  here. Every agent this creates is `queued` until a later task adds a runner (operator decides
+  when).
+- **Who:** any signed-in user whose account has a company. The agent row stores the creating user's
+  id and that user's own company id (`users.company_id`), never the admin company-context
+  selection.
+- **List:** a user sees every agent of their own company (any creator), newest first: created time,
+  creator, status, search count, container type, the two permissions, price range; each agent
+  expands to its searches. System admins (Kings) see agents of all companies, with the company name.
+- **Agent settings (one set per agent, not per search):** container type `20D`, `40D` or `40HC`
+  (required); allow alternative routes (yes/no); allow booking request (yes/no). With booking on:
+  minimum and maximum price, both required, numbers ≥ 0, min ≤ max, in USD per container of the
+  chosen type. With booking off both are stored null. Booking on is refused (400) unless
+  `permissions.canRequestBooking(actor)` (Freight Forwarder/Customer company); the form hides the
+  box for others.
+- **Searches:** 1 to 25 per agent (`MAX_AGENT_SEARCHES = 25`, `lib/limits.js`). Each search: rate
+  type, origin port, destination port, sailing date (`YYYY-MM-DD`). Options come only from rates
+  visible to the user (`appRates(user)`, `lib/visibility.js`): rate types are the distinct
+  `rateType` values; origin and destination are lanes with at least one rate of that type. A
+  sailing date is valid when at least one visible rate on that rate type, origin and destination
+  has `rateEffectiveDate ≤ date ≤ rateExpirationDate` (inclusive), and the date is not before today
+  (UTC). Two identical searches in one agent are refused. One invalid search refuses the whole
+  submit, and the error names the search number. The server checks all of this; the form only helps.
+- **Saved queries:** a search can be filled from one of the user's saved queries: its `originPort`
+  and `destinationPort` criteria fill the search; other criteria (`search`, `carrier`,
+  `contractOwner`) are ignored. The saved query id is stored for reference only; editing or
+  deleting the query later does not change the agent.
+- **Statuses:** `queued`, `running`, `completed`, `failed`, `cancelled` (database CHECK). Only
+  `queued` is written now. Runner columns exist and stay null: `started_at`, `finished_at`,
+  `result_summary`.
+- **Storage:** migration 013, tables `managed_agents` and `managed_agent_searches`.
+- **Navigation:** a tab strip under the header on the main page ("Rates" | "Managed agents"),
+  shown to signed-in users, plus a hamburger entry. Path `/agents`.
+- **Audit:** `managed_agent_created` (agent id, company id, user id, search count).
+- **Not now:** the runner and any status change, cancel/edit/delete, partner API or MCP access,
+  more filters (operator may add later; each needs its own decision and a migration).
