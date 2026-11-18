@@ -843,3 +843,31 @@ alive safely. The operator chose a server-side key bound to one buyer account.
   rendered as text (no HTML).
 - **Not now:** a scheduled or server-side runner, cancelling, re-running a finished agent, resetting a
   stuck `running` agent (reported only; ask the planner if it happens), an MCP tool, email.
+
+### D-042 — Managed agents page: grid with expandable rows, plus filter, search and sort (2026-11-18, operator request)
+
+- **Why:** operator, after the first live runner run: "enhance the managed agent view, make it more of a
+  grid-ish layout, longer with expando for detail. Need filter, search, and sort for the queue."
+- **Grid:** the `/agents` list becomes one row per agent (replacing the cards). Columns: status,
+  origin → destination, rate type, sailing date, container type, booking (slots, or "off"),
+  created, finished; plus company for system admins (who see every company, D-039) and creator.
+  Each row has an expand control (a real button, keyboard operable, `aria-expanded`) that opens a
+  detail panel below the row with everything the card shows today: permissions, price range,
+  slots, saved query, started/finished times, result summary, booking link, and the edit/delete
+  actions where allowed. Several rows may be open at once. The summary stays text-only
+  (D-041).
+- **Filter:** status (All, or one of queued/running/completed/failed/cancelled), container type,
+  booking on/off, creator, and company (system admins only). Options come from the loaded agents.
+- **Search:** one box, case-insensitive substring over origin, destination, rate type, company,
+  creator and result summary.
+- **Sort:** by created (default, newest first), sailing date, finished, status, origin, destination;
+  clicking the active sort reverses direction. Rows with no value (e.g. no finished time) sort last
+  in both directions.
+- **Count:** "Showing N of M agents"; when filters hide everything, a clear "No agents match" line
+  and a reset control.
+- **Client-side:** filter, search and sort work on the existing `GET /api/managed-agents` response.
+  No API, database or permission change. State lives in the page only (not saved, not in the URL).
+- **Width:** works at 375 px wide with no page-level horizontal scroll (the grid may scroll inside
+  its own container, or collapse columns).
+- **Unchanged:** the queue form, editing, deleting, validation and who can see or change which agent.
+- **Not now:** server-side paging or filtering, saved views, bulk actions, CSV export.
