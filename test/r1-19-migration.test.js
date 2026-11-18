@@ -19,7 +19,7 @@ const EARLIER = [
     '006-data-operations.js',
     '008-import-jobs.js'
 ];
-const FULL = ['001', '002', '003', '004', '005', '006', '008', '010', '011', '012'];
+const FULL = ['001', '002', '003', '004', '005', '006', '008', '010', '011', '012', '013'];
 
 function boot(dbPath, migrationsDir) {
     const env = { ...process.env, NODE_ENV: 'test', SQLITE_DB_PATH: dbPath };

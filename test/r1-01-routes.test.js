@@ -17,6 +17,7 @@ const routeNames = [
     'data-ops',
     'imports',
     'booking-requests',
+    'managed-agents',
     'partner-bookings',
     'partner',
     'ports',
@@ -176,6 +177,8 @@ describe('r1-01 routes and exact documents', { concurrency: 1 }, () => {
             } else if (name === 'booking-requests') {
                 assert.equal(mod.routes.length, 7);
                 assert.ok(mod.routes.every(route => route.access === 'session'));
+            } else if (name === 'managed-agents') {
+                assert.equal(mod.routes.length, 5);
             } else if (name === 'partner-bookings') {
                 assert.equal(mod.routes.length, 5);
                 assert.deepEqual(mod.routes.map(route => [route.method, route.path || route.pattern.source, route.access]), [

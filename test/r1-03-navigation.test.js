@@ -73,6 +73,7 @@ describe('menu matches the role', () => {
         const paths = permissions => menuFor(permissions).map(item => item.path);
         assert.deepEqual(paths(member), [
             '/rates',
+            '/agents',
             '/profile/booking-requests',
             '/profile/account',
             '/profile/security',
@@ -82,6 +83,7 @@ describe('menu matches the role', () => {
         ]);
         assert.deepEqual(paths(customerAdmin), [
             '/rates',
+            '/agents',
             '/profile/booking-requests',
             '/profile/account',
             '/profile/security',
@@ -93,6 +95,7 @@ describe('menu matches the role', () => {
         ]);
         assert.deepEqual(paths(ownerAdmin), [
             '/rates',
+            '/agents',
             '/profile/booking-requests',
             '/profile/account',
             '/profile/security',
@@ -107,6 +110,7 @@ describe('menu matches the role', () => {
         ]);
         assert.deepEqual(paths(systemAdmin), [
             '/rates',
+            '/agents',
             '/profile/booking-requests',
             '/profile/account',
             '/profile/security',
