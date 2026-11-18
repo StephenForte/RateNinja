@@ -679,7 +679,12 @@ alive safely. The operator chose a server-side key bound to one buyer account.
   own settings. One submit creates 1 to 25 agents (`MAX_AGENT_SEARCHES = 25`, `lib/limits.js`),
   grouped by a batch id for display only.
 - **Who:** any signed-in user whose account has a company. Each agent stores the creating user's
-  id and that user's own company id (`users.company_id`), never the admin company-context selection.
+  id and that user's own company's record id (`actor.company.id`, the `companies.id` that
+  `companyForUser` resolves, the same key `booking_requests.requesting_company_id` uses), never the
+  admin company-context selection. *Corrected 2026-11-17 in the R1-33 review (planner error):* this
+  line first said `users.company_id`, a legacy business id whose format differs between users of
+  one company (local copy of production data: Blackwater users `AlanD` = `3`, `Alan` = `3.0`,
+  company `3.0`), which splits the company-wide list.
 - **List (operator: all in company):** a user sees every agent of their own company (any creator),
   newest first: created time, creator, status, the search, container type, the two permissions,
   price range. System admins (Kings) see agents of all companies, with the company name.
@@ -705,7 +710,10 @@ alive safely. The operator chose a server-side key bound to one buyer account.
   does not change the agent.
 - **Edit and delete (operator 2026-11-17):** allowed only while the agent is `queued` (not run).
   Allowed for the creator, a company admin of the agent's company, and system admins. An edit
-  re-checks every rule above. The status check and the write are one statement (`... WHERE id = ?
+  re-checks every rule above **for the agent's company** (its visible rates and its booking
+  permission), not the editor's: a system admin editing a customer's agent sees and is held to that
+  customer's lanes and may keep its booking settings. The agent's current saved query id stays
+  valid on edit. *(Clarified 2026-11-17 in the R1-33 review.)* The status check and the write are one statement (`... WHERE id = ?
   AND status = 'queued'`), so a future runner that has started the agent wins and the edit or delete
   gets 409. Delete removes the row.
 - **Statuses:** `queued`, `running`, `completed`, `failed`, `cancelled` (database CHECK). Only
