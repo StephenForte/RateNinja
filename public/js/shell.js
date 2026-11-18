@@ -10,6 +10,7 @@ import { mount as mountPasswordRequired, unmount as unmountPasswordRequired } fr
 
 const ICONS = {
     rates: 'fa-ship',
+    'managed-agents': 'fa-list-check',
     'booking-requests': 'fa-bell',
     account: 'fa-user-circle',
     security: 'fa-shield-alt',
@@ -308,6 +309,7 @@ export function navigate(path) {
 async function renderPasswordGate() {
     stopBookingNotifications();
     welcome();
+    document.getElementById('ratesTabs').hidden = true;
     app().classList.add('password-change-required');
     setMenuOpen(false);
     hideViews();
@@ -391,7 +393,10 @@ async function renderRoute(options = {}) {
 
 function markCurrent(decision) {
     const currentPath = decision.kind === 'section' ? decision.section.path : '';
-    for (const link of menu().querySelectorAll('[role="menuitem"]')) {
+    const ratesTabs = document.getElementById('ratesTabs');
+    ratesTabs.hidden = !permissions.signedIn;
+    const links = [...menu().querySelectorAll('[role="menuitem"]'), ...ratesTabs.querySelectorAll('a')];
+    for (const link of links) {
         if (link.getAttribute('href') === currentPath) link.setAttribute('aria-current', 'page');
         else link.removeAttribute('aria-current');
     }

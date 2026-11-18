@@ -40,7 +40,7 @@ it('R1-31 migration 012 preserves seeded 011 rows, enforces a unique hash, and i
         boot(migrations);
         db = new DatabaseSync(dbPath);
         assert.deepEqual(snapshot(), before);
-        assert.equal(db.prepare('SELECT MAX(id) AS id FROM schema_migrations').get().id, '012');
+        assert.deepEqual(db.prepare("SELECT id FROM schema_migrations WHERE id >= '012' ORDER BY id").all().map(row => row.id), ['012', '013']);
         assert.deepEqual(db.prepare('PRAGMA table_info(buyer_api_keys)').all().map(c => c.name),
             ['id', 'user_id', 'label', 'key_prefix', 'key_hash', 'created_at', 'last_used_at', 'revoked_at']);
         const unique = db.prepare('PRAGMA index_list(buyer_api_keys)').all().find(i => i.name === 'buyer_api_keys_hash_unique');

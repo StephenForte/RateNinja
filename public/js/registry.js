@@ -33,6 +33,15 @@ export const sections = [
         load: () => import('./rates/browse.js')
     },
     {
+        area: 'rates',
+        id: 'managed-agents',
+        label: 'Managed agents',
+        group: 'Rates',
+        path: '/agents',
+        allow: signedIn,
+        load: () => import('./agents/managed-agents.js')
+    },
+    {
         area: 'profile',
         id: 'booking-requests',
         label: 'Booking requests',
