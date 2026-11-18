@@ -2661,6 +2661,11 @@ body {
     margin: 0;
 }
 
+.agent-result-summary {
+    margin: 0;
+    white-space: pre-wrap;
+}
+
 .agent-editor legend {
     padding-inline: 5px;
     font-weight: 600;

@@ -18,12 +18,14 @@ const {
 } = require('../lib/cloudbbs-post');
 const { runClientAgent } = require('../lib/client-agent');
 const { previewManagedAgentPrompts } = require('../lib/managed-agent-prompts');
+const { runManagedAgents } = require('../lib/managed-agent-runner');
 
 const DEFAULT_BASE_URL = 'https://rate-ninja.onrender.com';
 const QUIT_MENU_INDEX = 8;
 const CLOUDBBS_MENU_INDEX = 9;
 const CLIENT_AGENT_MENU_INDEX = 10;
 const MANAGED_AGENT_PROMPTS_MENU_INDEX = 11;
+const MANAGED_AGENTS_RUN_MENU_INDEX = 12;
 
 const COMMANDS = [
     {
@@ -82,7 +84,7 @@ const FILTER_TO_QUERY = {
 function usage() {
     const names = COMMANDS.map(command => command.name).join('|');
     stderr.write(
-        `Usage: node scripts/rateninja-admin.js [list|${names}|post-cloudbbs|client-agent|managed-agent-prompts] [--company ID] [--carrier X] [--origin-port X] [--destination-port X] [--page N] [--page-size N] [--json] [--yes]\n`
+        `Usage: node scripts/rateninja-admin.js [list|${names}|post-cloudbbs|client-agent|managed-agent-prompts|managed-agents-run] [--company ID] [--carrier X] [--origin-port X] [--destination-port X] [--page N] [--page-size N] [--json] [--yes]\n`
     );
 }
 
@@ -110,6 +112,7 @@ function printMenu() {
     stdout.write(`${CLOUDBBS_MENU_INDEX}. Post this information to the CloudBBS\n`);
     stdout.write(`${CLIENT_AGENT_MENU_INDEX}. Run client agent\n`);
     stdout.write(`${MANAGED_AGENT_PROMPTS_MENU_INDEX}. Preview managed agent prompts\n`);
+    stdout.write(`${MANAGED_AGENTS_RUN_MENU_INDEX}. Run managed agents\n`);
 }
 
 function findCommand(name) {
@@ -127,7 +130,7 @@ function parseArgs(argv) {
         usage();
         process.exit(2);
     }
-    if (commandName === 'post-cloudbbs' || commandName === 'client-agent') {
+    if (commandName === 'post-cloudbbs' || commandName === 'client-agent' || commandName === 'managed-agents-run') {
         let yes = false;
         for (let index = 1; index < argv.length; index += 1) {
             const arg = argv[index];
@@ -394,6 +397,10 @@ async function runMenu() {
                 await previewManagedAgentPrompts({ baseUrl: baseUrl() });
                 continue;
             }
+            if (choice === String(MANAGED_AGENTS_RUN_MENU_INDEX)) {
+                await runManagedAgents({ ask: prompter.ask });
+                continue;
+            }
             const index = Number(choice);
             const command = Number.isInteger(index) && index >= 1 && index <= COMMANDS.length
                 ? COMMANDS[index - 1]
@@ -419,6 +426,15 @@ async function main() {
     requireAdminKey();
     if (parsed.mode === 'managed-agent-prompts') {
         process.exitCode = await previewManagedAgentPrompts({ baseUrl: baseUrl(), json: parsed.json });
+        return;
+    }
+    if (parsed.mode === 'managed-agents-run') {
+        const prompter = parsed.yes ? null : createPrompter();
+        try {
+            process.exitCode = await runManagedAgents({ confirmed: parsed.yes, ask: prompter?.ask });
+        } finally {
+            prompter?.close();
+        }
         return;
     }
     if (parsed.mode === 'list') {

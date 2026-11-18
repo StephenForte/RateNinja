@@ -51,15 +51,15 @@ node scripts/rateninja-admin.js
 
 Config (from the environment or a `.env` in the current directory):
 
-- `RATE_NINJA_ADMIN_API_KEY` (required for options 1–9 and 11)
+- `RATE_NINJA_ADMIN_API_KEY` (required for options 1–9, 11 and 12)
 - `RATE_NINJA_BASE_URL` (optional; default `https://rate-ninja.onrender.com`)
 - `CLOUDBBS_TOKEN` (required for option 9 / `post-cloudbbs`)
 - `CLOUDBBS_URL` (optional; default `https://cloudbbs.ai`)
 - `CLOUDBBS_PROJECT` (optional; default `rn`)
 - `RATE_NINJA_BUYER_API_KEY` (required for option 10 / `client-agent`)
-- `CLOUDBBS_AGENT_TOKEN` (required for option 10 and for option 11 when any queued agent allows alternatives; never falls back to `CLOUDBBS_TOKEN`)
+- `CLOUDBBS_AGENT_TOKEN` (required for options 10 and 12, and for option 11 when any queued agent allows alternatives; never falls back to `CLOUDBBS_TOKEN`)
 - `CLOUDBBS_AGENT_NAME` (optional; default `rateninja-client-agent`)
-- `ANTHROPIC_API_KEY` (required for option 10 / `client-agent`)
+- `ANTHROPIC_API_KEY` (required for options 10 and 12)
 - `CLIENT_AGENT_MODEL` (optional; default `claude-sonnet-5-5`)
 
 The CLI never reads or sends `RATE_NINJA_API_KEY`. It never prints `RATE_NINJA_ADMIN_API_KEY`, `RATE_NINJA_BUYER_API_KEY`, `CLOUDBBS_TOKEN`, `CLOUDBBS_AGENT_TOKEN`, or `ANTHROPIC_API_KEY`.
@@ -78,9 +78,10 @@ node scripts/rateninja-admin.js companies --json
 node scripts/rateninja-admin.js post-cloudbbs --yes
 node scripts/rateninja-admin.js client-agent --yes
 node scripts/rateninja-admin.js managed-agent-prompts --json
+node scripts/rateninja-admin.js managed-agents-run --yes
 ```
 
-Commands: `rate-date-ranges`, `origin-ports`, `destination-ports`, `contract-owners`, `sailing-date-ranges`, `predictive-date-ranges`, `companies`, `post-cloudbbs`, `client-agent`, `managed-agent-prompts`. Shared flags: `--company`, `--carrier`, `--origin-port`, `--destination-port`, `--page`, `--page-size`, `--json` (only where that command accepts the filter). `post-cloudbbs` requires `--yes`. `client-agent` posts only with `--yes` (without it, steps 1–6 still run).
+Commands: `rate-date-ranges`, `origin-ports`, `destination-ports`, `contract-owners`, `sailing-date-ranges`, `predictive-date-ranges`, `companies`, `post-cloudbbs`, `client-agent`, `managed-agent-prompts`, `managed-agents-run`. Shared flags: `--company`, `--carrier`, `--origin-port`, `--destination-port`, `--page`, `--page-size`, `--json` (only where that command accepts the filter). `post-cloudbbs` requires `--yes`. `client-agent` posts only with `--yes` (without it, steps 1–6 still run).
 
 ### Run client agent
 
@@ -107,6 +108,16 @@ All routes below require `X-Admin-API-Key`. The base path is `/api/admin/v1/mana
 | `GET ?status=queued` | `{ agents }` across all companies, oldest first. Also accepts `running`, `completed`, `failed` and `cancelled`. |
 | `GET /{id}/matches` | `{ destinationPort, matches, sailings }` using the agent company's view. `?destinationPort=…` is available when the agent allows alternatives. |
 | `POST /{id}/booking-requests` | `201 { booking }` from a JSON body containing `rateId`. A queued or running agent with booking enabled can create one request as its active creator, within its saved price range. |
+| `POST /{id}/start` | `200 { agent }` moves a queued agent to running and sets its start time. An absent agent returns `404`. Any other status returns `409 not_queued`. |
+| `POST /{id}/finish` | `200 { agent }` from `{ status, resultSummary }`. The status is `completed` or `failed` and the plain-text summary must contain 1–1000 characters after trimming. An agent that is no longer running returns `409 not_running`. |
+
+### Run managed agents
+
+Option 12 / `managed-agents-run [--yes]` lists the queue and agents already running. It asks once for `y` before starting the queue. Pass `--yes` to skip the prompt. The runner leaves agents it found already running for the operator to review.
+
+Claude reviews customer-priced matches and sailings. When permitted, Claude picks up to three alternative destinations from the `rn` announcement. A booking request uses the creator and saved slot count. The CLI submits it only for a fetched rate marked bookable and in the agent's price range. The runner finishes agents individually and prints their outcomes and booking IDs. Customers can see their results and open booking requests from `/agents`.
+
+The CLI paces admin API calls and waits one quota window before retrying a 429 once. After a confirmed run with queued work, it posts a single count and error summary to CloudBBS project `rn`. The note excludes customer details. An unconfirmed finish appears in the CLI output for operator review. A failed run or run-note post returns a nonzero exit code.
 
 ### Post to CloudBBS
 

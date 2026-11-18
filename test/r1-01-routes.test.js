@@ -193,11 +193,13 @@ describe('r1-01 routes and exact documents', { concurrency: 1 }, () => {
                 assert.equal(mod.routes.length, 4);
                 assert.ok(mod.routes.every(route => route.access === 'session'));
             } else if (name === 'admin-managed-agents') {
-                assert.equal(mod.routes.length, 3);
+                assert.equal(mod.routes.length, 5);
                 assert.deepEqual(mod.routes.map(route => [route.method, route.path || route.pattern.source, route.access]), [
                     ['GET', '/api/admin/v1/managed-agents', 'public'],
                     ['GET', '^\\/api\\/admin\\/v1\\/managed-agents\\/([^/]+)\\/matches$', 'public'],
-                    ['POST', '^\\/api\\/admin\\/v1\\/managed-agents\\/([^/]+)\\/booking-requests$', 'public']
+                    ['POST', '^\\/api\\/admin\\/v1\\/managed-agents\\/([^/]+)\\/booking-requests$', 'public'],
+                    ['POST', '^\\/api\\/admin\\/v1\\/managed-agents\\/([^/]+)\\/start$', 'public'],
+                    ['POST', '^\\/api\\/admin\\/v1\\/managed-agents\\/([^/]+)\\/finish$', 'public']
                 ]);
             } else if (name === 'admin-reference') {
                 assert.equal(mod.routes.length, 7);
