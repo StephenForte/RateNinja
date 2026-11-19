@@ -911,3 +911,30 @@ alive safely. The operator chose a server-side key bound to one buyer account.
   await the live check; the minimal edits there are authorized.
 - **Not now:** requiring the code in the website dialog, storing or auditing codes, daily rotation on a
   schedule (rotation stays "each option 9 run").
+
+### D-044 — Managed agents: queue one agent at a time, saved query first (2026-11-19, operator request; amends D-039 "Form")
+
+- **Why:** operator: "Revamp the agent creation dialog for usability, too many clicks and after you add
+  one you don't realize you are adding more. How about one at a time and move the saved query up."
+- **One at a time:** the New agent form holds exactly one agent. The "Add agent" button, the row count
+  ("N of 25"), the per-row Remove button and the "Agent N" legends go away. The primary button is
+  **Queue agent**; it sends that one agent (the existing `POST /api/managed-agents` with a one-item
+  array; no API change).
+- **Queue another without re-entering everything:** next to Queue agent, a **Queue and add another**
+  button queues it and keeps the form open. The form then clears the lane (saved query, rate type,
+  origin, destination) and the sailing date, keeps the container type, both permissions, the price
+  range and the slots, and shows a visible confirmation inside the form, for example "Queued Jakarta →
+  LALB (1 queued this session)", with focus returned to the first field. The new agent also appears in
+  the grid right away. Queue agent closes the form, as today.
+- **Saved query first:** "Start from a saved query (optional)" is the first field. Choosing one fills
+  rate type, origin and destination as today (and shows the same note when a port is unavailable);
+  the user can still change each field after.
+- **Fewer clicks:** a select with exactly one available choice is pre-selected (rate type, origin,
+  destination, container type). The sailing date defaults to the earliest valid date in the lane's
+  current rate windows once a lane is complete, and stays editable. Changing the lane resets that
+  default.
+- **Edit:** the edit form uses the same single-agent layout with Save changes and Cancel; no
+  "add another".
+- **Unchanged:** validation, the 25-per-request server limit (still enforced, now never reached from
+  the form), who can queue, edit or delete, the grid (D-042), the API and the database.
+- **Not now:** a modal or multi-step wizard, bulk import, remembering settings across visits.
