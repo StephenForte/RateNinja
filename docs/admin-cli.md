@@ -67,7 +67,7 @@ The CLI never reads or sends `RATE_NINJA_API_KEY`. It never prints `RATE_NINJA_A
 
 ### Interactive menu
 
-With no arguments, the CLI prints a numbered menu of the six reads plus `companies`, then `8. quit`, then `9. Post this information to the CloudBBS`, then `10. Run client agent` and `11. Preview managed agent prompts`. Items 1–7 prompt for optional filters, print a table, and return to the menu. Quit stays 8.
+With no arguments, the CLI prints a numbered menu of the six reads plus `companies`, then `8. quit`, then `9. Post this information to the CloudBBS`, then `10. Run client agent`, `11. Preview managed agent prompts`, `12. Run managed agents`, and `13. Queue sample managed agents`. Items 1–7 prompt for optional filters, print a table, and return to the menu. Quit stays 8.
 
 ### One-shot commands
 
@@ -80,9 +80,10 @@ node scripts/rateninja-admin.js post-cloudbbs --yes
 node scripts/rateninja-admin.js client-agent --yes
 node scripts/rateninja-admin.js managed-agent-prompts --json
 node scripts/rateninja-admin.js managed-agents-run --yes
+node scripts/rateninja-admin.js managed-agents-samples --yes --user <user-id>
 ```
 
-Commands: `rate-date-ranges`, `origin-ports`, `destination-ports`, `contract-owners`, `sailing-date-ranges`, `predictive-date-ranges`, `companies`, `post-cloudbbs`, `client-agent`, `managed-agent-prompts`, `managed-agents-run`. Shared flags: `--company`, `--carrier`, `--origin-port`, `--destination-port`, `--page`, `--page-size`, `--json` (only where that command accepts the filter). `post-cloudbbs` requires `--yes`. `client-agent` posts only with `--yes` (without it, steps 1–6 still run).
+Commands: `rate-date-ranges`, `origin-ports`, `destination-ports`, `contract-owners`, `sailing-date-ranges`, `predictive-date-ranges`, `companies`, `post-cloudbbs`, `client-agent`, `managed-agent-prompts`, `managed-agents-run`, `managed-agents-samples`. Shared flags: `--company`, `--carrier`, `--origin-port`, `--destination-port`, `--page`, `--page-size`, `--json` (only where that command accepts the filter). `post-cloudbbs` requires `--yes`. `client-agent` posts only with `--yes` (without it, steps 1–6 still run). `managed-agents-samples` writes only with `--yes` or a menu `y`.
 
 ### Run client agent
 
@@ -111,6 +112,15 @@ All routes below require `X-Admin-API-Key`. The base path is `/api/admin/v1/mana
 | `POST /{id}/booking-requests` | `201 { booking }` from a JSON body containing `rateId` and `bookingCode` from the current CloudBBS announcement. A queued or running agent with booking enabled can create one request as its active creator, within its saved price range. Code errors are `403 invalid_booking_code` and `503 booking_code_unavailable`. |
 | `POST /{id}/start` | `200 { agent }` moves a queued agent to running and sets its start time. An absent agent returns `404`. Any other status returns `409 not_queued`. |
 | `POST /{id}/finish` | `200 { agent }` from `{ status, resultSummary }`. The status is `completed` or `failed` and the plain-text summary must contain 1–1000 characters after trimming. An agent that is no longer running returns `409 not_running`. |
+| `GET /customers` | `{ customers }` — active users in Freight Forwarder/Customer companies. Each row is `id`, `username`, `displayName`, `companyId`, `companyName`. Contract-owner users and disabled users are omitted. The response has no password hash, email, or token. |
+| `GET /samples?userId=` | Preview of the three sample agents for that user (`seed` plus lane, date, container, booking, and price ceiling). Optional `seed` repeats a previous draw. Nothing is written. |
+| `POST /samples` | `201` from `{ userId, seed }`. Builds that user's three agents again from `seed` and creates them through the same path as `/agents`. `422` when the user is disabled, the company cannot request bookings, or no lane has a matching customer price. `404` when the user does not exist. A failure creates none of the three. |
+
+### Queue sample managed agents
+
+Option 13 / `managed-agents-samples` queues three agents for each chosen customer user: a lowball with booking on (ceiling is half the lowest matching customer price, rounded down, alternatives off), a regular agent with booking on (ceiling is 125% of the highest matching customer price, rounded up), and one with booking off. Lane, container, sailing date, and slots (1–3) come from that user's own search options. Ceilings use the customer prices the runner matches, not the contract base price.
+
+The menu lists active customer users and pre-selects display names or usernames that match Alan, Bob, or TestBuyer (case-insensitive, spaces ignored). Comma-separated numbers toggle rows. An empty line accepts the list. The CLI prints the preview and asks `[y/N]` before it POSTs. One-shot mode skips the picker. Repeat `--user <id>` to choose users. `--yes` is required to write; without it the command prints the preview and makes no POST. `--json` prints the preview or the created ids as JSON. A user who cannot be queued is reported on their own line and the other users still proceed. The admin key is not printed.
 
 ### Run managed agents
 
