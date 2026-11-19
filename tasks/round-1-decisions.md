@@ -987,5 +987,10 @@ alive safely. The operator chose a server-side key bound to one buyer account.
   not recompute the hash. Both are dropped; the random request id already ties the receipt to one
   booking. There is no MCP output schema in the repo (`lib/mcp.js` declares input schemas only), so
   MCP clients get `receipt` through `present()` with no schema edit.
+- **Live 2026-11-19 (verified on chain):** the first production receipt
+  `0xeaa87d8270181dd4a51f30662f6b5b7d99df18f0ac0fbee641cabe14c9f54e2a` is signed by
+  `0xf8b8b3b58ebac9fc530d9244c22f391e90cc8ae2`, not the Kings wallet: chain `0x354`, type 2, to = from,
+  value 0, data `RNR1` + 32 bytes, status 1, 22,440 gas, total fee about 2.3e9 wei. The operator set a
+  different key on Render. Nonce-conflict handling (R1-41) still applies to any key used elsewhere.
 - **Not now:** receipts for declines, backfill of earlier approvals, a smart contract, buyer wallets or
   signatures, Sepolia L1 receipts, a manual retry button, a dedicated (non-Kings) wallet.
