@@ -3,6 +3,7 @@
 const assert = require('node:assert/strict');
 const { before, beforeEach, after, it } = require('node:test');
 const { startApp } = require('./helpers/app');
+const { CODE, startCloudBbs } = require('./helpers/r1-37');
 const { activate, login, call, insertRate, utcDay } = require('./helpers/r1-19');
 const { seedManagedAgents, search, BUYER, RATE_TYPE } = require('./helpers/r1-33');
 const { applyAdminKey } = require('./helpers/r1-25');
@@ -13,6 +14,7 @@ const userPath = '/api/managed-agents';
 const booking = { allowBookingRequest: true, bookingSlots: 4, containerType: '20D', priceMin: 1000, priceMax: 1100 };
 const completed = { status: 'completed', resultSummary: ' ' + PAYLOAD + ' ' };
 let app;
+let cloud;
 let users;
 let customer;
 
@@ -52,6 +54,8 @@ function otherTableHashes() {
 }
 
 before(async () => {
+    cloud = await startCloudBbs();
+    cloud.configureServer();
     app = await startApp();
     users = seedManagedAgents(app.db);
     activate(users.creator);
@@ -64,7 +68,7 @@ beforeEach(() => {
     app.db.exec('DELETE FROM booking_requests; DELETE FROM managed_agents;');
     applyAdminKey(ADMIN_KEY);
 });
-after(async () => { await app?.close(); });
+after(async () => { await app?.close(); await cloud?.close(); });
 
 it('requires a configured and valid admin key for both state mutations', async () => {
     for (const step of ['start', 'finish']) {
@@ -113,7 +117,7 @@ it('validates finish, trims text, writes each terminal state with an audit, and 
     }
     assert.equal(stored(booked.id).status, 'running');
 
-    const bookedResult = await admin(booked.id, 'booking-requests', { rateId: 'managed-rate-1' });
+    const bookedResult = await admin(booked.id, 'booking-requests', { rateId: 'managed-rate-1', bookingCode: CODE });
     assert.equal(bookedResult.status, 201, JSON.stringify(bookedResult.json));
     const bookingId = bookedResult.json.booking.id;
     const done = await admin(booked.id, 'finish', completed);

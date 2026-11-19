@@ -3,6 +3,7 @@
 const assert = require('node:assert/strict');
 const { it } = require('node:test');
 const { runManagedAgents } = require('../lib/managed-agent-runner');
+const { CODE } = require('./helpers/r1-37');
 const {
     ADMIN_KEY, CLOUD_TOKEN, CLAUDE_KEY, ORIGIN, DESTINATION, ALTERNATIVES, PRICE, RATE_ID, CARRIER,
     COMPANY, CREATOR, PAYLOAD, env, agent, matches, fakeAdmin, fakeProviders
@@ -131,7 +132,7 @@ it('requires the chosen rate to be present, bookable and in range and records a 
             });
             assert.equal((await test.run()).code, 0);
             const bookings = test.admin.calls.filter(call => call.step === 'booking-requests');
-            assert.deepEqual(bookings.map(call => call.body), refusal ? [{ rateId: RATE_ID }] : []);
+            assert.deepEqual(bookings.map(call => call.body), refusal ? [{ rateId: RATE_ID, bookingCode: CODE }] : []);
             assert.equal(test.admin.states.get('a').status, 'completed');
             assert.match(test.admin.states.get('a').resultSummary, summary);
             if (refusal) assert.ok(test.provider.posts[0].body.includes('booking: HTTP ' + refusal));
