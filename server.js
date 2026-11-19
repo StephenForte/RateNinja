@@ -16,6 +16,7 @@ const {
 } = require('./lib/config');
 const { COMPANY_TYPE_CONTRACT_OWNER, COMPANY_TYPE_CUSTOMER } = require('./lib/constants');
 const { db } = require('./lib/db');
+const { startReceiptSender } = require('./lib/booking-receipts');
 const {
     getRatesByCarrierOrigin,
     companyForUser,
@@ -1102,6 +1103,7 @@ if (require.main === module) {
     ensureFoundation();
     startSessionSweep();
     server.listen(PORT, HOST, () => {
+        server.once('close', startReceiptSender());
         console.log(`Rate Ninja is running at http://${HOST}:${PORT}`);
     });
 }

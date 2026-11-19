@@ -2904,3 +2904,13 @@ body {
     padding: 0;
     border: 0;
 }
+
+/* R1-40: Booking approval receipts */
+.booking-receipt {
+    margin-top: 0.25rem;
+    font-size: 0.875em;
+}
+
+.booking-receipt a {
+    white-space: nowrap;
+}

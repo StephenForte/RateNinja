@@ -16,6 +16,7 @@
   "dependencies": {
     "@node-rs/argon2": "^2.0.2",
     "csv-parse": "7.0.3",
-    "read-excel-file": "9.3.12"
+    "read-excel-file": "9.3.12",
+    "viem": "2.58.0"
   }
 }

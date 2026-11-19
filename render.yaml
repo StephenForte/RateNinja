@@ -40,3 +40,17 @@ services:
       # Reset links use this origin. They do not trust the request Host header.
       - key: PUBLIC_ORIGIN
         value: https://rate-ninja.onrender.com
+      - key: FORTEL2_RECEIPT_PRIVATE_KEY
+        sync: false
+      - key: FORTEL2_CF_ACCESS_CLIENT_ID
+        sync: false
+      - key: FORTEL2_CF_ACCESS_CLIENT_SECRET
+        sync: false
+      - key: FORTEL2_CHAIN_ID
+        sync: false
+      - key: FORTEL2_WRITE_RPC_URL
+        sync: false
+      - key: FORTEL2_READ_RPC_URL
+        sync: false
+      - key: FORTEL2_EXPLORER_URL
+        sync: false
