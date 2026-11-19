@@ -19,7 +19,7 @@ async function fakeRpc() {
     const sends = [];
     const mined = new Map();
     const accepted = new Set();
-    const state = { chainId: '0x354', nonce: 5, finalizedNonce: 5, writeFailure: null };
+    const state = { chainId: '0x354', nonce: 5, finalizedNonce: 5, conflictingNonce: null, writeFailure: null };
     const server = http.createServer(async (request, response) => {
         const chunks = [];
         for await (const chunk of request) chunks.push(chunk);
@@ -51,7 +51,9 @@ async function fakeRpc() {
             if (state.writeFailure === 'echo') {
                 return reject(JSON.stringify({ headers, echoedSyntheticKey: privateKey }));
             }
-            if (state.writeFailure === 'nonce') return reject('nonce too low: nonce has already been used');
+            if (state.writeFailure === 'nonce' || tx.nonce === state.conflictingNonce) {
+                return reject('nonce too low: nonce has already been used');
+            }
             if (accepted.has(hash)) return reject('already known');
             accepted.add(hash);
             return respond(hash);
