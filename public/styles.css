@@ -2885,3 +2885,22 @@ body {
     color: #0b6173;
     text-decoration: underline;
 }
+
+.agent-query-field {
+    grid-column: 1 / -1;
+}
+
+.agent-confirmation {
+    margin: 0;
+    padding: 10px 14px;
+    border: 1px solid #a5d8b9;
+    border-radius: 8px;
+    background: #ebfbee;
+    color: #20582e;
+}
+
+.agent-confirmation:empty {
+    position: absolute;
+    padding: 0;
+    border: 0;
+}
