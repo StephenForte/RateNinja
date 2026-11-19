@@ -938,3 +938,54 @@ alive safely. The operator chose a server-side key bound to one buyer account.
 - **Unchanged:** validation, the 25-per-request server limit (still enforced, now never reached from
   the form), who can queue, edit or delete, the grid (D-042), the API and the database.
 - **Not now:** a modal or multi-step wizard, bulk import, remembering settings across visits.
+
+### D-045 — Approval receipts on ForteL2: one hash-only transaction per approved booking (2026-11-19, operator request)
+
+- **Why:** operator: "When the freight forwarder or rate owner approves a booking request, I would like
+  to make a receipt on the ForteL2 blockchain and store the transaction hash as part of the record of
+  the booking. The transaction hash will appear in the buyer's booking record. The buyer does not need
+  a wallet, we only need a wallet on the rate owner side." Start with the Kings wallet
+  `0xb84982a02A96c88676df643B6eE6B691BcDED019` (funded on Sepolia and ForteL2).
+- **When:** every booking request that becomes `approved`, on any surface (website, partner API, MCP),
+  gets exactly one receipt. Declined and pending requests get none. Approvals made before this ships
+  are not backfilled.
+- **Chain:** ForteL2 Sepolia, chain id **852** (`0x354`), an OP-stack L2 on Ethereum Sepolia. Writes
+  go only through the Cloudflare Access write RPC `https://fortel2-write.ente.ltd` (the public
+  sequencer refuses `eth_sendRawTransaction`, measured 2026-11-19); reads and receipt checks use the
+  sequencer `https://fortel2-sequencer-rpc.onrender.com/` (the replica lags about 3 minutes). The
+  sender refuses to sign if the RPC reports a chain id other than the configured one (default 852).
+- **What goes on chain (operator: hash only):** a zero-value transaction from the receipt wallet to
+  itself whose data is the 4-byte tag `RNR1` (`0x524e5231`) followed by the 32-byte keccak256 of the
+  booking's canonical receipt JSON (version, request id, rate id, status, container size, slots,
+  customer price, origin, destination, carrier, decided at; keys sorted, no whitespace). Every input is
+  a field of the booking record the buyer already receives, so the buyer can recompute the hash. Nothing readable is on chain: no names, ports, prices or ids in clear. The
+  request id is a random UUID, so the hash cannot be guessed from public facts. The base price is
+  never part of the receipt (D-027, D-028).
+- **Approval never waits for the chain (operator):** the approval commits as today; in the same
+  database transaction a receipt row is queued. A background sender in the web process signs and
+  broadcasts, retries with backoff, and marks the receipt `confirmed` once the sequencer returns a
+  successful transaction receipt, or `failed` after its retries run out or the transaction reverts.
+  A chain outage never blocks or fails an approval. Receipts queued while the sender is not configured
+  wait as `pending` and go out once it is.
+- **One receipt per booking:** at most one receipt row per request (database-enforced). The signed
+  transaction and its hash are stored before broadcast, so a restart rebroadcasts the same transaction
+  rather than signing a second one. Sends are serialized in one process.
+- **Key custody (operator: the Render web server):** env vars `FORTEL2_RECEIPT_PRIVATE_KEY`,
+  `FORTEL2_CF_ACCESS_CLIENT_ID`, `FORTEL2_CF_ACCESS_CLIENT_SECRET` set in the Render dashboard only;
+  `FORTEL2_WRITE_RPC_URL`, `FORTEL2_READ_RPC_URL`, `FORTEL2_CHAIN_ID`, `FORTEL2_EXPLORER_URL` have the
+  defaults above. The key and secrets are never committed, logged, returned, audited or stored in the
+  database. Keep only small test funds in the wallet. The Kings wallet is also used by the RateNinja futures-contracts
+  prototype (nonce 5 on 2026-11-19), so the sender must tolerate a nonce moved by that prototype.
+- **Who sees it:** the booking record (`present()`, so website, partner API and MCP alike) gains a
+  `receipt` object for approved requests: status (`pending`, `submitted`, `confirmed`, `failed`), the
+  transaction hash once known, the receipt hash, and an explorer link (`<FORTEL2_EXPLORER_URL>tx/<hash>`, default base
+  `https://settlementos-explorer-ihgo.onrender.com/fortel2-sepolia/`; format confirmed by the operator
+  2026-11-19). Both the buyer and the owner see
+  it. The buyer needs no wallet.
+- **Corrected 2026-11-19 (planner error, R1-40 worker stop):** the first text also hashed the
+  requesting and owner company ids. Neither is in the booking record (`present()`), so a buyer could
+  not recompute the hash. Both are dropped; the random request id already ties the receipt to one
+  booking. There is no MCP output schema in the repo (`lib/mcp.js` declares input schemas only), so
+  MCP clients get `receipt` through `present()` with no schema edit.
+- **Not now:** receipts for declines, backfill of earlier approvals, a smart contract, buyer wallets or
+  signatures, Sepolia L1 receipts, a manual retry button, a dedicated (non-Kings) wallet.
