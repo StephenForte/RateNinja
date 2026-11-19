@@ -17,6 +17,7 @@ const {
     insertMargin,
     activate
 } = require('./helpers/r1-19');
+const { leaksBasePrice } = require('./helpers/no-base-price');
 
 const BASE = 8123;
 const BASE_40 = 8240;
@@ -37,6 +38,7 @@ function keysOf(value, into = []) {
 }
 
 function containsNumber(value, target) {
+    if (typeof target === 'number') return leaksBasePrice(value, target);
     if (typeof value === 'number') return value === target;
     if (typeof value === 'string') return value.includes(String(target));
     if (Array.isArray(value)) return value.some(item => containsNumber(item, target));
@@ -166,7 +168,7 @@ describe('r1-19 booking requests', { concurrency: 1 }, () => {
             ORDER BY created_at DESC LIMIT 1
         `).get('leak-customer-user');
         assert.ok(audit);
-        assert.equal(audit.detail.includes(String(BASE)), false);
+        assert.equal(leaksBasePrice(audit.detail, BASE), false);
         assert.equal(audit.detail.includes(String(expected)), true);
     });
 
