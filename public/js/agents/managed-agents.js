@@ -36,7 +36,12 @@ function checkbox(text, control) {
     return label;
 }
 
-function editor(options, initial, remove) {
+function setEditorOptions(select, placeholder, choices, value) {
+    setOptions(select, placeholder, choices, value);
+    if (!value && choices.length === 1) select.value = choices[0][0];
+}
+
+function editor(options, initial = {}) {
     const card = document.createElement('fieldset');
     card.className = 'agent-card agent-editor';
     const legend = document.createElement('legend');
@@ -70,12 +75,13 @@ function editor(options, initial, remove) {
 
     const dateField = fieldLabel('Sailing date', sailingDate);
     dateField.append(windows);
-    const queryField = fieldLabel('Use saved query', savedQuery);
+    const queryField = fieldLabel('Start from a saved query (optional)', savedQuery);
+    queryField.className = 'agent-query-field';
     queryField.append(queryNote);
     fields.append(
-        fieldLabel('Rate type', rateType), fieldLabel('Origin port', originPort),
+        queryField, fieldLabel('Rate type', rateType), fieldLabel('Origin port', originPort),
         fieldLabel('Destination port', destinationPort), dateField,
-        queryField, fieldLabel('Container type', containerType)
+        fieldLabel('Container type', containerType)
     );
 
     const permissions = document.createElement('div');
@@ -97,6 +103,7 @@ function editor(options, initial, remove) {
         priceMin.disabled = priceMax.disabled = bookingSlots.disabled = !booking.checked;
     }
 
+    let previousLane;
     function updateDate() {
         const lane = options.lanes.find(item => item.rateType === rateType.value
             && item.originPort === originPort.value && item.destinationPort === destinationPort.value);
@@ -105,6 +112,10 @@ function editor(options, initial, remove) {
         sailingDate.disabled = !valid.length;
         sailingDate.min = valid[0]?.start || options.today;
         sailingDate.max = valid.reduce((last, window) => window.end > last ? window.end : last, '');
+        if (!valid.length || (previousLane && previousLane !== lane) || !sailingDate.value) {
+            sailingDate.value = valid[0]?.start || '';
+        }
+        previousLane = lane;
         windows.textContent = valid.length
             ? valid.map(({ start, end }) => start === end ? start : `${start} to ${end}`).join(' · ')
             : lane ? 'No current rate window for this lane.' : 'Select a lane to see available dates.';
@@ -112,21 +123,21 @@ function editor(options, initial, remove) {
 
     function updateDestinations(value) {
         const destinations = options.lanes.filter(lane => lane.rateType === rateType.value && lane.originPort === originPort.value);
-        setOptions(destinationPort, 'Select destination', stringsAsOptions(destinations.map(lane => lane.destinationPort)), value);
+        setEditorOptions(destinationPort, 'Select destination', stringsAsOptions(destinations.map(lane => lane.destinationPort)), value);
         destinationPort.disabled = !destinations.length;
         updateDate();
     }
 
     function updateOrigins(origin, destination) {
         const origins = options.lanes.filter(lane => lane.rateType === rateType.value);
-        setOptions(originPort, 'Select origin', stringsAsOptions(origins.map(lane => lane.originPort)), origin);
+        setEditorOptions(originPort, 'Select origin', stringsAsOptions(origins.map(lane => lane.originPort)), origin);
         originPort.disabled = !origins.length;
         updateDestinations(destination);
-        savedQuery.disabled = !rateType.value || !queryChoices.length;
     }
 
-    setOptions(rateType, 'Select rate type', stringsAsOptions(options.rateTypes), initial.rateType);
-    setOptions(containerType, 'Select container type', options.containerTypes.map(type => [type, type]), initial.containerType);
+    const rateTypes = stringsAsOptions(options.rateTypes);
+    setEditorOptions(rateType, 'Select rate type', rateTypes, initial.rateType);
+    setEditorOptions(containerType, 'Select container type', stringsAsOptions(options.containerTypes), initial.containerType);
     const queryChoices = options.savedQueries.map(query => [query.id, query.name]);
     if (initial.savedQueryId && !options.savedQueries.some(query => query.id === initial.savedQueryId)) {
         queryChoices.unshift([initial.savedQueryId, 'Keep existing saved query reference']);
@@ -135,12 +146,29 @@ function editor(options, initial, remove) {
     updateOrigins(initial.originPort, initial.destinationPort);
     togglePrices();
 
+    let pendingQuery;
     function resetQuery() {
+        pendingQuery = null;
         if (savedQuery.value !== initial.savedQueryId) savedQuery.value = '';
         queryNote.textContent = '';
     }
 
+    function applyQuery(query) {
+        pendingQuery = null;
+        queryNote.textContent = '';
+        updateOrigins(query.originPort || originPort.value, query.destinationPort || destinationPort.value);
+        if ((query.originPort && query.originPort !== originPort.value)
+            || (query.destinationPort && query.destinationPort !== destinationPort.value)) {
+            savedQuery.value = '';
+            queryNote.textContent = 'This query contains a port that is unavailable for this rate type. Select an available lane.';
+        }
+    }
+
     rateType.addEventListener('change', () => {
+        if (pendingQuery) {
+            applyQuery(pendingQuery);
+            return;
+        }
         resetQuery();
         updateOrigins('', '');
     });
@@ -153,32 +181,41 @@ function editor(options, initial, remove) {
         updateDate();
     });
     savedQuery.addEventListener('change', () => {
+        pendingQuery = null;
         const query = options.savedQueries.find(item => item.id === savedQuery.value);
         queryNote.textContent = '';
         if (!query) return;
-        updateOrigins(query.originPort || originPort.value, query.destinationPort || destinationPort.value);
-        if ((query.originPort && !originPort.value) || (query.destinationPort && !destinationPort.value)) {
-            queryNote.textContent = 'This query contains a port that is unavailable for this rate type. Select an available lane.';
+        const matchingTypes = new Set(options.lanes.filter(lane =>
+            (!query.originPort || lane.originPort === query.originPort)
+            && (!query.destinationPort || lane.destinationPort === query.destinationPort)
+        ).map(lane => lane.rateType));
+        if (!matchingTypes.has(rateType.value) && matchingTypes.size === 1) {
+            const [matchingType] = matchingTypes;
+            rateType.value = matchingType;
         }
+        if (!rateType.value && rateTypes.length === 1) rateType.value = rateTypes[0][0];
+        if (!rateType.value && matchingTypes.size) {
+            pendingQuery = query;
+            queryNote.textContent = 'Select a rate type to use this saved query.';
+            return;
+        }
+        applyQuery(query);
     });
     booking.addEventListener('change', togglePrices);
     card.addEventListener('input', () => rowError.hide());
+    legend.textContent = 'Search and settings';
+    windows.id = 'agent-date-windows';
+    sailingDate.setAttribute('aria-describedby', windows.id);
     card.append(legend, fields, permissions, prices, rowError.box);
-    const removeButton = remove && button('Remove', remove, 'agent-button');
-    if (removeButton) card.append(removeButton);
 
     return {
         card,
-        number(index, canRemove) {
-            legend.textContent = remove ? `Agent ${index}` : 'Search and settings';
-            windows.id = `agent-date-windows-${index}`;
-            sailingDate.setAttribute('aria-describedby', windows.id);
-            if (removeButton) {
-                removeButton.disabled = !canRemove;
-                removeButton.setAttribute('aria-label', `Remove agent ${index}`);
-            }
+        clearSearch() {
+            resetQuery();
+            rateType.value = '';
+            updateOrigins('', '');
         },
-        focus: () => rateType.focus(),
+        focus: () => savedQuery.focus(),
         showError(message) {
             rowError.show(message);
             rowError.box.tabIndex = -1;
@@ -497,7 +534,7 @@ export async function mount(container) {
     let busy = false;
     let openForm = null;
 
-    const newButton = button('New agents', () => showForm(), 'agent-button agent-primary');
+    const newButton = button('New agent', () => showForm(), 'agent-button agent-primary');
     if (options.canManageAgents) toolbar.append(newButton);
     else announcement.textContent = 'Your account must belong to a company to manage agents.';
 
@@ -507,7 +544,7 @@ export async function mount(container) {
         listHost.querySelector('.agent-empty')?.remove();
         grid.update(agents);
         if (!agents.length && options.canManageAgents && !openForm) {
-            listHost.append(paragraph('agent-empty', 'No managed agents yet. Select New agents to queue your first search.'));
+            listHost.append(paragraph('agent-empty', 'No managed agents yet. Select New agent to queue your first search.'));
         }
     }
 
@@ -563,13 +600,13 @@ export async function mount(container) {
         form.className = 'agent-list';
         const actions = document.createElement('div');
         actions.className = 'agent-actions';
-        const count = paragraph('agent-hint', '');
-        count.setAttribute('role', 'status');
-        const rowsHost = document.createElement('div');
-        rowsHost.className = 'agent-list';
-        const rows = [];
+        const confirmation = paragraph('agent-confirmation', '');
+        confirmation.setAttribute('role', 'status');
+        const fields = editor(formOptions, agent);
+        let queued = 0;
 
-        const add = button('Add agent', () => { if (!busy) addRow(); }, 'agent-button');
+        const save = button(agent ? 'Save changes' : 'Queue agent', null, 'agent-button agent-primary');
+        const another = agent ? null : button('Queue and add another', null, 'agent-button');
         const cancel = button('Cancel', () => {
             if (!busy) {
                 closeForm();
@@ -577,82 +614,67 @@ export async function mount(container) {
                 newButton.focus();
             }
         }, 'agent-button');
-        const save = button(agent ? 'Save changes' : 'Queue agents', null, 'agent-button agent-primary');
-
-        function updateCount() {
-            rows.forEach((row, index) => row.number(index + 1, rows.length > 1));
-            count.textContent = `${rows.length} of ${formOptions.maxSearches}`;
-            add.disabled = rows.length >= formOptions.maxSearches;
-        }
-
-        function addRow(initial = {}) {
-            if (rows.length >= formOptions.maxSearches) return;
-            const row = editor(formOptions, initial, agent ? null : () => {
-                if (busy || rows.length <= 1) return;
-                const index = rows.indexOf(row);
-                rows.splice(index, 1);
-                row.card.remove();
-                updateCount();
-                rows[Math.min(index, rows.length - 1)].focus();
-            });
-            rows.push(row);
-            rowsHost.append(row.card);
-            updateCount();
-            row.focus();
-        }
-
-        form.append(textCell(agent ? 'Edit agent' : 'New agents', 'h3'), rowsHost);
-        if (!agent) actions.append(add, count);
-        actions.append(save, cancel);
-        form.append(actions);
+        actions.append(save);
+        if (another) actions.append(another);
+        actions.append(cancel);
+        form.append(textCell(agent ? 'Edit agent' : 'New agent', 'h3'), confirmation, fields.card, actions);
         formHost.replaceChildren(form);
         openForm = { agentId: agent?.id };
         newButton.hidden = true;
         listHost.querySelector('.agent-empty')?.remove();
-        addRow(agent);
+        fields.focus();
+
+        function setSubmitting(submitting) {
+            save.disabled = cancel.disabled = fields.card.disabled = submitting;
+            if (another) another.disabled = submitting;
+        }
 
         form.addEventListener('submit', async event => {
             event.preventDefault();
             if (busy) return;
             pageError.hide();
-            rows.forEach(row => row.hideError());
-            const values = rows.map(row => row.value());
-            const missingDate = values.findIndex(value => !value.sailingDate);
-            if (missingDate !== -1) {
-                rows[missingDate].showError('Select a lane with a current rate window and enter a sailing date.');
+            fields.hideError();
+            const value = fields.value();
+            if (!value.sailingDate) {
+                fields.showError('Select a lane with a current rate window and enter a sailing date.');
                 return;
             }
+            const keepOpen = another && event.submitter === another;
             busy = true;
-            save.disabled = cancel.disabled = add.disabled = true;
-            rows.forEach(row => { row.card.disabled = true; });
-            let focusRow = null;
+            setSubmitting(true);
+            let result;
             try {
                 const path = agent ? `${endpoint}/${encodeURIComponent(agent.id)}` : endpoint;
-                const result = await request(path, {
+                result = await request(path, {
                     method: agent ? 'PUT' : 'POST',
-                    body: JSON.stringify(agent ? values[0] : values)
+                    body: JSON.stringify(agent ? value : [value])
                 });
-                if (!active) return;
-                agents = agent
-                    ? agents.map(item => item.id === agent.id ? result.agent : item)
-                    : [...result.agents.reverse(), ...agents];
-                closeForm();
-                renderList();
-                announcement.textContent = agent ? 'Agent updated.' : `${values.length} ${values.length === 1 ? 'agent' : 'agents'} queued.`;
-                newButton.focus();
             } catch (error) {
-                if (!active) return;
-                const row = /^Row (\d+): (.*)$/.exec(error.message);
-                if (row && rows[Number(row[1]) - 1]) focusRow = row;
-                else pageError.show(error.message);
+                if (active) {
+                    setSubmitting(false);
+                    fields.showError(error.message.replace(/^Row 1: /, ''));
+                }
+                return;
             } finally {
                 busy = false;
-                if (active && form.isConnected) {
-                    save.disabled = cancel.disabled = false;
-                    rows.forEach(row => { row.card.disabled = false; });
-                    updateCount();
-                    if (focusRow) rows[Number(focusRow[1]) - 1].showError(focusRow[2]);
-                }
+            }
+
+            if (!active) return;
+            setSubmitting(false);
+            agents = agent
+                ? agents.map(item => item.id === agent.id ? result.agent : item)
+                : [...result.agents, ...agents];
+            if (keepOpen) {
+                queued += 1;
+                fields.clearSearch();
+                confirmation.textContent = `Queued ${value.originPort} → ${value.destinationPort} (${queued} queued this session)`;
+                renderList();
+                fields.focus();
+            } else {
+                closeForm();
+                renderList();
+                announcement.textContent = agent ? 'Agent updated.' : '1 agent queued.';
+                newButton.focus();
             }
         });
     }
