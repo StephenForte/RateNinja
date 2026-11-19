@@ -878,8 +878,8 @@ alive safely. The operator chose a server-side key bound to one buyer account.
   will reject any booking request that does not have the code. We do not need to store the code in the
   DB or anywhere, it is just a validation that runs." Then: "this is not for the UX, only for our
   agents, API/MCP."
-- **Which paths:** the partner API booking create (`POST` in `lib/routes/partner-bookings.js`, buyer key
-  or OAuth), the MCP tool `rateninja_create_booking_request`, and the admin agent booking route
+- **Which paths:** the partner API booking create (`POST` in `lib/routes/partner-bookings.js`; partner
+  OAuth only, since buyer keys are read-only under D-037 and stay so), the MCP tool `rateninja_create_booking_request`, and the admin agent booking route
   (`POST /api/admin/v1/managed-agents/{id}/booking-requests`, used by the option 12 runner). The
   website booking dialog (`/api/booking-requests`, session) is **unchanged** and needs no code.
 - **Valid code:** the `bookingCode` in the current `rn` project announcement (D-034: `Today's Booking
@@ -904,5 +904,10 @@ alive safely. The operator chose a server-side key bound to one buyer account.
 - **Errors listed for clients:** `docs/partner-integration.md` and `docs/booking-requests.md` document
   the field and the two error codes; the code is public on https://cloudbbs.ai/supa/rn (D-034), so the
   docs may say where to find it.
+- **Corrected 2026-11-18 (planner error, R1-37 worker stop):** the first text said "buyer key or
+  OAuth"; buyer keys cannot create bookings (D-037 scopes `profile:read rates:read sailings:read`,
+  `test/r1-29-buyer-api.test.js` expects 403 `insufficient_scope`). That stays. The MCP dispatch
+  (`handleMcp`, called synchronously at `server.js` ~795) and the admin booking route handler must
+  await the live check; the minimal edits there are authorized.
 - **Not now:** requiring the code in the website dialog, storing or auditing codes, daily rotation on a
   schedule (rotation stays "each option 9 run").
