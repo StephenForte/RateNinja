@@ -871,3 +871,43 @@ alive safely. The operator chose a server-side key bound to one buyer account.
   its own container, or collapse columns).
 - **Unchanged:** the queue form, editing, deleting, validation and who can see or change which agent.
 - **Not now:** server-side paging or filtering, saved views, bulk actions, CSV export.
+
+### D-043 — Agent booking requests must carry the current CloudBBS booking code (2026-11-18, operator request; uses the D-034 code)
+
+- **Why:** operator: "change the booking to use the day's booking code from CloudBBS, i.e. the booking
+  will reject any booking request that does not have the code. We do not need to store the code in the
+  DB or anywhere, it is just a validation that runs." Then: "this is not for the UX, only for our
+  agents, API/MCP."
+- **Which paths:** the partner API booking create (`POST` in `lib/routes/partner-bookings.js`; partner
+  OAuth only, since buyer keys are read-only under D-037 and stay so), the MCP tool `rateninja_create_booking_request`, and the admin agent booking route
+  (`POST /api/admin/v1/managed-agents/{id}/booking-requests`, used by the option 12 runner). The
+  website booking dialog (`/api/booking-requests`, session) is **unchanged** and needs no code.
+- **Valid code:** the `bookingCode` in the current `rn` project announcement (D-034: `Today's Booking
+  Code: <code>` line and top-level `"bookingCode"` in the JSON block). It changes every time option 9
+  posts; the previous code stops working at that moment. Compare after trimming, case-insensitive,
+  against the 9-character `A–Z0–9` form. Nothing stores the code: not the database, not a file, not a
+  log line, not the audit detail.
+- **Request shape:** a `bookingCode` string field in the JSON body (partner API, admin route) and a
+  required `bookingCode` argument on the MCP tool (input schema updated). Missing or wrong code: 403
+  `invalid_booking_code`, before any other booking validation writes anything.
+- **Fail closed (operator):** if the server cannot read a code (no token configured, CloudBBS error or
+  timeout, no announcement, no parsable code), the request is refused with 503
+  `booking_code_unavailable`. No booking is created without a verified code.
+- **Reading CloudBBS:** the server reads the `rn` announcement with a new env var
+  `CLOUDBBS_SERVER_TOKEN` (a separate CloudBBS agent token issued for the server, without the
+  announcement flag; operator chose a dedicated token), plus the existing `CLOUDBBS_URL` and
+  `CLOUDBBS_PROJECT` defaults. Only read tools. It may keep the code in memory for at most 60 seconds
+  to avoid one CloudBBS read per booking; memory is not storage. The token is never logged or returned.
+- **Runner (option 12):** reads the code from the announcement once per run (it already reads the
+  announcement for alternatives) and sends it with each booking. If it cannot read a code, booking
+  agents finish `completed` with "booking code unavailable" in the summary and no booking call.
+- **Errors listed for clients:** `docs/partner-integration.md` and `docs/booking-requests.md` document
+  the field and the two error codes; the code is public on https://cloudbbs.ai/supa/rn (D-034), so the
+  docs may say where to find it.
+- **Corrected 2026-11-18 (planner error, R1-37 worker stop):** the first text said "buyer key or
+  OAuth"; buyer keys cannot create bookings (D-037 scopes `profile:read rates:read sailings:read`,
+  `test/r1-29-buyer-api.test.js` expects 403 `insufficient_scope`). That stays. The MCP dispatch
+  (`handleMcp`, called synchronously at `server.js` ~795) and the admin booking route handler must
+  await the live check; the minimal edits there are authorized.
+- **Not now:** requiring the code in the website dialog, storing or auditing codes, daily rotation on a
+  schedule (rotation stays "each option 9 run").
