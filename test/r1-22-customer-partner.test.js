@@ -5,6 +5,7 @@ process.env.NODE_ENV = 'test';
 const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const { startApp } = require('./helpers/app');
+const { CODE, startCloudBbs } = require('./helpers/r1-37');
 const { authorizeAndToken, partnerGet, mcpCall, pkce, REDIRECT_URI } = require('./helpers/r1-12');
 const { insertCompany, insertUser, insertRate, insertMargin, activate, login, call, utcDay,
     COMPANY_TYPE_CUSTOMER: CUSTOMER, COMPANY_TYPE_CONTRACT_OWNER: OWNER } = require('./helpers/r1-19');
@@ -28,7 +29,7 @@ const ownerOnlyReferenceTools = [
 ];
 
 describe('R1-22 customer partner boundary', { concurrency: 1 }, () => {
-    let app, buyer, sibling, client, token, ownerToken, readToken, ratesToken, createdId;
+    let cloud, app, buyer, sibling, client, token, ownerToken, readToken, ratesToken, createdId;
     const get = (t, p) => partnerGet(app.baseUrl, t, p);
     const rpc = (t, name, args = {}) => mcpCall(app.baseUrl, t, 'tools/call', { name, arguments: args });
     const create = (t, body) => partnerSend(app.baseUrl, t, 'POST', `${ROOT}/booking-requests`, { body });
@@ -58,6 +59,8 @@ describe('R1-22 customer partner boundary', { concurrency: 1 }, () => {
             scope: ALL, state: proof.state, code_challenge: proof.challenge, code_challenge_method: 'S256' }) };
     }
     before(async () => {
+        cloud = await startCloudBbs();
+        cloud.configureServer();
         app = await startApp({ companyName: 'Synthetic R22 Owner' });
         app.db.prepare('UPDATE users SET is_system_admin = 1 WHERE username = ?').run(app.username);
         for (const [id, type] of [['buyer', CUSTOMER], ['sibling', CUSTOMER], ['unlinked', OWNER], ['revoked', OWNER]]) {
@@ -84,7 +87,7 @@ describe('R1-22 customer partner boundary', { concurrency: 1 }, () => {
         readToken = await issue(buyer, 'bookings:read', await register('Synthetic R22 Read'));
         ratesToken = await issue(buyer, 'rates:read', await register('Synthetic R22 Rates'));
     });
-    after(async () => { process.env.PARTNER_OAUTH_ENABLED = 'true'; if (app) await app.close(); });
+    after(async () => { process.env.PARTNER_OAUTH_ENABLED = 'true'; await app?.close(); await cloud?.close(); });
 
     it('completes customer consent, exchange, refresh, and profile without a token role', async () => {
         const { params } = authParams();
@@ -173,7 +176,7 @@ describe('R1-22 customer partner boundary', { concurrency: 1 }, () => {
     });
 
     it('creates through API and MCP using the shared snapshot rules and audit context', async () => {
-        const body = { rateId: 'priced', containerSize: '20D', slots: 3 };
+        const body = { rateId: 'priced', containerSize: '20D', slots: 3, bookingCode: CODE };
         const api = await create(token.access_token, { ...body, ownerCompanyId: 'forged', customerPrice: 1 });
         assert.equal(api.status, 201, api.text); createdId = api.body.data.id;
         const mcp = await rpc(token.access_token, 'rateninja_create_booking_request', body);
@@ -226,8 +229,8 @@ describe('R1-22 customer partner boundary', { concurrency: 1 }, () => {
         for (const patch of [{ slots: 0 }, { slots: 1.5 }, { slots: 1001 }, { slots: '2' }, { containerSize: 'bad' }, { rateId: 'expired' }, { rateId: 'no-price' }, ...['unlinked-rate', 'revoked-rate', 'deleted', 'missing'].map(rateId => ({ rateId }))]) {
             const body = { ...base, ...patch };
             const appResult = await call(app.baseUrl, buyer, 'POST', '/api/booking-requests', body);
-            const api = await create(token.access_token, body);
-            const mcp = await rpc(token.access_token, 'rateninja_create_booking_request', body);
+            const api = await create(token.access_token, { ...body, bookingCode: CODE });
+            const mcp = await rpc(token.access_token, 'rateninja_create_booking_request', { ...body, bookingCode: CODE });
             assert.equal(api.status, appResult.status, api.text);
             assert.equal(mcp.body.result.isError, true, mcp.text);
             assert.equal(mcp.body.result.structuredContent.error, api.body.error);
@@ -237,7 +240,7 @@ describe('R1-22 customer partner boundary', { concurrency: 1 }, () => {
 
     it('isolates customer booking views and keeps reads from changing unread state', async () => {
         const siblingToken = await issue(sibling);
-        const other = await create(siblingToken.access_token, { rateId: 'priced', containerSize: '40D', slots: 1 });
+        const other = await create(siblingToken.access_token, { rateId: 'priced', containerSize: '40D', slots: 1, bookingCode: CODE });
         const missing = await get(token.access_token, `${ROOT}/booking-requests/missing`);
         const hidden = await get(token.access_token, `${ROOT}/booking-requests/${other.body.data.id}`);
         assert.deepEqual(hidden, { ...missing, text: missing.text });

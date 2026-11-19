@@ -792,7 +792,7 @@ async function handleMcpRequest(request, response) {
         sendJson(response, 429, { jsonrpc: '2.0', id: message?.id ?? null, error: { code: -32001, message: 'rate_limited' } }, securityHeaders());
         return;
     }
-    const result = handleMcp({ message, access: verified.access, pageFrom: args => pageArgs(args) });
+    const result = await handleMcp({ message, access: verified.access, pageFrom: args => pageArgs(args) });
     if (result.status === 202) {
         response.writeHead(202, securityHeaders());
         response.end();

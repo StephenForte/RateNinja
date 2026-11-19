@@ -4,7 +4,7 @@ const { once } = require('node:events');
 const { spawn } = require('node:child_process');
 const http = require('node:http');
 const path = require('node:path');
-const { REFERENCE_SCHEMA } = require('../../lib/cloudbbs-post');
+const { CODE, referenceBody } = require('./r1-37');
 const { ADMIN_KEY, CLOUD_TOKEN, ROOT } = require('./r1-34');
 
 const CLAUDE_KEY = 'distinctive-r135-synthetic-claude-key';
@@ -50,14 +50,12 @@ function matches(destination, overrides = {}) {
     };
 }
 
-function fakeProviders({ judge, alternatives, lanes, postStatus = 200 } = {}) {
+function fakeProviders({ judge, alternatives, lanes, postStatus = 200, bookingCode = CODE } = {}) {
     const calls = [];
     const posts = [];
     const ranges = lanes ?? ALTERNATIVES.map(destinationPort => ({ originPort: ORIGIN, destinationPort }))
         .concat({ originPort: 'other-origin', destinationPort: 'off-list-port' });
-    const body = ['\x60\x60\x60json', JSON.stringify({
-        schema: REFERENCE_SCHEMA, reads: { rateDateRanges: ranges }
-    }), '\x60\x60\x60'].join('\n');
+    const body = referenceBody(bookingCode, { rateDateRanges: ranges });
 
     function reply(url, method, payload) {
         if (url.pathname === '/api/mcp') {

@@ -3,6 +3,7 @@
 const assert = require('node:assert/strict');
 const { before, beforeEach, after, it } = require('node:test');
 const { startApp } = require('./helpers/app');
+const { CODE, startCloudBbs } = require('./helpers/r1-37');
 const { activate, login, call, utcDay, insertRate, COMPANY_TYPE_CUSTOMER, COMPANY_TYPE_CONTRACT_OWNER } = require('./helpers/r1-19');
 const { seedManagedAgents, search, BUYER, OTHER_BUYER, RATE_TYPE } = require('./helpers/r1-33');
 const { applyAdminKey } = require('./helpers/r1-25');
@@ -11,6 +12,7 @@ const { ADMIN_KEY, ROOT, hashTables } = require('./helpers/r1-34');
 const BOOKING = { allowBookingRequest: true, bookingSlots: 3, priceMin: 1070, priceMax: 1070, containerType: '20D' };
 const RATE_ID = 'managed-rate-1';
 let app;
+let cloud;
 let users;
 let sessions;
 
@@ -35,7 +37,7 @@ async function queue(overrides = {}, who = 'creator') {
 }
 
 function book(agent, rateId = RATE_ID) {
-    return admin(`/${agent.id}/booking-requests`, { method: 'POST', body: { rateId, slots: 99, containerSize: '40HC' } });
+    return admin(`/${agent.id}/booking-requests`, { method: 'POST', body: { rateId, bookingCode: CODE, slots: 99, containerSize: '40HC' } });
 }
 
 function checkError(response, status, error) {
@@ -49,6 +51,8 @@ function addRate(id, options) {
 }
 
 before(async () => {
+    cloud = await startCloudBbs();
+    cloud.configureServer();
     app = await startApp();
     users = seedManagedAgents(app.db);
     addRate('r134-private', { owner: 'managed-private-owner' });
@@ -67,7 +71,7 @@ beforeEach(() => {
     applyAdminKey(ADMIN_KEY);
 });
 
-after(async () => { await app?.close(); });
+after(async () => { await app?.close(); await cloud?.close(); });
 
 it('requires the configured admin key for all three routes, including with a valid browser session', async () => {
     for (const [suffix, method, body] of [['', 'GET'], ['/id/matches', 'GET'], ['/id/booking-requests', 'POST', { rateId: RATE_ID }]]) {
