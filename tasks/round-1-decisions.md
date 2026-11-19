@@ -974,11 +974,13 @@ alive safely. The operator chose a server-side key bound to one buyer account.
   `FORTEL2_CF_ACCESS_CLIENT_ID`, `FORTEL2_CF_ACCESS_CLIENT_SECRET` set in the Render dashboard only;
   `FORTEL2_WRITE_RPC_URL`, `FORTEL2_READ_RPC_URL`, `FORTEL2_CHAIN_ID`, `FORTEL2_EXPLORER_URL` have the
   defaults above. The key and secrets are never committed, logged, returned, audited or stored in the
-  database. Keep only small test funds in the wallet. The Kings wallet is also used outside RateNinja
-  (nonce 5 on 2026-11-19), so the sender must tolerate a nonce moved by someone else.
+  database. Keep only small test funds in the wallet. The Kings wallet is also used by the RateNinja futures-contracts
+  prototype (nonce 5 on 2026-11-19), so the sender must tolerate a nonce moved by that prototype.
 - **Who sees it:** the booking record (`present()`, so website, partner API and MCP alike) gains a
   `receipt` object for approved requests: status (`pending`, `submitted`, `confirmed`, `failed`), the
-  transaction hash once known, the receipt hash, and an explorer link. Both the buyer and the owner see
+  transaction hash once known, the receipt hash, and an explorer link (`<FORTEL2_EXPLORER_URL>tx/<hash>`, default base
+  `https://settlementos-explorer-ihgo.onrender.com/fortel2-sepolia/`; format confirmed by the operator
+  2026-11-19). Both the buyer and the owner see
   it. The buyer needs no wallet.
 - **Not now:** receipts for declines, backfill of earlier approvals, a smart contract, buyer wallets or
   signatures, Sepolia L1 receipts, a manual retry button, a dedicated (non-Kings) wallet.
