@@ -14,8 +14,9 @@ function compact(value) {
 }
 
 function preset(user) {
-    return ['alan', 'bob', 'testbuyer'].includes(compact(user.displayName))
-        || ['alan', 'bob', 'testbuyer'].includes(compact(user.username));
+    const names = [compact(user.displayName), compact(user.username)];
+    const firstWord = String(user.displayName || '').trim().split(/\s+/)[0].toLowerCase();
+    return ['alan', 'bob', 'testbuyer'].some(target => names.includes(target) || firstWord === target);
 }
 
 function agentCount(userId) {

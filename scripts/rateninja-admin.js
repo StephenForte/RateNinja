@@ -407,7 +407,8 @@ function compactName(value) {
 
 function isSamplePreset(user) {
     const names = [compactName(user.displayName), compactName(user.username)];
-    return SAMPLE_PRESETS.some(target => names.includes(target));
+    const firstWord = String(user.displayName || '').trim().split(/\s+/)[0].toLowerCase();
+    return SAMPLE_PRESETS.some(target => names.includes(target) || firstWord === target);
 }
 
 function sampleLabel(user) {
