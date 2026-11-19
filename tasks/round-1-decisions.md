@@ -957,8 +957,8 @@ alive safely. The operator chose a server-side key bound to one buyer account.
 - **What goes on chain (operator: hash only):** a zero-value transaction from the receipt wallet to
   itself whose data is the 4-byte tag `RNR1` (`0x524e5231`) followed by the 32-byte keccak256 of the
   booking's canonical receipt JSON (version, request id, rate id, status, container size, slots,
-  customer price, origin, destination, carrier, decided at, requesting and owner company ids; keys
-  sorted, no whitespace). Nothing readable is on chain: no names, ports, prices or ids in clear. The
+  customer price, origin, destination, carrier, decided at; keys sorted, no whitespace). Every input is
+  a field of the booking record the buyer already receives, so the buyer can recompute the hash. Nothing readable is on chain: no names, ports, prices or ids in clear. The
   request id is a random UUID, so the hash cannot be guessed from public facts. The base price is
   never part of the receipt (D-027, D-028).
 - **Approval never waits for the chain (operator):** the approval commits as today; in the same
@@ -982,5 +982,10 @@ alive safely. The operator chose a server-side key bound to one buyer account.
   `https://settlementos-explorer-ihgo.onrender.com/fortel2-sepolia/`; format confirmed by the operator
   2026-11-19). Both the buyer and the owner see
   it. The buyer needs no wallet.
+- **Corrected 2026-11-19 (planner error, R1-40 worker stop):** the first text also hashed the
+  requesting and owner company ids. Neither is in the booking record (`present()`), so a buyer could
+  not recompute the hash. Both are dropped; the random request id already ties the receipt to one
+  booking. There is no MCP output schema in the repo (`lib/mcp.js` declares input schemas only), so
+  MCP clients get `receipt` through `present()` with no schema edit.
 - **Not now:** receipts for declines, backfill of earlier approvals, a smart contract, buyer wallets or
   signatures, Sepolia L1 receipts, a manual retry button, a dedicated (non-Kings) wallet.
