@@ -10,6 +10,7 @@ const { authorizeAndToken, partnerGet, mcpCall, pkce, REDIRECT_URI } = require('
 const { insertCompany, insertUser, insertRate, insertMargin, activate, login, call, utcDay,
     COMPANY_TYPE_CUSTOMER: CUSTOMER, COMPANY_TYPE_CONTRACT_OWNER: OWNER } = require('./helpers/r1-19');
 const { partnerSend } = require('./helpers/r1-21');
+const { leaksBasePrice } = require('./helpers/no-base-price');
 const ALL = 'profile:read rates:read sailings:read bookings:read bookings:write';
 const ROOT = '/api/partner/v1/me';
 const customerTools = [
@@ -46,7 +47,7 @@ describe('R1-22 customer partner boundary', { concurrency: 1 }, () => {
     function safe(payload) {
         const text = JSON.stringify(payload);
         assert.doesNotMatch(text, /ownerCompanyId|owner_company_id|marginPercent|marginNumber|margin_percent|margin_number|basePrice|decidedBy|decided_by/);
-        for (const base of [8123, 9321, 10431]) assert.equal(text.includes(String(base)), false, text);
+        for (const base of [8123, 9321, 10431]) assert.equal(leaksBasePrice(payload, base), false, text);
     }
     async function refresh(refreshToken) {
         const response = await fetch(`${app.baseUrl}/oauth/token`, { method: 'POST', headers: { 'content-type': 'application/json' },

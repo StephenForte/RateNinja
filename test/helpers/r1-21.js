@@ -1,5 +1,7 @@
 'use strict';
 
+const { leaksBasePrice } = require('./no-base-price');
+
 async function partnerSend(baseUrl, token, method, urlPath, options = {}) {
     const headers = { ...(options.headers || {}) };
     if (token) headers.authorization = `Bearer ${token}`;
@@ -24,7 +26,7 @@ async function partnerSend(baseUrl, token, method, urlPath, options = {}) {
 
 function assertNoBase(assert, payload, base) {
     const json = JSON.stringify(payload);
-    assert.equal(json.includes(String(base)), false, json);
+    assert.equal(leaksBasePrice(payload, base), false, json);
     assert.equal(/basePrice|rate20D|rate40D|rate40HC|rate_20d/i.test(json), false, json);
 }
 
