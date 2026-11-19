@@ -996,3 +996,34 @@ alive safely. The operator chose a server-side key bound to one buyer account.
   ChainBank or the operator, so the key is shared and R1-41's nonce-conflict fix applies.
 - **Not now:** receipts for declines, backfill of earlier approvals, a smart contract, buyer wallets or
   signatures, Sepolia L1 receipts, a manual retry button, a dedicated (non-Kings) wallet.
+
+### D-046 — Admin CLI option 13: queue three sample managed agents per chosen customer (2026-11-19, operator request)
+
+- **Why:** operator: "In our terminal application, can we add an option to automatically create 3
+  random but valid managed agents into the queue for each of the 3 customers (so 9 in total) Alan,
+  Bob, and TestBuyer. Of the 3 each: Make one a lowball price with AI booking request turned on, one
+  'regular' i.e. a high price acceptance, and one with auto booking turned off."
+- **Who (operator: pick from a list):** option 13 lists every active user in a Freight
+  Forwarder/Customer company (display name, username, company) and pre-selects users whose display
+  name or username matches Alan, Bob or TestBuyer (case-insensitive, spaces ignored). The operator
+  confirms or edits the selection before anything is written. Production on 2026-11-19 has three
+  customer companies: Blackwater Shippers, Blue Sky Shipping, Test Buyer Co.
+- **What each chosen user gets:** three queued agents, created as that user (same rules, validation,
+  audit and visibility as the `/agents` form, D-039), in one batch:
+  1. **Lowball:** booking request on, price range 0 to half the lowest customer price that matches
+     the agent's lane, container type and sailing date (rounded down to a whole dollar), alternatives
+     off, so a correct runner books nothing.
+  2. **Regular:** booking request on, price range 0 to 125% of the highest such customer price
+     (rounded up), alternatives random, so a matching rate is within range.
+  3. **No booking:** booking request off, no price range, alternatives random.
+- **Random but valid:** each agent's rate type, lane, container type, sailing date (today or later,
+  inside one of the lane's current rate windows) and slots (1 to 3) are chosen at random from that
+  user's own search options. The two booking agents need a lane, container type and date with at
+  least one matching customer price; the no-booking agent may use any valid lane. If a user has no
+  such lane, or their company cannot request bookings, nothing is created for that user and the CLI
+  says why. All three agents for a user are created together or not at all.
+- **Prices:** computed only from the customer-priced rates the runner matches against (the same
+  view as the admin matches route), never from the owner's base price (D-027, D-028).
+- **Writes:** production writes, so the CLI previews the nine agents and needs a confirmation (or
+  `--yes` on the one-shot command) before creating them. It prints what it created.
+- **Not now:** choosing counts or price levels, saved queries for sample agents, deleting samples.
