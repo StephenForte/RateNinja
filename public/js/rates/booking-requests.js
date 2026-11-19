@@ -135,6 +135,26 @@ function statusLabel(status) {
     return 'Pending';
 }
 
+function receiptStatus(receipt) {
+    const node = document.createElement('div');
+    node.className = 'booking-receipt';
+    const labels = {
+        pending: 'Receipt pending',
+        submitted: 'Receipt submitted',
+        confirmed: 'Receipt confirmed',
+        failed: 'Receipt failed'
+    };
+    node.textContent = labels[receipt.status] || 'Receipt';
+    if (['submitted', 'confirmed'].includes(receipt.status) && receipt.txHash && receipt.explorerUrl) {
+        const link = document.createElement('a');
+        link.href = receipt.explorerUrl;
+        link.title = receipt.txHash;
+        link.textContent = `${receipt.txHash.slice(0, 10)}…${receipt.txHash.slice(-6)}`;
+        node.append(document.createTextNode(' '), link);
+    }
+    return node;
+}
+
 function renderRequests(body, requests) {
     const ownerView = requests.some(item => item.side === 'owner');
     const table = document.createElement('table');
@@ -170,6 +190,7 @@ function renderRequests(body, requests) {
             mark.textContent = 'Unread';
             status.append(document.createTextNode(' '), mark);
         }
+        if (item.receipt) status.append(receiptStatus(item.receipt));
         row.append(
             cell(route),
             cell(item.carrier || 'N/A'),

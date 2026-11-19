@@ -14,8 +14,9 @@ function hashTables(db, { skipAudit = false, migrationComparison = false } = {})
     const result = {};
     for (const { name } of tables) {
         if (skipAudit && name === 'audit_events') continue;
+        if (migrationComparison && name === 'booking_receipts') continue;
         const table = '"' + name.replaceAll('"', '""') + '"';
-        const where = migrationComparison && name === 'schema_migrations' ? " WHERE id <> '014'" : '';
+        const where = migrationComparison && name === 'schema_migrations' ? " WHERE id NOT IN ('014', '015')" : '';
         const rows = db.prepare(`SELECT * FROM ${table}${where}`).all();
         if (migrationComparison && name === 'managed_agents') {
             for (const row of rows) {

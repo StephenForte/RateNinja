@@ -522,3 +522,27 @@ Read the current nine-character code from the [CloudBBS rn announcement](https:/
 Customer rate and booking responses never receive base prices, margins or owner company ids. Customer REST sailing list rows match the session view, including its ownerCompanyId field. Owner rates, single sailings, predictive pricing, sailing date ranges, predictive date ranges and decisions return 403 owner_only to customer OAuth tokens. MCP sailing tools remain owner-only. Owners receive 403 customer_only on available-rates and create. MCP calls enforce company type before scopes and arguments; tools/list shows customers profile, the four current-rate reference lookups (rate-date-ranges, origin-ports, destination-ports, contract-owners), available rates, booking list, booking read and booking create. Owner discovery keeps the prior owner tools and adds the six reference lookups. Create annotations are readOnlyHint false, destructiveHint false and idempotentHint false; the tool changes data. The available-rates list is read-only. Company type is live on each call. Scopes remain independently required, and discovery still advertises only the three read scopes. Connected apps lets both supported types list and revoke grants; revoked credentials stop working.
 
 Current-rate reference lookups (rate-date-ranges, origin-ports, destination-ports, contract-owners) use the same linked-owner current-rate set as available-rates for customers and the owner's own current rates for owners. A rate is current when it is not soft-deleted and its expiration allows use today in UTC (blank expiration or expiring today qualifies); rates not yet effective are included. These responses never include prices.
+
+### ForteL2 approval receipts
+
+Newly approved bookings include an additive `receipt` object in the website, partner API,
+and MCP booking results. Both the buyer and rate owner receive the object.
+
+| Field | Meaning |
+| --- | --- |
+| `status` | `pending` while queued, `submitted` after broadcast, `confirmed` after a successful transaction receipt, or `failed` after retry exhaustion or reversion |
+| `txHash` | Ethereum transaction hash once known, or JSON `null` |
+| `receiptHash` | Keccak-256 digest of the version 1 booking receipt |
+| `explorerUrl` | ForteL2 Sepolia transaction explorer URL once the transaction hash is known, or JSON `null` |
+
+Approval returns as soon as the booking and receipt queue entry are committed. Read the
+booking again to follow progress. A failed receipt leaves the booking approved. Pending
+and declined bookings and approvals predating this feature omit `receipt`.
+
+A buyer can reproduce the digest from `carrier`, `containerSize`, `customerPrice`,
+`decidedAt`, `destinationPort`, `originPort`, `rateId`, booking `id` as `requestId`,
+`slots`, `status`, and the constant `version: 1`. Use lexicographically sorted keys and
+compact UTF-8 JSON. Apply Ethereum Keccak-256, compare the digest with `receiptHash`, and
+check that the successful chain ID 852 transaction identified by `txHash` carries the
+four-byte `RNR1` tag (`0x524e5231`) followed by that digest. See
+[Verify a receipt](booking-requests.md#verify-a-receipt).

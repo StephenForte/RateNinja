@@ -79,7 +79,7 @@ function tableHashes(db) {
     const tables = db.prepare("SELECT name FROM sqlite_schema WHERE type = 'table' ORDER BY name").all();
     return Object.fromEntries(tables.map(({ name }) => {
         const table = '"' + name.replaceAll('"', '""') + '"';
-        const preExistingRows = name === 'schema_migrations' ? " WHERE id NOT IN ('013', '014')" : '';
+        const preExistingRows = name === 'schema_migrations' ? " WHERE id NOT IN ('013', '014', '015')" : '';
         const rows = db.prepare(`SELECT * FROM ${table}${preExistingRows}`).all();
         const hash = createHash('sha256').update(JSON.stringify(rows.map(row => JSON.stringify(row)).sort())).digest('hex');
         return [name, hash];
