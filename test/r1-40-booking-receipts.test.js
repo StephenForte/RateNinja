@@ -177,6 +177,22 @@ it('queues website, partner and MCP approvals and publishes independently verifi
     assert.ok(rpc.calls.every(call => call.write ? call.access : !call.accessPresent));
 });
 
+it('processes an already due retry before a newly queued booking', async () => {
+    const older = await book();
+    assertPending(await decide(older));
+    app.db.prepare('UPDATE booking_receipts SET next_attempt_at = ?, attempts = 1 WHERE request_id = ?')
+        .run(Date.now() - 1_000, older);
+    const newer = await book();
+    assertPending(await decide(newer));
+
+    const first = rpc.sends.length;
+    start();
+    const submitted = await Promise.all([waitState(older, 'submitted'), waitState(newer, 'submitted')]);
+    for (const row of submitted) rpc.mined.set(row.tx_hash, '0x1');
+    await Promise.all([waitState(older, 'confirmed'), waitState(newer, 'confirmed')]);
+    assert.deepEqual(rpc.sends.slice(first).map(tx => tx.hash), submitted.map(row => row.tx_hash));
+});
+
 it('decline queues nothing; concurrent approvals have one winner, one row and one send', async () => {
     start();
     const startCalls = rpc.calls.length;
