@@ -989,8 +989,10 @@ alive safely. The operator chose a server-side key bound to one buyer account.
   MCP clients get `receipt` through `present()` with no schema edit.
 - **Live 2026-11-19 (verified on chain):** the first production receipt
   `0xeaa87d8270181dd4a51f30662f6b5b7d99df18f0ac0fbee641cabe14c9f54e2a` is signed by
-  `0xf8b8b3b58ebac9fc530d9244c22f391e90cc8ae2`, not the Kings wallet: chain `0x354`, type 2, to = from,
-  value 0, data `RNR1` + 32 bytes, status 1, 22,440 gas, total fee about 2.3e9 wei. The operator set a
-  different key on Render. Nonce-conflict handling (R1-41) still applies to any key used elsewhere.
+  `0xf8b8b3b58ebac9fc530d9244c22f391e90cc8ae2`: chain `0x354`, type 2, to = from,
+  value 0, data `RNR1` + 32 bytes, status 1, 22,440 gas, total fee about 2.3e9 wei. Operator 2026-11-19: this is
+  the Kings wallet (the address in the first request, `0xb849…D019`, was a different one). Its
+  earlier transactions came from OceanRelay, the RateNinja futures prototype, and top-ups through
+  ChainBank or the operator, so the key is shared and R1-41's nonce-conflict fix applies.
 - **Not now:** receipts for declines, backfill of earlier approvals, a smart contract, buyer wallets or
   signatures, Sepolia L1 receipts, a manual retry button, a dedicated (non-Kings) wallet.
