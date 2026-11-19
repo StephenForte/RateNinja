@@ -38,7 +38,11 @@ async function fakeRpc() {
         if (write && method === 'eth_sendRawTransaction') {
             const [raw] = params;
             const hash = keccak256(raw);
-            sends.push({ raw, hash, ...parseTransaction(raw) });
+            const tx = parseTransaction(raw);
+            sends.push({ raw, hash, ...tx });
+            const bytes = Buffer.from(tx.data.slice(2), 'hex');
+            const floor = bytes.reduce((gas, byte) => gas + (byte === 0 ? 10n : 40n), 21_000n);
+            if (tx.gas < floor) return reject('calldata gas floor not met');
             if (state.writeFailure === 'timeout') return;
             if (state.writeFailure === '500') {
                 response.statusCode = 500;

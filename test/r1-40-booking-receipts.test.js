@@ -148,6 +148,7 @@ it('queues website, partner and MCP approvals and publishes independently verifi
         assert.equal(tx.raw, row.raw_transaction);
         assert.equal(tx.type, 'eip1559');
         assert.equal(tx.chainId, 852);
+        assert.ok(tx.gas >= 21_000n + 36n * 40n, 'minimum gas with all receipt bytes nonzero');
         assert.equal(tx.value ?? 0n, 0n);
         assert.equal(tx.to.toLowerCase(), rpc.wallet.toLowerCase());
         assert.equal(await recoverTransactionAddress({ serializedTransaction: tx.raw }), rpc.wallet);
