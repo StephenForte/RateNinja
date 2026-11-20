@@ -3,6 +3,7 @@ import { errorBox, fieldLabel, heading, paragraph, textCell } from '../dom.js';
 
 const endpoint = '/api/managed-agents';
 const runsEndpoint = '/api/managed-agents/runs';
+const cloudBbsPostEndpoint = '/api/managed-agents/cloudbbs-post';
 const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 20 });
 const RUN_POLL_MS = 2000;
 let deactivate;
@@ -563,10 +564,18 @@ export async function mount(container) {
     if (runsPayload) {
         let polling = false;
         let pendingRefresh;
+        let postBusy = false;
         const runHost = document.createElement('section');
         runHost.className = 'agent-run';
         const runButton = button('Run queued agents', () => { startQueuedRun(); }, 'agent-button agent-primary');
+        const postButton = button('Post to CloudBBS now', () => { postAnnouncement(); }, 'agent-button');
+        const actions = document.createElement('div');
+        actions.className = 'agent-run-actions';
+        actions.append(runButton, postButton);
         const runReason = paragraph('agent-run-reason', '');
+        const postReason = paragraph('agent-run-reason agent-post-reason', '');
+        const postResult = paragraph('agent-post-result', '');
+        postResult.setAttribute('role', 'status');
         const runStatus = paragraph('agent-run-status', '');
         const runWho = paragraph('agent-run-who', '');
         const runWhen = paragraph('agent-run-when', '');
@@ -574,15 +583,24 @@ export async function mount(container) {
         const runAlert = paragraph('agent-run-alert', '');
         const runSummary = document.createElement('pre');
         runSummary.className = 'agent-run-summary';
-        runHost.append(runButton, runReason, runStatus, runWho, runWhen, runCounts, runAlert, runSummary);
+        runHost.append(actions, runReason, postReason, postResult, runStatus, runWho, runWhen, runCounts, runAlert, runSummary);
         place(container, runHost, formHost);
+
+        function showRunActions() {
+            const readiness = runState?.readiness;
+            const post = readiness?.cloudBbsPost;
+            const reason = post?.disabledReason || (readiness?.runInProgress ? 'A managed agent run is already in progress.' : '');
+            runButton.disabled = Boolean(readiness?.disabledReason) || runBusy || postBusy;
+            runReason.textContent = readiness?.disabledReason || '';
+            postButton.disabled = !post?.configured || Boolean(reason) || postBusy || runBusy;
+            postButton.textContent = postBusy ? 'Posting…' : 'Post to CloudBBS now';
+            postReason.textContent = reason;
+        }
 
         function showRun(payload, keepTimer = false) {
             runState = payload;
             const run = payload.run;
-            const readiness = payload.readiness || {};
-            runButton.disabled = Boolean(readiness.disabledReason) || runBusy;
-            runReason.textContent = readiness.disabledReason || '';
+            showRunActions();
             runAlert.textContent = '';
             if (!run) {
                 runStatus.textContent = 'No managed agent run yet.';
@@ -602,9 +620,10 @@ export async function mount(container) {
                     : `${count} started. Exit code ${run.exitCode}.`;
                 runSummary.textContent = run.summary || '';
             }
-            if (keepTimer && runTimer && run?.status === 'running') return;
+            const poll = run?.status === 'running' || payload.readiness?.cloudBbsPost?.inProgress;
+            if (keepTimer && runTimer && poll) return;
             stopRunTimer();
-            if (active && run?.status === 'running') {
+            if (active && poll) {
                 runTimer = setInterval(() => { refreshRun(); }, RUN_POLL_MS);
             }
         }
@@ -658,7 +677,7 @@ export async function mount(container) {
             const label = count === 1 ? '1 queued agent' : `${count} queued agents`;
             if (!window.confirm(`Run ${label}? Each one calls Claude. The next daily CloudBBS post is ${when}.`)) return;
             runBusy = true;
-            runButton.disabled = true;
+            showRunActions();
             pageError.hide();
             request(runsEndpoint, { method: 'POST', body: '{}' }).then(body => {
                 runBusy = false;
@@ -679,7 +698,26 @@ export async function mount(container) {
                 if (!active) return;
                 pageError.show(error.message);
                 showRun(runState);
+                if (error.code === 'post_in_progress') refreshRun('post');
             });
+        }
+
+        async function postAnnouncement() {
+            if (!active || postButton.disabled) return;
+            if (!window.confirm('Replace the rn announcement on CloudBBS? The current booking code will stop working. Do not post while a laptop agent run is going.')) return;
+            postBusy = true;
+            postResult.textContent = '';
+            showRunActions();
+            try {
+                const result = await request(cloudBbsPostEndpoint, { method: 'POST', body: '{}' });
+                if (active) postResult.textContent = `Posted version ${result.version ?? '?'} at ${result.updatedAt ?? '?'}`;
+            } catch (error) {
+                if (active) postResult.textContent = error.message;
+            } finally {
+                if (active) await refreshRun('post');
+                postBusy = false;
+                if (active) showRunActions();
+            }
         }
 
         showRun(runsPayload);

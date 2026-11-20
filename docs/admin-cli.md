@@ -85,6 +85,8 @@ node scripts/rateninja-admin.js managed-agents-samples --yes --user <user-id>
 
 Commands: `rate-date-ranges`, `origin-ports`, `destination-ports`, `contract-owners`, `sailing-date-ranges`, `predictive-date-ranges`, `companies`, `post-cloudbbs`, `client-agent`, `managed-agent-prompts`, `managed-agents-run`, `managed-agents-samples`. Shared flags: `--company`, `--carrier`, `--origin-port`, `--destination-port`, `--page`, `--page-size`, `--json` (only where that command accepts the filter). `post-cloudbbs` requires `--yes`. `client-agent` posts only with `--yes` (without it, steps 1–6 still run). `managed-agents-samples` writes only with `--yes` or a menu `y`.
 
+System admins can run option 9 from the `/agents` run panel with **Post to CloudBBS now**. Confirming replaces the `rn` announcement and rotates its booking code. The web service needs the same `CLOUDBBS_TOKEN` as the cron service, set in the Render dashboard. Posting is paused from 00:15 to 00:19 UTC and while a server run or another post is in progress. Avoid posting while option 12 is running on a laptop.
+
 ### Run client agent
 
 Option 10 / `client-agent` signs in as the buyer (`X-Buyer-API-Key` / `RATE_NINJA_BUYER_API_KEY`), reads the CloudBBS `rn` announcement in full over MCP with `CLOUDBBS_AGENT_TOKEN`, picks up to 25 distinct origin/destination lanes from `reads.rateDateRanges` (all if fewer), queries buyer rates and sailings, and asks Claude for a good/fair/poor verdict per lane.

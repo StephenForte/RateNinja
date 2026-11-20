@@ -58,6 +58,8 @@ services:
         sync: false
       - key: CLOUDBBS_AGENT_TOKEN
         sync: false
+      - key: CLOUDBBS_TOKEN
+        sync: false
   - type: cron
     name: rate-ninja-cloudbbs-post
     runtime: node
