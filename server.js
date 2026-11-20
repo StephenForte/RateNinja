@@ -1101,6 +1101,7 @@ const server = http.createServer(async (request, response) => {
 
 if (require.main === module) {
     ensureFoundation();
+    require('./lib/managed-agent-runs').recoverInterruptedRuns();
     startSessionSweep();
     server.listen(PORT, HOST, () => {
         server.once('close', startReceiptSender());

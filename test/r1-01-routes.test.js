@@ -18,6 +18,7 @@ const routeNames = [
     'imports',
     'booking-requests',
     'managed-agents',
+    'managed-agent-runs',
     'partner-bookings',
     'partner',
     'ports',
@@ -180,6 +181,12 @@ describe('r1-01 routes and exact documents', { concurrency: 1 }, () => {
                 assert.ok(mod.routes.every(route => route.access === 'session'));
             } else if (name === 'managed-agents') {
                 assert.equal(mod.routes.length, 5);
+            } else if (name === 'managed-agent-runs') {
+                assert.equal(mod.routes.length, 2);
+                assert.deepEqual(mod.routes.map(route => [route.method, route.path, route.access]), [
+                    ['GET', '/api/managed-agents/runs/latest', 'session'],
+                    ['POST', '/api/managed-agents/runs', 'session']
+                ]);
             } else if (name === 'partner-bookings') {
                 assert.equal(mod.routes.length, 5);
                 assert.deepEqual(mod.routes.map(route => [route.method, route.path || route.pattern.source, route.access]), [

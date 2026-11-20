@@ -43,10 +43,13 @@ it('R1-33 migration 013 preserves populated 012 data and does no work on the nex
 
         boot(dbPath, root, migrations);
         db = new DatabaseSync(dbPath);
-        assert.deepEqual(ids(), [...beforeIds, '013', '014', '015']);
-        const { managed_agents: agentsHash, booking_receipts: receiptsHash, ...after } = tableHashes(db);
+        assert.deepEqual(ids(), [...beforeIds, '013', '014', '015', '016']);
+        const {
+            managed_agents: agentsHash, booking_receipts: receiptsHash, managed_agent_runs: runsHash, ...after
+        } = tableHashes(db);
         assert.ok(agentsHash);
         assert.ok(receiptsHash);
+        assert.ok(runsHash);
         assert.deepEqual(after, before);
         assert.equal(db.prepare('SELECT COUNT(*) AS n FROM managed_agents').get().n, 0);
         const index = db.prepare('PRAGMA index_info(managed_agents_company_created)').all();
@@ -60,8 +63,10 @@ it('R1-33 migration 013 preserves populated 012 data and does no work on the nex
 
         boot(dbPath, root, migrations);
         db = new DatabaseSync(dbPath);
-        assert.deepEqual(ids(), [...beforeIds, '013', '014', '015']);
-        assert.deepEqual(tableHashes(db), { ...before, managed_agents: agentsHash, booking_receipts: receiptsHash });
+        assert.deepEqual(ids(), [...beforeIds, '013', '014', '015', '016']);
+        assert.deepEqual(tableHashes(db), {
+            ...before, managed_agents: agentsHash, booking_receipts: receiptsHash, managed_agent_runs: runsHash
+        });
         assert.deepEqual(db.prepare("SELECT applied_at FROM schema_migrations WHERE id = '013'").get(), applied);
         assert.deepEqual(fs.readdirSync(backupDir), backups);
     } finally {

@@ -38,7 +38,7 @@ function byClass(node, name) {
     return node.className?.split(' ').includes(name);
 }
 
-async function mountGrid(t, agents, onRequest = () => assert.fail('unexpected mutation')) {
+async function mountGrid(t, agents, onRequest = () => assert.fail('unexpected mutation'), runs = null) {
     const globals = {
         document: { createElement: element, createTextNode: value => Object.assign(element('#text'), { textContent: value }) },
         Option: function (label, value) { return Object.assign(element('option'), { textContent: label, value }); },
@@ -54,7 +54,12 @@ async function mountGrid(t, agents, onRequest = () => assert.fail('unexpected mu
     }
     t.mock.method(global, 'fetch', async (path, options) => {
         if (path.endsWith('/options')) return Response.json({ canManageAgents: true });
-        if (path === '/api/managed-agents' && !options.method) return Response.json({ agents });
+        if (path === '/api/managed-agents/runs/latest') {
+            if (!runs) return Response.json({ error: 'System admin access is required.' }, { status: 403 });
+            return Response.json(runs);
+        }
+        if (path === '/api/managed-agents/runs' && options?.method === 'POST') return onRequest(path, options);
+        if (path === '/api/managed-agents' && !options?.method) return Response.json({ agents });
         return onRequest(path, options);
     });
     const container = element('main');
