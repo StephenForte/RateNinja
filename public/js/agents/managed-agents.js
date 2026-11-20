@@ -2,8 +2,16 @@ import { request } from '../api.js';
 import { errorBox, fieldLabel, heading, paragraph, textCell } from '../dom.js';
 
 const endpoint = '/api/managed-agents';
+const runsEndpoint = '/api/managed-agents/runs';
 const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 20 });
+const RUN_POLL_MS = 2000;
 let deactivate;
+let runTimer = null;
+
+function stopRunTimer() {
+    if (runTimer) clearInterval(runTimer);
+    runTimer = null;
+}
 
 function button(text, action, kind = '') {
     const control = textCell(text, 'button', kind);
@@ -501,9 +509,18 @@ function agentGrid(host, edit, remove) {
     };
 }
 
+function place(parent, node, before) {
+    if (typeof parent.insertBefore === 'function') parent.insertBefore(node, before);
+    else parent.append(node);
+}
+
 export async function mount(container) {
     let active = true;
-    deactivate = () => { active = false; };
+    stopRunTimer();
+    deactivate = () => {
+        active = false;
+        stopRunTimer();
+    };
     container.className = 'managed-agents';
     const pageError = errorBox();
     pageError.box.setAttribute('role', 'alert');
@@ -520,6 +537,10 @@ export async function mount(container) {
 
     let options;
     let agents;
+    const runsReady = request(`${runsEndpoint}/latest`).catch(error => {
+        if (error.status === 403 || error.status === 401) return null;
+        return null;
+    });
     try {
         [options, { agents }] = await Promise.all([request(`${endpoint}/options`), request(endpoint)]);
     } catch (error) {
@@ -531,6 +552,104 @@ export async function mount(container) {
     }
     if (!active) return;
     announcement.textContent = '';
+    const runsPayload = await runsReady;
+    if (!active) return;
+    let runState = runsPayload;
+    let runBusy = false;
+    if (runsPayload) {
+        const runHost = document.createElement('section');
+        runHost.className = 'agent-run';
+        const runButton = button('Run queued agents', () => { startQueuedRun(); }, 'agent-button agent-primary');
+        const runReason = paragraph('agent-run-reason', '');
+        const runStatus = paragraph('agent-run-status', '');
+        const runWho = paragraph('agent-run-who', '');
+        const runWhen = paragraph('agent-run-when', '');
+        const runCounts = paragraph('agent-run-counts', '');
+        const runAlert = paragraph('agent-run-alert', '');
+        const runSummary = document.createElement('pre');
+        runSummary.className = 'agent-run-summary';
+        runHost.append(runButton, runReason, runStatus, runWho, runWhen, runCounts, runAlert, runSummary);
+        place(container, runHost, formHost);
+
+        function showRun(payload) {
+            runState = payload;
+            const run = payload.run;
+            const readiness = payload.readiness || {};
+            runButton.disabled = Boolean(readiness.disabledReason) || runBusy;
+            runReason.textContent = readiness.disabledReason || '';
+            runAlert.textContent = '';
+            if (!run) {
+                runStatus.textContent = 'No managed agent run yet.';
+                runWho.textContent = '';
+                runWhen.textContent = '';
+                runCounts.textContent = '';
+                runSummary.textContent = '';
+            } else {
+                runStatus.textContent = `Status: ${run.status}`;
+                runWho.textContent = run.startedBy ? `Started by ${run.startedBy}` : '';
+                runWhen.textContent = run.finishedAt
+                    ? `Started ${run.startedAt}. Finished ${run.finishedAt}.`
+                    : `Started ${run.startedAt}.`;
+                const count = Array.isArray(run.startedAgentIds) ? run.startedAgentIds.length : 0;
+                runCounts.textContent = run.exitCode == null
+                    ? `${count} started.`
+                    : `${count} started. Exit code ${run.exitCode}.`;
+                runSummary.textContent = run.summary || '';
+            }
+            stopRunTimer();
+            if (active && run?.status === 'running') {
+                runTimer = setInterval(() => { refreshRun(); }, RUN_POLL_MS);
+            }
+        }
+
+        async function refreshRun() {
+            if (!active) return;
+            try {
+                const payload = await request(`${runsEndpoint}/latest`);
+                if (active) showRun(payload);
+            } catch (error) {
+                if (!active) return;
+                if (error.status !== 403 && error.status !== 401) runAlert.textContent = error.message;
+                if (runState?.run?.status === 'running') {
+                    stopRunTimer();
+                    runTimer = setInterval(() => { refreshRun(); }, RUN_POLL_MS);
+                }
+            }
+        }
+
+        function startQueuedRun() {
+            if (!active || runBusy || runButton.disabled || !runState?.readiness) return;
+            const count = runState.readiness.queuedCount;
+            const when = `${String(runState.readiness.nextPostAt).slice(0, 16).replace('T', ' ')} UTC`;
+            const label = count === 1 ? '1 queued agent' : `${count} queued agents`;
+            if (!window.confirm(`Run ${label}? Each one calls Claude. The next daily CloudBBS post is ${when}.`)) return;
+            runBusy = true;
+            runButton.disabled = true;
+            pageError.hide();
+            request(runsEndpoint, { method: 'POST', body: '{}' }).then(body => {
+                runBusy = false;
+                if (!active) return;
+                if (body?.run?.status === 'running') {
+                    showRun({
+                        run: body.run,
+                        readiness: {
+                            ...(runState?.readiness || {}),
+                            runInProgress: true,
+                            disabledReason: 'A run is already in progress.'
+                        }
+                    });
+                }
+                return refreshRun();
+            }).catch(error => {
+                runBusy = false;
+                if (!active) return;
+                pageError.show(error.message);
+                showRun(runState);
+            });
+        }
+
+        showRun(runsPayload);
+    }
     let busy = false;
     let openForm = null;
 
@@ -683,6 +802,7 @@ export async function mount(container) {
 }
 
 export function unmount() {
+    stopRunTimer();
     deactivate?.();
     deactivate = null;
 }

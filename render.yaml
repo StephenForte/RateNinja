@@ -54,6 +54,10 @@ services:
         sync: false
       - key: FORTEL2_EXPLORER_URL
         sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: CLOUDBBS_AGENT_TOKEN
+        sync: false
   - type: cron
     name: rate-ninja-cloudbbs-post
     runtime: node

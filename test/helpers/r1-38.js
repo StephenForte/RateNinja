@@ -58,7 +58,10 @@ async function mountForm(t, { options, agents = [], onRequest = () => assert.fai
     const calls = [];
     t.mock.method(global, 'fetch', async (path, init) => {
         if (path === endpoint + '/options') return Response.json(options);
-        if (path === endpoint && !init.method) return Response.json({ agents });
+        if (path === '/api/managed-agents/runs/latest') {
+            return Response.json({ error: 'System admin access is required.' }, { status: 403 });
+        }
+        if (path === endpoint && !init?.method) return Response.json({ agents });
         const call = { path, method: init.method || 'GET', body: init.body && JSON.parse(init.body) };
         calls.push(call);
         return onRequest(call);

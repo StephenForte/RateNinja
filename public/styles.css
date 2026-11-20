@@ -2914,3 +2914,36 @@ body {
 .booking-receipt a {
     white-space: nowrap;
 }
+
+/* R1-45 */
+.agent-run {
+    display: grid;
+    gap: 6px;
+    width: 100%;
+    margin: 0;
+    padding: 12px 14px;
+    border: 1px solid #d5e4ea;
+    border-radius: 10px;
+    background: #f7fbfc;
+}
+
+.agent-run-reason,
+.agent-run-status,
+.agent-run-who,
+.agent-run-when,
+.agent-run-counts,
+.agent-run-alert {
+    margin: 0;
+}
+
+.agent-run-alert {
+    color: #9b2c2c;
+}
+
+.agent-run-summary {
+    margin: 0;
+    max-height: 16rem;
+    overflow: auto;
+    white-space: pre-wrap;
+    font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}

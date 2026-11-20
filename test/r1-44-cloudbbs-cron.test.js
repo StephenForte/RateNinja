@@ -80,6 +80,11 @@ const WEB_SERVICE_ON_MAIN = [
     '      - key: FORTEL2_READ_RPC_URL',
     '        sync: false',
     '      - key: FORTEL2_EXPLORER_URL',
+    '        sync: false',
+    // R1-45 appends the two runner secrets. The rest of this block stays as R1-44 left it.
+    '      - key: ANTHROPIC_API_KEY',
+    '        sync: false',
+    '      - key: CLOUDBBS_AGENT_TOKEN',
     '        sync: false'
 ].join('\n');
 

@@ -27,10 +27,11 @@ it('applies migration 015 to fresh and populated databases without backfill, and
 
     function snapshot() {
         return Object.fromEntries(db.prepare("SELECT name FROM sqlite_schema WHERE type = 'table' ORDER BY name").all()
-            .map(({ name }) => {
-                const filter = name === 'schema_migrations' ? " WHERE id <> '015'" : '';
+            .flatMap(({ name }) => {
+                if (name === 'managed_agent_runs') return [];
+                const filter = name === 'schema_migrations' ? " WHERE id NOT IN ('015', '016')" : '';
                 const table = '"' + name.replaceAll('"', '""') + '"';
-                return [name, db.prepare(`SELECT * FROM ${table}${filter}`).all()];
+                return [[name, db.prepare(`SELECT * FROM ${table}${filter}`).all()]];
             }));
     }
 
