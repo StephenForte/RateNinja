@@ -105,7 +105,7 @@ Model names are the planner's proposal; operator overrides recorded in the Run c
 | R1-41 | Receipt sender: a nonce conflict waits for finality without using retry attempts (`awaiting_finality`, deadline, then `failed`); lagging-finality test; no migration | D-045 | R1-40 merged | S / Opus 5.5 | merged 2026-11-19, PR #91 `f44cf63` (docs #90 `37a167a`) |
 | R1-42 | Admin CLI option 13 / `managed-agents-samples`: pick customer users (Alan, Bob, TestBuyer pre-selected), preview and confirm, then queue three random valid agents per user (lowball with booking on, regular high acceptance, booking off) through a new admin route that creates as that user; no migration | D-046 | — | S / Opus 5.5 | merged 2026-11-19, PR #93 `9b86a46` (docs #92 `b1f4939`) |
 | R1-43 | Option 13 pre-select: also pre-select when the display name's first word is Alan, Bob or TestBuyer (exact match missed Alan Davis and Bob Jones in production; a prefix rule would pick Bobby) | D-046 | R1-42 merged | S / Sonnet 5.5 | merged 2026-11-20, PR #95 `228d721` (docs #94 `1ea69b9`) |
-| R1-44 | Daily CloudBBS post: Render Cron Job in `render.yaml` running `post-cloudbbs --yes` at `17 0 * * *` with its own two secrets; non-zero exit on any failure; docs; no web or product change | D-047 | — | S / Sonnet 5.5 | planned 2026-11-20 |
+| R1-44 | Daily CloudBBS post: Render Cron Job in `render.yaml` running `post-cloudbbs --yes` at `17 0 * * *` with its own two secrets; non-zero exit on any failure; docs; no web or product change | D-047 | — | S / Sonnet 5.5 | dispatched 2026-11-20 |
 
 ### Run order (waves)
 
