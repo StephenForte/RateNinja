@@ -565,9 +565,10 @@ export async function mount(container) {
         const runWho = paragraph('agent-run-who', '');
         const runWhen = paragraph('agent-run-when', '');
         const runCounts = paragraph('agent-run-counts', '');
+        const runAlert = paragraph('agent-run-alert', '');
         const runSummary = document.createElement('pre');
         runSummary.className = 'agent-run-summary';
-        runHost.append(runButton, runReason, runStatus, runWho, runWhen, runCounts, runSummary);
+        runHost.append(runButton, runReason, runStatus, runWho, runWhen, runCounts, runAlert, runSummary);
         place(container, runHost, formHost);
 
         function showRun(payload) {
@@ -576,6 +577,7 @@ export async function mount(container) {
             const readiness = payload.readiness || {};
             runButton.disabled = Boolean(readiness.disabledReason) || runBusy;
             runReason.textContent = readiness.disabledReason || '';
+            runAlert.textContent = '';
             if (!run) {
                 runStatus.textContent = 'No managed agent run yet.';
                 runWho.textContent = '';
@@ -604,12 +606,10 @@ export async function mount(container) {
             if (!active) return;
             try {
                 const payload = await request(`${runsEndpoint}/latest`);
-                if (!active) return;
-                pageError.hide();
-                showRun(payload);
+                if (active) showRun(payload);
             } catch (error) {
                 if (!active) return;
-                if (error.status !== 403 && error.status !== 401) pageError.show(error.message);
+                if (error.status !== 403 && error.status !== 401) runAlert.textContent = error.message;
                 if (runState?.run?.status === 'running') {
                     stopRunTimer();
                     runTimer = setInterval(() => { refreshRun(); }, RUN_POLL_MS);

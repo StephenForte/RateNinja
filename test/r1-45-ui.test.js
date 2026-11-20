@@ -138,10 +138,13 @@ describe('r1-45 run button', () => {
         );
         button(container).events.click();
         await new Promise(resolve => setTimeout(resolve, 30));
-        const alert = walk(container).find(node => node.className === 'error');
-        assert.equal(alert.hidden, false);
+        const alert = walk(container).find(node => node.className === 'agent-run-alert');
+        const pageAlert = walk(container).find(node => node.className === 'error');
+        assert.equal(alert.textContent, 'Temporary failure.');
+        assert.equal(pageAlert.hidden, true);
         await new Promise(resolve => setTimeout(resolve, 2200));
-        assert.equal(alert.hidden, true);
+        assert.equal(alert.textContent, '');
+        assert.equal(pageAlert.hidden, true);
         assert.equal(walk(container).find(node => node.className === 'agent-run-status').textContent, 'Status: succeeded');
     });
 });

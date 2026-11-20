@@ -2931,8 +2931,13 @@ body {
 .agent-run-status,
 .agent-run-who,
 .agent-run-when,
-.agent-run-counts {
+.agent-run-counts,
+.agent-run-alert {
     margin: 0;
+}
+
+.agent-run-alert {
+    color: #9b2c2c;
 }
 
 .agent-run-summary {
