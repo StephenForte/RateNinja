@@ -14,20 +14,17 @@ jobs:
   semgrep-sast:
     name: Semgrep SAST
     runs-on: ubuntu-latest
+    # The official image ships a tested semgrep-core. pip's latest (1.186.0) crashed
+    # with exit -11 on this repo and still reported success.
+    container:
+      image: semgrep/semgrep
     steps:
       - name: Checkout Code
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - name: Set up Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
-        with:
-          python-version: '3.x'
-
-      - name: Install Semgrep
-        run: pip install semgrep
-
+      # --no-suppress-errors: an engine crash fails the job instead of passing it.
       - name: Run Semgrep CI
-        run: semgrep ci
+        run: semgrep ci --no-suppress-errors
         env:
           SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
 
