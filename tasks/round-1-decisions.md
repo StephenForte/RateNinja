@@ -1111,3 +1111,30 @@ alive safely. The operator chose a server-side key bound to one buyer account.
 - **Result:** the page shows the outcome (version and time, or the error). Each successful post writes
   an audit event with the actor and the CloudBBS version, never the code or the token.
 - **Not now:** a post history on the page, editing the announcement, posting to another project.
+
+### D-050 — Receipt details with an on-chain check on approved booking requests (2026-11-20, operator request)
+
+- **Why:** operator: "in a booking request, can we display the text of the hash if requested and if
+  there is anything useful in there."
+- **What the chain holds (planner, explorer, tx 0x8f3a…2f3b):** a 0 ETH self-send from the receipt
+  wallet. Its whole input is 36 bytes: `0x524e5231` ("RNR1") plus the keccak-256 of the canonical
+  receipt JSON (D-045). The hash is one-way and cannot be turned back into text. That is deliberate:
+  nothing private is written to the chain.
+- **What the page shows instead (operator: with chain check):** on an approved request that has a
+  receipt, a "Receipt details" view for anyone who can already see the request (customer side and
+  owner side). It shows:
+  - the receipt fields in plain words (request, rate, carrier, route, size, slots, price, status,
+    decided at, version);
+  - the exact canonical text that was hashed;
+  - the receipt hash, the transaction hash and the explorer link;
+  - the result of a chain check.
+- **Chain check:** on request, the server reads the transaction and its receipt from ForteL2 through
+  the existing read RPC (`FORTEL2_READ_RPC_URL`). "Verified on ForteL2" only when all of these hold:
+  - the canonical text rebuilt from the stored request hashes to the stored receipt hash;
+  - the transaction exists, succeeded and is on the configured chain;
+  - it was sent by the stored sender address;
+  - its input is exactly the tag plus that hash.
+  Otherwise it shows "Mismatch" with the part that differs, "Not on chain yet", or "Could not check
+  ForteL2" (RPC down or not configured). Read-only: nothing is signed or sent.
+- **Not now:** showing receipts for declined requests, hashing in the browser, exposing details on
+  the partner or buyer API, storing check results.
