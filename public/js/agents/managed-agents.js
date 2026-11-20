@@ -604,7 +604,9 @@ export async function mount(container) {
             if (!active) return;
             try {
                 const payload = await request(`${runsEndpoint}/latest`);
-                if (active) showRun(payload);
+                if (!active) return;
+                pageError.hide();
+                showRun(payload);
             } catch (error) {
                 if (!active) return;
                 if (error.status !== 403 && error.status !== 401) pageError.show(error.message);

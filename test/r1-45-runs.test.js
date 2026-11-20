@@ -246,4 +246,23 @@ describe('r1-45 managed agent runs', () => {
         const health = await app.request('/api/health');
         assert.equal(health.status, 200);
     });
+
+    it('records the run as failed when finishing a started agent throws', async () => {
+        const adminId = app.db.prepare('SELECT id FROM users WHERE username = ?').get(app.username).id;
+        insertAgent(app.db, { id: 'r145-drop', companyId: app.company.id, userId: adminId, status: 'running' });
+        runs.setTestRunner(async options => {
+            await options.onAgentStarted('r145-drop');
+            app.db.exec('DROP TABLE managed_agents');
+            throw new Error('boom after drop');
+        });
+        const response = await post();
+        assert.equal(response.status, 202);
+        const done = await until(() => {
+            const row = runRow();
+            return row.status === 'failed' ? row : null;
+        });
+        assert.match(done.summary, /boom after drop/);
+        const health = await app.request('/api/health');
+        assert.equal(health.status, 200);
+    });
 });

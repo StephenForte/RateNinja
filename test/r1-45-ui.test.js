@@ -111,4 +111,37 @@ describe('r1-45 run button', () => {
         );
         assert.match(walk(container).find(node => node.className === 'agent-run-counts').textContent, /1 started/);
     });
+
+    it('clears a poll error after the next latest-run read succeeds', async t => {
+        let reads = 0;
+        const running = {
+            id: 'run-new',
+            status: 'running',
+            startedBy: 'Synthetic Admin',
+            startedAt: '2026-11-20T12:00:00.000Z',
+            finishedAt: null,
+            exitCode: null,
+            startedAgentIds: [],
+            summary: ''
+        };
+        const finished = { ...running, status: 'succeeded', finishedAt: '2026-11-20T12:05:00.000Z', exitCode: 0 };
+        const container = await mountGrid(
+            t,
+            [],
+            () => Response.json({ run: running }),
+            () => {
+                reads += 1;
+                if (reads === 1) return readiness();
+                if (reads === 2) return Response.json({ error: 'Temporary failure.' }, { status: 503 });
+                return { run: finished, readiness: readiness().readiness };
+            }
+        );
+        button(container).events.click();
+        await new Promise(resolve => setTimeout(resolve, 30));
+        const alert = walk(container).find(node => node.className === 'error');
+        assert.equal(alert.hidden, false);
+        await new Promise(resolve => setTimeout(resolve, 2200));
+        assert.equal(alert.hidden, true);
+        assert.equal(walk(container).find(node => node.className === 'agent-run-status').textContent, 'Status: succeeded');
+    });
 });
