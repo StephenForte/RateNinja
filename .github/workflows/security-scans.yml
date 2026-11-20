@@ -15,9 +15,10 @@ jobs:
     name: Semgrep SAST
     runs-on: ubuntu-latest
     # The official image ships a tested semgrep-core. pip's latest (1.186.0) crashed
-    # with exit -11 on this repo and still reported success.
+    # with exit -11 on this repo and still reported success. Pinned by digest
+    # (semgrep 1.185.0), like the actions below.
     container:
-      image: semgrep/semgrep
+      image: semgrep/semgrep@sha256:67518c174185a2043fdbed16c70631b79209499b3671178e7194379b48295a0d
     steps:
       - name: Checkout Code
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
