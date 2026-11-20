@@ -1085,3 +1085,29 @@ alive safely. The operator chose a server-side key bound to one buyer account.
   runner are never touched.
 - **Not now:** a schedule for agent runs, cancelling a run from the page, running a single agent,
   showing past runs beyond the latest.
+
+### D-049 — System admins post the CloudBBS reference data (option 9) from /agents (2026-11-20, operator request)
+
+- **Why:** operator: "can we add a button that runs 'number 9' from our terminal, i.e. a manual run of
+  the cron job."
+- **Who and where (operator: /agents run panel):** system admins only. The button is "Post to
+  CloudBBS now", next to "Run queued agents" (D-048). Others never see it and get 403 from the route.
+- **How it runs (operator: inside the web server):** the same post as option 9 and the R1-44 cron
+  (D-047): read reference data through the admin API, build the announcement with a new booking code,
+  PUT it to the CloudBBS `rn` announcement. The CLI and the button share one implementation, so they
+  cannot drift. The CLI's output and exit codes stay as they are.
+- **Secret:** `CLOUDBBS_TOKEN` (the token with the announcement capability, the same one the cron
+  service uses) is set on the web service (dashboard, `sync: false`). Without it the button is
+  disabled with the reason, and the route refuses with 503. It is never shown, logged or stored.
+- **It rotates the booking code.** Because of that:
+  - A post is refused while a server managed-agent run is `running` (409). A run start is refused
+    while a post is in progress (409).
+  - Both are refused between 00:15 and 00:19 UTC, around the daily cron post.
+  - After a successful post, the web server forgets its cached booking code (`lib/booking-code.js`
+    caches it for 60 s), so bookings check the new code at once.
+  - The confirm says that the current booking code stops working. The laptop option 12 cannot be
+    detected, so operators must not post while a laptop run is going.
+- **One post at a time:** a second post while one is in progress is refused (409).
+- **Result:** the page shows the outcome (version and time, or the error). Each successful post writes
+  an audit event with the actor and the CloudBBS version, never the code or the token.
+- **Not now:** a post history on the page, editing the announcement, posting to another project.
