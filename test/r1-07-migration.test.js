@@ -23,7 +23,7 @@ function startServer(dbPath) {
     const env = { ...process.env, NODE_ENV: 'test' };
     delete env.MIGRATIONS_DIR;
     env.SQLITE_DB_PATH = dbPath;
-    env.PORT = '35107';
+    env.PORT = '0';
     env.HOST = '127.0.0.1';
     env.SESSION_SECRET = 'test-session-secret-value-which-is-long';
     env.OAUTH_SIGNING_SECRET = 'test-oauth-signing-secret-value-long';
