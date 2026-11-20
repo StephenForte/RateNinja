@@ -1026,4 +1026,12 @@ alive safely. The operator chose a server-side key bound to one buyer account.
   view as the admin matches route), never from the owner's base price (D-027, D-028).
 - **Writes:** production writes, so the CLI previews the nine agents and needs a confirmation (or
   `--yes` on the one-shot command) before creating them. It prints what it created.
+- **Corrected 2026-11-19 (planner error, found in the first production run):** "matches" was read as
+  an exact match, so only Test Buyer was pre-selected; the production users are Alan Davis (`AlanD`,
+  Blackwater Shippers), Bob Jones (`BobJ`, Blue Sky Shipping) and Test Buyer (`testbuyer`, Test Buyer
+  Co). A user is pre-selected when their display name or username, lower-cased with spaces removed,
+  **equals** `alan`, `bob` or `testbuyer` (as before), **or** the first word of their display name,
+  lower-cased, equals one of them. The operator still confirms the selection (R1-43). Revised the same
+  day after the R1-43 worker stopped: the first wording ("starts with") also picked "Bobby", which the
+  R1-42 tests keep unselected on purpose.
 - **Not now:** choosing counts or price levels, saved queries for sample agents, deleting samples.
