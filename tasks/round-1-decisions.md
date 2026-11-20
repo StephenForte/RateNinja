@@ -1056,3 +1056,32 @@ alive safely. The operator chose a server-side key bound to one buyer account.
 - **Failure:** a failed post (reference read, size limit, CloudBBS error) leaves the previous
   announcement and code in place, and the run must exit non-zero so Render marks it failed.
 - **Not now:** alerts on a failed run, more than one post a day, posting from inside the web service.
+
+### D-048 — System admins start the managed agent run (option 12) from /agents (2026-11-20, operator request)
+
+- **Why:** operator: "when logged into RateNinja as the admin they can manually kick off the '12'
+  process via a button and a confirm."
+- **Who (operator):** system admins only. Company admins and customers never see the button and get
+  403 from the routes.
+- **Where it runs (operator: inside the web server):** the button starts the same runner as option 12
+  (`runManagedAgents` in `lib/managed-agent-runner.js`, confirmed, same behaviour, same CloudBBS run
+  note) in the background of the Render web process, and the request returns at once. The runner
+  still reaches the app through the admin API with `RATE_NINJA_ADMIN_API_KEY`, as it does from the
+  laptop.
+- **Secrets on the web service:** `ANTHROPIC_API_KEY` and `CLOUDBBS_AGENT_TOKEN` (dashboard,
+  `sync: false`), next to the existing admin key. If either is missing, the button is disabled with
+  the reason, and the route refuses with 503. They are never shown, logged or stored.
+- **Confirm:** a dialog shows how many agents are queued (each costs Claude calls) and the next daily
+  CloudBBS post time (00:17 UTC, D-047). Starting is refused between 00:15 and 00:19 UTC.
+- **One run at a time:** a second start while a server run is in progress is refused (409). The
+  laptop option 12 stays available; operators should not run both at once.
+- **Run record (migration 016):** each server run is stored: who started it, when, status
+  (`running`, `succeeded`, `failed`, `interrupted`), the agent ids it actually started, the runner's
+  exit code and its printed summary (already redacted by the runner), finish time. /agents shows the
+  latest run's status and summary to system admins.
+- **Interrupted runs:** if the process stops mid-run (deploy, restart), on the next start the run is
+  marked `interrupted`, and only the agents that run itself started and that are still `running` are
+  finished as `failed` with "Run interrupted before this agent finished." Agents started by any other
+  runner are never touched.
+- **Not now:** a schedule for agent runs, cancelling a run from the page, running a single agent,
+  showing past runs beyond the latest.
