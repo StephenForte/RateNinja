@@ -123,6 +123,33 @@ it('discards a list response that arrives after a local delete', async t => {
     assert.deepEqual(statuses(container), ['queued']);
 });
 
+it('keeps a local delete and applies other final statuses from the same terminal poll', async t => {
+    const finalRows = Promise.withResolvers();
+    let listReads = 0;
+    let runReads = 0;
+    const { container, requests } = await fixture(t,
+        () => ++listReads === 1 ? [queued, second] : finalRows.promise,
+        () => ++runReads === 1 ? run('running') : run('succeeded', null),
+        (path, options) => {
+            assert.equal(path, `${listPath}/first`);
+            assert.equal(options.method, 'DELETE');
+            return new Response(null, { status: 204 });
+        });
+
+    await poll(t);
+    assert.equal(requests(listPath), 2);
+    find(container, 'agent-expand').events.click();
+    await find(container, 'agent-delete').events.click();
+    finalRows.resolve([{ ...queued, status: 'completed' }, { ...second, status: 'completed' }]);
+    await settle();
+
+    assert.deepEqual(statuses(container), ['completed']);
+    assert.equal(find(container, 'agent-run-status').textContent, 'Status: succeeded');
+    await poll(t, 10000);
+    assert.equal(requests(listPath), 2);
+    assert.equal(requests(latestPath), 2);
+});
+
 it('keeps one copy when a poll sees a newly queued agent before the create response', async t => {
     const pending = Promise.withResolvers();
     const formOptions = {

@@ -621,7 +621,7 @@ export async function mount(container) {
                 if (!active) return;
                 if (wasRunning || payload?.run?.status === 'running') {
                     try {
-                        await refreshList();
+                        await refreshList(Boolean(payload && payload.run?.status !== 'running'));
                     } catch (error) {
                         pollError = error.message;
                     }
@@ -684,12 +684,26 @@ export async function mount(container) {
         }
     }
 
-    async function refreshList() {
+    async function refreshList(isFinal) {
         // Local writes replace the array, invalidating snapshots that started before them.
         const previous = agents;
-        const { agents: latest } = await request(endpoint);
-        if (!active || agents !== previous) return;
-        agents = latest;
+        const payload = await request(endpoint);
+        if (!active) return;
+        if (!Array.isArray(payload?.agents)) throw new Error('Could not refresh managed agents.');
+        if (agents === previous) {
+            agents = payload.agents;
+        } else {
+            if (!isFinal) return;
+            // Keep local mutations and apply the last snapshot to the rest of the grid.
+            const before = new Map(previous.map(agent => [agent.id, agent]));
+            const latest = new Map(payload.agents.map(agent => [agent.id, agent]));
+            for (const agent of agents) {
+                if (before.get(agent.id) !== agent) latest.set(agent.id, agent);
+                before.delete(agent.id);
+            }
+            for (const deletedId of before.keys()) latest.delete(deletedId);
+            agents = [...latest.values()];
+        }
         renderList();
     }
 
@@ -811,7 +825,8 @@ export async function mount(container) {
             } else {
                 // A poll can see a committed create before its response reaches this form.
                 const listedIds = new Set(agents.map(item => item.id));
-                agents = [...result.agents.filter(item => !listedIds.has(item.id)), ...agents];
+                const added = result.agents.filter(item => !listedIds.has(item.id));
+                if (added.length) agents = [...added, ...agents];
             }
             if (keepOpen) {
                 queued += 1;
