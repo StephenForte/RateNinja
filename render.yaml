@@ -54,3 +54,20 @@ services:
         sync: false
       - key: FORTEL2_EXPLORER_URL
         sync: false
+  - type: cron
+    name: rate-ninja-cloudbbs-post
+    runtime: node
+    # Legacy name for the cron 0.5 CPU / 512 MB plan, same plan the web service uses.
+    plan: starter
+    schedule: "17 0 * * *"
+    buildCommand: npm install
+    startCommand: node scripts/rateninja-admin.js post-cloudbbs --yes
+    envVars:
+      # Same Node pin as the rate-ninja web service.
+      - key: NODE_VERSION
+        value: "26.12.1"
+      # Dashboard only. A Blueprint sync must not overwrite these.
+      - key: RATE_NINJA_ADMIN_API_KEY
+        sync: false
+      - key: CLOUDBBS_TOKEN
+        sync: false
