@@ -3,7 +3,6 @@
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
-const { execFileSync } = require('node:child_process');
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const { BODY_SIZE_CAP, REQUEST_TIMEOUT_MS, buildAnnouncement } = require('../lib/cloudbbs-post');
@@ -23,6 +22,66 @@ const CRON_SCHEDULE = '"17 0 * * *"';
 const CRON_BUILD = 'npm install';
 const CRON_START = 'node scripts/rateninja-admin.js post-cloudbbs --yes';
 const SECRET_KEYS = ['RATE_NINJA_ADMIN_API_KEY', 'CLOUDBBS_TOKEN'];
+
+// Web service block on origin/main at 1ea69b9. CI checks out the PR without
+// that ref, so the comparison lives here. A Blueprint sync applies this block.
+const WEB_SERVICE_ON_MAIN = [
+    '  - type: web',
+    '    name: rate-ninja',
+    '    runtime: node',
+    '    plan: starter',
+    '    buildCommand: npm install',
+    '    startCommand: npm start',
+    '    healthCheckPath: /',
+    '    disk:',
+    '      name: rate-ninja-data',
+    '      mountPath: /var/data',
+    '      sizeGB: 1',
+    '    envVars:',
+    '      # October 21, 2026 Node.js security release. Local development can stay',
+    '      # on Node.js 22 or later; this pin applies to the Render build and runtime.',
+    '      - key: NODE_VERSION',
+    '        value: "26.12.1"',
+    '      - key: NODE_ENV',
+    '        value: production',
+    '      - key: SQLITE_DB_PATH',
+    '        value: /var/data/rateninja.db',
+    '      - key: RATE_NINJA_API_KEY',
+    '        sync: false',
+    '      # Admin reference API / CLI. Set in the dashboard; never commit the value.',
+    '      - key: RATE_NINJA_ADMIN_API_KEY',
+    '        sync: false',
+    '      - key: SESSION_SECRET',
+    '        generateValue: true',
+    '      - key: OAUTH_SIGNING_SECRET',
+    '        generateValue: true',
+    '      # A blueprint sync writes this value over the dashboard. Keep it true',
+    '      # so OceanRelay partner sign-in stays available while testing.',
+    '      - key: PARTNER_OAUTH_ENABLED',
+    '        value: "true"',
+    '      # Set in the Render dashboard. Do not commit the API key or from-address.',
+    '      - key: RESEND_API_KEY',
+    '        sync: false',
+    '      - key: RESEND_FROM',
+    '        sync: false',
+    '      # Reset links use this origin. They do not trust the request Host header.',
+    '      - key: PUBLIC_ORIGIN',
+    '        value: https://rate-ninja.onrender.com',
+    '      - key: FORTEL2_RECEIPT_PRIVATE_KEY',
+    '        sync: false',
+    '      - key: FORTEL2_CF_ACCESS_CLIENT_ID',
+    '        sync: false',
+    '      - key: FORTEL2_CF_ACCESS_CLIENT_SECRET',
+    '        sync: false',
+    '      - key: FORTEL2_CHAIN_ID',
+    '        sync: false',
+    '      - key: FORTEL2_WRITE_RPC_URL',
+    '        sync: false',
+    '      - key: FORTEL2_READ_RPC_URL',
+    '        sync: false',
+    '      - key: FORTEL2_EXPLORER_URL',
+    '        sync: false'
+].join('\n');
 
 function readBlueprint() {
     return fs.readFileSync(path.join(root, 'render.yaml'), 'utf8');
@@ -160,13 +219,10 @@ function startHangingCloudBbs() {
 describe('R1-44 render.yaml cron service', () => {
     it('appends one cron service and leaves the web service env unchanged', () => {
         const blueprint = readBlueprint();
-        const mainBlueprint = execFileSync('git', ['show', 'origin/main:render.yaml'], {
-            cwd: root,
-            encoding: 'utf8'
-        });
         const cron = cronBlocks(blueprint);
         assert.equal(cron.length, 1);
-        assert.equal(cronBlocks(mainBlueprint).length, 0);
+        assert.equal(serviceBlocks(WEB_SERVICE_ON_MAIN).length, 1);
+        assert.equal(cronBlocks(WEB_SERVICE_ON_MAIN).length, 0);
         const block = cron[0];
         assert.equal(field(block, 'name'), CRON_NAME);
         assert.equal(field(block, 'runtime'), 'node');
@@ -207,8 +263,8 @@ describe('R1-44 render.yaml cron service', () => {
             assert.equal(block.includes(key), false, key);
         }
 
-        assert.deepEqual(envEntries(webBlock(blueprint)), envEntries(webBlock(mainBlueprint)));
-        assert.equal(webBlock(blueprint), webBlock(mainBlueprint));
+        assert.equal(webBlock(blueprint), WEB_SERVICE_ON_MAIN);
+        assert.deepEqual(envEntries(webBlock(blueprint)), envEntries(WEB_SERVICE_ON_MAIN));
     });
 });
 
