@@ -2947,3 +2947,14 @@ body {
     white-space: pre-wrap;
     font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
+
+/* R1-49: CloudBBS post action in the managed agent run panel. */
+.agent-run-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.agent-post-result:empty {
+    display: none;
+}

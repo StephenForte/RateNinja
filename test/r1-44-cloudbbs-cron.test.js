@@ -85,6 +85,8 @@ const WEB_SERVICE_ON_MAIN = [
     '      - key: ANTHROPIC_API_KEY',
     '        sync: false',
     '      - key: CLOUDBBS_AGENT_TOKEN',
+    '        sync: false',
+    '      - key: CLOUDBBS_TOKEN',
     '        sync: false'
 ].join('\n');
 

@@ -9,13 +9,7 @@ try {
 
 const readline = require('node:readline');
 const { stdin, stdout, stderr } = require('node:process');
-const {
-    BODY_SIZE_CAP,
-    cloudBbsSettings,
-    buildAnnouncement,
-    collectReferenceReads,
-    putAnnouncement
-} = require('../lib/cloudbbs-post');
+const { cloudBbsSettings, postCloudBbs } = require('../lib/cloudbbs-post');
 const { runClientAgent } = require('../lib/client-agent');
 const { previewManagedAgentPrompts } = require('../lib/managed-agent-prompts');
 const { runManagedAgents } = require('../lib/managed-agent-runner');
@@ -327,16 +321,6 @@ function isAffirmative(answer) {
     return trimmed === 'y' || trimmed === 'yes';
 }
 
-function shortErrorLine(payload, text) {
-    if (payload && payload.error != null && typeof payload.error !== 'object') {
-        return String(payload.error);
-    }
-    if (typeof text === 'string' && text && !text.includes('\n')) {
-        return text;
-    }
-    return 'request_failed';
-}
-
 async function runPostCloudBbs({ confirmed, ask = null }) {
     const settings = cloudBbsSettings();
     if (!settings.token) {
@@ -344,59 +328,27 @@ async function runPostCloudBbs({ confirmed, ask = null }) {
         return 2;
     }
 
-    const adminKey = process.env.RATE_NINJA_ADMIN_API_KEY;
-    const source = baseUrl();
-    let reads;
-    try {
-        reads = await collectReferenceReads({ baseUrl: source, adminKey });
-    } catch (error) {
-        const message = error && error.message ? error.message : String(error);
-        stderr.write(`${message}\n`);
-        return 1;
-    }
-
-    const generatedAt = new Date().toISOString();
-    const announcement = buildAnnouncement({ generatedAt, source, reads });
-    if (announcement.byteLength > BODY_SIZE_CAP) {
-        stderr.write(
-            `Announcement body is ${announcement.byteLength} bytes; CloudBBS cap is ${BODY_SIZE_CAP}. Not posting.\n`
-        );
-        return 1;
-    }
-
-    if (!confirmed) {
-        const prompt =
-            `Replace the announcement on ${settings.url}/${settings.project} ` +
-            `with ${announcement.byteLength} bytes? [y/N] `;
-        const answer = ask ? await ask(prompt) : null;
-        if (!isAffirmative(answer)) {
-            stdout.write('Cancelled.\n');
-            return 0;
+    const result = await postCloudBbs({
+        settings,
+        adminKey: process.env.RATE_NINJA_ADMIN_API_KEY,
+        source: baseUrl(),
+        confirm: confirmed ? undefined : async byteLength => {
+            const prompt =
+                `Replace the announcement on ${settings.url}/${settings.project} ` +
+                `with ${byteLength} bytes? [y/N] `;
+            return isAffirmative(ask ? await ask(prompt) : null);
         }
+    });
+    if (result.cancelled) {
+        stdout.write('Cancelled.\n');
+        return 0;
     }
-
-    let result;
-    try {
-        result = await putAnnouncement({
-            settings,
-            title: announcement.title,
-            body: announcement.body
-        });
-    } catch (error) {
-        const message = error && error.message ? error.message : String(error);
-        stderr.write(`${message}\n`);
-        return 1;
-    }
-
     if (!result.ok) {
-        stderr.write(`${result.status} ${shortErrorLine(result.payload, result.text)}\n`);
+        stderr.write(`${result.cliMessage}\n`);
         return 1;
     }
-
-    const version = result.payload?.version;
-    const updatedAt = result.payload?.updatedAt;
     stdout.write(
-        `Posted to ${settings.project}: version ${version ?? '?'}, updatedAt ${updatedAt ?? '?'}\n`
+        `Posted to ${settings.project}: version ${result.version ?? '?'}, updatedAt ${result.updatedAt ?? '?'}\n`
     );
     return 0;
 }

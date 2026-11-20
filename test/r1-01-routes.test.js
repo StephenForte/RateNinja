@@ -19,6 +19,7 @@ const routeNames = [
     'booking-requests',
     'managed-agents',
     'managed-agent-runs',
+    'cloudbbs-post',
     'partner-bookings',
     'partner',
     'ports',
@@ -186,6 +187,10 @@ describe('r1-01 routes and exact documents', { concurrency: 1 }, () => {
                 assert.deepEqual(mod.routes.map(route => [route.method, route.path, route.access]), [
                     ['GET', '/api/managed-agents/runs/latest', 'session'],
                     ['POST', '/api/managed-agents/runs', 'session']
+                ]);
+            } else if (name === 'cloudbbs-post') {
+                assert.deepEqual(mod.routes.map(route => [route.method, route.path, route.access]), [
+                    ['POST', '/api/managed-agents/cloudbbs-post', 'session']
                 ]);
             } else if (name === 'partner-bookings') {
                 assert.equal(mod.routes.length, 5);
