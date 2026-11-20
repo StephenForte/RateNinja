@@ -190,7 +190,7 @@ function renderRequests(body, requests) {
             mark.textContent = 'Unread';
             status.append(document.createTextNode(' '), mark);
         }
-        if (item.receipt) status.append(receiptStatus(item.receipt));
+        if (item.receipt) status.append(receiptStatus(item.receipt), receiptDetailsControl(item));
         row.append(
             cell(route),
             cell(item.carrier || 'N/A'),
@@ -211,6 +211,128 @@ function renderRequests(body, requests) {
     });
     table.append(thead, tbody);
     body.replaceChildren(table);
+}
+
+const RECEIPT_FIELDS = [
+    ['requestId', 'Request'],
+    ['rateId', 'Rate'],
+    ['carrier', 'Carrier'],
+    ['originPort', 'Origin'],
+    ['destinationPort', 'Destination'],
+    ['containerSize', 'Size'],
+    ['slots', 'Slots'],
+    ['customerPrice', 'Price'],
+    ['status', 'Status'],
+    ['decidedAt', 'Decided at'],
+    ['version', 'Version']
+];
+
+const MISMATCH_PARTS = new Set(['hash', 'input', 'sender', 'chain', 'status']);
+
+function checkWords(check) {
+    if (check?.state === 'verified') return 'Verified on ForteL2';
+    if (check?.state === 'mismatch' && MISMATCH_PARTS.has(check.part)) return `Mismatch: ${check.part}`;
+    if (check?.state === 'not_on_chain') return 'Not on chain yet';
+    return 'Could not check ForteL2';
+}
+
+function fieldText(value) {
+    if (value == null) return '';
+    return String(value);
+}
+
+function httpUrl(value) {
+    if (typeof value !== 'string') return '';
+    try {
+        const url = new URL(value);
+        if (url.protocol !== 'https:' && url.protocol !== 'http:') return '';
+        return url.href;
+    } catch {
+        return '';
+    }
+}
+
+function renderReceiptDetails(panel, payload) {
+    panel.replaceChildren();
+    const verdict = document.createElement('p');
+    verdict.className = 'receipt-details-check';
+    verdict.textContent = checkWords(payload?.check);
+    const fields = document.createElement('div');
+    fields.className = 'receipt-details-fields';
+    const source = payload?.fields && typeof payload.fields === 'object' ? payload.fields : {};
+    RECEIPT_FIELDS.forEach(([key, label]) => {
+        const row = document.createElement('div');
+        row.className = 'receipt-field';
+        const name = document.createElement('span');
+        name.className = 'receipt-field-label';
+        name.textContent = label;
+        const value = document.createElement('span');
+        value.className = 'receipt-field-value';
+        value.textContent = fieldText(source[key]);
+        row.append(name, value);
+        fields.append(row);
+    });
+    const canonical = document.createElement('pre');
+    canonical.className = 'receipt-canonical';
+    canonical.textContent = typeof payload?.canonicalText === 'string' ? payload.canonicalText : '';
+    const hashLabel = document.createElement('p');
+    hashLabel.className = 'receipt-hash-label';
+    hashLabel.textContent = 'Receipt hash';
+    const hashValue = document.createElement('p');
+    hashValue.className = 'receipt-hash-value';
+    hashValue.textContent = typeof payload?.receiptHash === 'string' ? payload.receiptHash : '';
+    const txLabel = document.createElement('p');
+    txLabel.className = 'receipt-tx-label';
+    txLabel.textContent = 'Transaction';
+    const txValue = document.createElement('a');
+    txValue.className = 'receipt-tx-value';
+    txValue.textContent = typeof payload?.txHash === 'string' ? payload.txHash : '';
+    const explorer = httpUrl(payload?.explorerUrl);
+    if (explorer) {
+        txValue.href = explorer;
+        txValue.setAttribute('rel', 'noopener noreferrer');
+    }
+    panel.append(verdict, fields, canonical, hashLabel, hashValue, txLabel, txValue);
+}
+
+function receiptDetailsControl(item) {
+    const wrap = document.createElement('div');
+    wrap.className = 'receipt-details-control';
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'receipt-details-toggle';
+    button.textContent = 'Receipt details';
+    button.setAttribute('aria-expanded', 'false');
+    const panel = document.createElement('div');
+    panel.className = 'receipt-details';
+    panel.hidden = true;
+    button.addEventListener('click', async () => {
+        if (button.disabled) return;
+        button.disabled = true;
+        button.setAttribute('aria-expanded', 'true');
+        panel.hidden = false;
+        panel.replaceChildren();
+        const loading = document.createElement('p');
+        loading.className = 'receipt-details-check';
+        loading.textContent = 'Checking ForteL2…';
+        panel.append(loading);
+        try {
+            const payload = await request(`/api/booking-requests/${encodeURIComponent(item.id)}/receipt`);
+            if (!alive) return;
+            renderReceiptDetails(panel, payload);
+        } catch {
+            if (!alive) return;
+            panel.replaceChildren();
+            const failed = document.createElement('p');
+            failed.className = 'receipt-details-check';
+            failed.textContent = 'Could not load receipt details.';
+            panel.append(failed);
+        } finally {
+            button.disabled = false;
+        }
+    });
+    wrap.append(button, panel);
+    return wrap;
 }
 
 function decisionButton(id, decision, label) {
