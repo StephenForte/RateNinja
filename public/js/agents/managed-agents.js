@@ -493,7 +493,10 @@ function agentGrid(host, edit, remove) {
     return {
         update(nextAgents) {
             agents = nextAgents;
-            expanded.clear();
+            const currentIds = new Set(agents.map(agent => agent.id));
+            for (const id of expanded) {
+                if (!currentIds.has(id)) expanded.delete(id);
+            }
             // An empty refresh carries no new information about which columns were supplied.
             const hasCompany = agents.length ? agents.some(agent => Object.hasOwn(agent, 'companyName')) : Boolean(showCompany);
             if (showCompany !== hasCompany) {
@@ -557,6 +560,7 @@ export async function mount(container) {
     let runState = runsPayload;
     let runBusy = false;
     if (runsPayload) {
+        let polling = false;
         const runHost = document.createElement('section');
         runHost.className = 'agent-run';
         const runButton = button('Run queued agents', () => { startQueuedRun(); }, 'agent-button agent-primary');
@@ -603,17 +607,30 @@ export async function mount(container) {
         }
 
         async function refreshRun() {
-            if (!active) return;
+            if (!active || polling) return;
+            polling = true;
+            const wasRunning = runState?.run?.status === 'running';
+            let payload;
+            let pollError = '';
             try {
-                const payload = await request(`${runsEndpoint}/latest`);
-                if (active) showRun(payload);
-            } catch (error) {
-                if (!active) return;
-                if (error.status !== 403 && error.status !== 401) runAlert.textContent = error.message;
-                if (runState?.run?.status === 'running') {
-                    stopRunTimer();
-                    runTimer = setInterval(() => { refreshRun(); }, RUN_POLL_MS);
+                try {
+                    payload = await request(`${runsEndpoint}/latest`);
+                } catch (error) {
+                    if (error.status !== 403 && error.status !== 401) pollError = error.message;
                 }
+                if (!active) return;
+                if (wasRunning || payload?.run?.status === 'running') {
+                    try {
+                        await refreshList(Boolean(payload && payload.run?.status !== 'running'));
+                    } catch (error) {
+                        pollError = error.message;
+                    }
+                }
+                if (!active) return;
+                if (payload) showRun(payload);
+                if (pollError) runAlert.textContent = pollError;
+            } finally {
+                polling = false;
             }
         }
 
@@ -665,6 +682,29 @@ export async function mount(container) {
         if (!agents.length && options.canManageAgents && !openForm) {
             listHost.append(paragraph('agent-empty', 'No managed agents yet. Select New agent to queue your first search.'));
         }
+    }
+
+    async function refreshList(isFinal) {
+        // Local writes replace the array, invalidating snapshots that started before them.
+        const previous = agents;
+        const payload = await request(endpoint);
+        if (!active) return;
+        if (!Array.isArray(payload?.agents)) throw new Error('Could not refresh managed agents.');
+        if (agents === previous) {
+            agents = payload.agents;
+        } else {
+            if (!isFinal) return;
+            // Keep local mutations and apply the last snapshot to the rest of the grid.
+            const before = new Map(previous.map(agent => [agent.id, agent]));
+            const latest = new Map(payload.agents.map(agent => [agent.id, agent]));
+            for (const agent of agents) {
+                if (before.get(agent.id) !== agent) latest.set(agent.id, agent);
+                before.delete(agent.id);
+            }
+            for (const deletedId of before.keys()) latest.delete(deletedId);
+            agents = [...latest.values()];
+        }
+        renderList();
     }
 
     function closeForm() {
@@ -780,9 +820,14 @@ export async function mount(container) {
 
             if (!active) return;
             setSubmitting(false);
-            agents = agent
-                ? agents.map(item => item.id === agent.id ? result.agent : item)
-                : [...result.agents, ...agents];
+            if (agent) {
+                agents = agents.map(item => item.id === agent.id ? result.agent : item);
+            } else {
+                // A poll can see a committed create before its response reaches this form.
+                const listedIds = new Set(agents.map(item => item.id));
+                const added = result.agents.filter(item => !listedIds.has(item.id));
+                if (added.length) agents = [...added, ...agents];
+            }
             if (keepOpen) {
                 queued += 1;
                 fields.clearSearch();
