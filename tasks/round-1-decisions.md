@@ -1047,7 +1047,7 @@ alive safely. The operator chose a server-side key bound to one buyer account.
   service is unchanged. The Render dashboard's "Trigger run" button gives an on-demand post.
 - **Secrets:** the cron service needs `RATE_NINJA_ADMIN_API_KEY` and `CLOUDBBS_TOKEN` (the
   announcement-capable token), declared `sync: false` and set in the dashboard only. It never gets the
-  FortéL2, Resend, Anthropic or buyer keys.
+  ForteL2, Resend, Anthropic or buyer keys.
 - **Booking code:** every post rotates the code (D-034, D-043), so it now rotates daily at 00:17 UTC
   and also on any manual option 9 or "Trigger run". Agent bookings carrying the previous code fail
   with 403 `invalid_booking_code` within 60 s of a post (the server cache, D-043). Option 12 reads the
