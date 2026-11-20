@@ -147,7 +147,7 @@ it('keeps a local delete and applies other final statuses from the same terminal
     assert.equal(find(container, 'agent-run-status').textContent, 'Status: succeeded');
     await poll(t, 10000);
     assert.equal(requests(listPath), 2);
-    assert.equal(requests(latestPath), 2);
+    assert.equal(requests(latestPath), 3);
 });
 
 it('keeps one copy when a poll sees a newly queued agent before the create response', async t => {

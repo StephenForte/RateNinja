@@ -559,8 +559,10 @@ export async function mount(container) {
     if (!active) return;
     let runState = runsPayload;
     let runBusy = false;
+    let refreshReadiness;
     if (runsPayload) {
         let polling = false;
+        let pendingRefresh;
         const runHost = document.createElement('section');
         runHost.className = 'agent-run';
         const runButton = button('Run queued agents', () => { startQueuedRun(); }, 'agent-button agent-primary');
@@ -575,7 +577,7 @@ export async function mount(container) {
         runHost.append(runButton, runReason, runStatus, runWho, runWhen, runCounts, runAlert, runSummary);
         place(container, runHost, formHost);
 
-        function showRun(payload) {
+        function showRun(payload, keepTimer = false) {
             runState = payload;
             const run = payload.run;
             const readiness = payload.readiness || {};
@@ -600,16 +602,24 @@ export async function mount(container) {
                     : `${count} started. Exit code ${run.exitCode}.`;
                 runSummary.textContent = run.summary || '';
             }
+            if (keepTimer && runTimer && run?.status === 'running') return;
             stopRunTimer();
             if (active && run?.status === 'running') {
                 runTimer = setInterval(() => { refreshRun(); }, RUN_POLL_MS);
             }
         }
 
-        async function refreshRun() {
-            if (!active || polling) return;
+        async function refreshRun(reason) {
+            if (!active) return;
+            if (polling) {
+                // Coalesce explicit refreshes. A run start also needs a grid read.
+                if (reason && pendingRefresh !== 'start') pendingRefresh = reason;
+                return;
+            }
             polling = true;
-            const wasRunning = runState?.run?.status === 'running';
+            const before = runState;
+            const wasRunning = before?.run?.status === 'running';
+            const readinessOnly = reason === 'write';
             let payload;
             let pollError = '';
             try {
@@ -618,19 +628,26 @@ export async function mount(container) {
                 } catch (error) {
                     if (error.status !== 403 && error.status !== 401) pollError = error.message;
                 }
-                if (!active) return;
-                if (wasRunning || payload?.run?.status === 'running') {
+                // A run accepted during this read has already replaced this snapshot.
+                if (!active || runState !== before) return;
+                const isRunning = payload ? payload.run?.status === 'running' : wasRunning;
+                if (wasRunning !== isRunning || (wasRunning && !readinessOnly)) {
                     try {
                         await refreshList(Boolean(payload && payload.run?.status !== 'running'));
                     } catch (error) {
                         pollError = error.message;
                     }
                 }
-                if (!active) return;
-                if (payload) showRun(payload);
+                if (!active || runState !== before) return;
+                if (payload) showRun(payload, readinessOnly);
                 if (pollError) runAlert.textContent = pollError;
             } finally {
                 polling = false;
+                if (pendingRefresh) {
+                    const next = pendingRefresh;
+                    pendingRefresh = undefined;
+                    refreshRun(next);
+                }
             }
         }
 
@@ -656,7 +673,7 @@ export async function mount(container) {
                         }
                     });
                 }
-                return refreshRun();
+                return refreshRun('start');
             }).catch(error => {
                 runBusy = false;
                 if (!active) return;
@@ -666,6 +683,7 @@ export async function mount(container) {
         }
 
         showRun(runsPayload);
+        refreshReadiness = () => { refreshRun('write'); };
     }
     let busy = false;
     let openForm = null;
@@ -724,6 +742,7 @@ export async function mount(container) {
             if (openForm?.agentId === agent.id) closeForm();
             renderList();
             announcement.textContent = 'Agent deleted.';
+            refreshReadiness?.();
             if (!openForm) newButton.focus();
         } catch (error) {
             if (active) pageError.show(error.message);
@@ -827,6 +846,7 @@ export async function mount(container) {
                 const listedIds = new Set(agents.map(item => item.id));
                 const added = result.agents.filter(item => !listedIds.has(item.id));
                 if (added.length) agents = [...added, ...agents];
+                refreshReadiness?.();
             }
             if (keepOpen) {
                 queued += 1;
