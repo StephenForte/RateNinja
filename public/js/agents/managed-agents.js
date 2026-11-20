@@ -606,7 +606,12 @@ export async function mount(container) {
                 const payload = await request(`${runsEndpoint}/latest`);
                 if (active) showRun(payload);
             } catch (error) {
-                if (active && error.status !== 403 && error.status !== 401) pageError.show(error.message);
+                if (!active) return;
+                if (error.status !== 403 && error.status !== 401) pageError.show(error.message);
+                if (runState?.run?.status === 'running') {
+                    stopRunTimer();
+                    runTimer = setInterval(() => { refreshRun(); }, RUN_POLL_MS);
+                }
             }
         }
 
@@ -619,9 +624,20 @@ export async function mount(container) {
             runBusy = true;
             runButton.disabled = true;
             pageError.hide();
-            request(runsEndpoint, { method: 'POST', body: '{}' }).then(() => {
+            request(runsEndpoint, { method: 'POST', body: '{}' }).then(body => {
                 runBusy = false;
-                if (active) return refreshRun();
+                if (!active) return;
+                if (body?.run?.status === 'running') {
+                    showRun({
+                        run: body.run,
+                        readiness: {
+                            ...(runState?.readiness || {}),
+                            runInProgress: true,
+                            disabledReason: 'A run is already in progress.'
+                        }
+                    });
+                }
+                return refreshRun();
             }).catch(error => {
                 runBusy = false;
                 if (!active) return;

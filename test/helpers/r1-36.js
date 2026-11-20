@@ -55,8 +55,10 @@ async function mountGrid(t, agents, onRequest = () => assert.fail('unexpected mu
     t.mock.method(global, 'fetch', async (path, options) => {
         if (path.endsWith('/options')) return Response.json({ canManageAgents: true });
         if (path === '/api/managed-agents/runs/latest') {
-            if (!runs) return Response.json({ error: 'System admin access is required.' }, { status: 403 });
-            return Response.json(runs);
+            const payload = typeof runs === 'function' ? await runs() : runs;
+            if (!payload) return Response.json({ error: 'System admin access is required.' }, { status: 403 });
+            if (payload instanceof Response) return payload;
+            return Response.json(payload);
         }
         if (path === '/api/managed-agents/runs' && options?.method === 'POST') return onRequest(path, options);
         if (path === '/api/managed-agents' && !options?.method) return Response.json({ agents });

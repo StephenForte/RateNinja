@@ -216,4 +216,34 @@ describe('r1-45 managed agent runs', () => {
         const latest = await (await app.request('/api/managed-agents/runs/latest')).json();
         assertNoSecrets(JSON.stringify(latest));
     });
+
+    it('fails agents already started when the runner throws', async () => {
+        const adminId = app.db.prepare('SELECT id FROM users WHERE username = ?').get(app.username).id;
+        insertAgent(app.db, { id: 'r145-thrown', companyId: app.company.id, userId: adminId, status: 'running' });
+        insertAgent(app.db, {
+            id: 'r145-kept', companyId: app.company.id, userId: adminId, status: 'completed', summary: 'kept'
+        });
+        insertAgent(app.db, { id: 'r145-other', companyId: app.company.id, userId: adminId, status: 'running' });
+        runs.setTestRunner(async options => {
+            await options.onAgentStarted('r145-thrown');
+            throw new Error('boom after start');
+        });
+        const response = await post();
+        assert.equal(response.status, 202);
+        const done = await until(() => {
+            const row = runRow();
+            return row.status === 'failed' ? row : null;
+        });
+        assert.match(done.summary, /boom after start/);
+        const agents = app.db.prepare(
+            "SELECT id, status, result_summary FROM managed_agents WHERE id IN ('r145-thrown', 'r145-kept', 'r145-other') ORDER BY id"
+        ).all().map(row => ({ id: row.id, status: row.status, summary: row.result_summary }));
+        assert.deepEqual(agents, [
+            { id: 'r145-kept', status: 'completed', summary: 'kept' },
+            { id: 'r145-other', status: 'running', summary: null },
+            { id: 'r145-thrown', status: 'failed', summary: 'Run interrupted before this agent finished.' }
+        ]);
+        const health = await app.request('/api/health');
+        assert.equal(health.status, 200);
+    });
 });

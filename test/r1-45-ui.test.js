@@ -78,4 +78,37 @@ describe('r1-45 run button', () => {
         assert.match(walk(container).find(node => node.className === 'agent-run-who').textContent, /Synthetic Admin/);
         assert.match(walk(container).find(node => node.className === 'agent-run-counts').textContent, /2 started/);
     });
+
+    it('keeps the accepted run on screen when the follow-up refresh fails', async t => {
+        let reads = 0;
+        const accepted = {
+            id: 'run-new',
+            status: 'running',
+            startedBy: 'Synthetic Admin',
+            startedAt: '2026-11-20T12:00:00.000Z',
+            finishedAt: null,
+            exitCode: null,
+            startedAgentIds: ['a'],
+            summary: ''
+        };
+        const container = await mountGrid(
+            t,
+            [],
+            () => Response.json({ run: accepted }),
+            () => {
+                reads += 1;
+                if (reads === 1) return readiness();
+                return Response.json({ error: 'Temporary failure.' }, { status: 503 });
+            }
+        );
+        button(container).events.click();
+        await new Promise(resolve => setTimeout(resolve, 30));
+        assert.equal(walk(container).find(node => node.className === 'agent-run-status').textContent, 'Status: running');
+        assert.equal(button(container).disabled, true);
+        assert.equal(
+            walk(container).find(node => node.className === 'agent-run-reason').textContent,
+            'A run is already in progress.'
+        );
+        assert.match(walk(container).find(node => node.className === 'agent-run-counts').textContent, /1 started/);
+    });
 });
