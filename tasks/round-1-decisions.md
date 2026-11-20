@@ -1035,3 +1035,24 @@ alive safely. The operator chose a server-side key bound to one buyer account.
   day after the R1-43 worker stopped: the first wording ("starts with") also picked "Bobby", which the
   R1-42 tests keep unselected on purpose.
 - **Not now:** choosing counts or price levels, saved queries for sample agents, deleting samples.
+
+### D-047 — Daily CloudBBS post as a Render Cron Job at 00:17 UTC (2026-11-20, operator request; amends D-043 "Not now")
+
+- **Why:** operator: "The post info to CloudBBS option in the terminal option 9, I would like to also
+  be able to do that up on Render, potentially automate it, i.e have it run once a day."
+- **How (operator: Render Cron Job):** a second service in `render.yaml`, type `cron`, runs the
+  existing one-shot command `node scripts/rateninja-admin.js post-cloudbbs --yes` on schedule
+  `17 0 * * *` (00:17 UTC daily, operator's time). It reads production through the admin reference API
+  over HTTPS, exactly as the operator's laptop does, and replaces the `rn` announcement. The web
+  service is unchanged. The Render dashboard's "Trigger run" button gives an on-demand post.
+- **Secrets:** the cron service needs `RATE_NINJA_ADMIN_API_KEY` and `CLOUDBBS_TOKEN` (the
+  announcement-capable token), declared `sync: false` and set in the dashboard only. It never gets the
+  FortéL2, Resend, Anthropic or buyer keys.
+- **Booking code:** every post rotates the code (D-034, D-043), so it now rotates daily at 00:17 UTC
+  and also on any manual option 9 or "Trigger run". Agent bookings carrying the previous code fail
+  with 403 `invalid_booking_code` within 60 s of a post (the server cache, D-043). Option 12 reads the
+  code once per run, so a run spanning 00:17 UTC can see later bookings refused; schedule runs away
+  from it.
+- **Failure:** a failed post (reference read, size limit, CloudBBS error) leaves the previous
+  announcement and code in place, and the run must exit non-zero so Render marks it failed.
+- **Not now:** alerts on a failed run, more than one post a day, posting from inside the web service.
