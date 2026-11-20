@@ -17,6 +17,10 @@ function element(tag) {
                 this.children.push(child);
             }
         },
+        prepend(child) {
+            this.append(child);
+            this.children.unshift(this.children.pop());
+        },
         replaceChildren(...children) {
             while (this.children.length) this.children[0].remove();
             this.append(...children);
@@ -38,7 +42,7 @@ function byClass(node, name) {
     return node.className?.split(' ').includes(name);
 }
 
-async function mountGrid(t, agents, onRequest = () => assert.fail('unexpected mutation'), runs = null) {
+async function mountGrid(t, agents, onRequest = () => assert.fail('unexpected mutation'), runs = null, formOptions = {}) {
     const globals = {
         document: { createElement: element, createTextNode: value => Object.assign(element('#text'), { textContent: value }) },
         Option: function (label, value) { return Object.assign(element('option'), { textContent: label, value }); },
@@ -53,7 +57,9 @@ async function mountGrid(t, agents, onRequest = () => assert.fail('unexpected mu
         });
     }
     t.mock.method(global, 'fetch', async (path, options) => {
-        if (path.endsWith('/options')) return Response.json({ canManageAgents: true });
+        if (path.endsWith('/options')) return Response.json({
+            canManageAgents: true, rateTypes: [], containerTypes: [], lanes: [], savedQueries: [], ...formOptions
+        });
         if (path === '/api/managed-agents/runs/latest') {
             const payload = typeof runs === 'function' ? await runs() : runs;
             if (!payload) return Response.json({ error: 'System admin access is required.' }, { status: 403 });
@@ -61,7 +67,10 @@ async function mountGrid(t, agents, onRequest = () => assert.fail('unexpected mu
             return Response.json(payload);
         }
         if (path === '/api/managed-agents/runs' && options?.method === 'POST') return onRequest(path, options);
-        if (path === '/api/managed-agents' && !options?.method) return Response.json({ agents });
+        if (path === '/api/managed-agents' && !options?.method) {
+            const rows = typeof agents === 'function' ? await agents() : agents;
+            return rows instanceof Response ? rows : Response.json({ agents: rows });
+        }
         return onRequest(path, options);
     });
     const container = element('main');

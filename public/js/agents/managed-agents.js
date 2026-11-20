@@ -493,7 +493,10 @@ function agentGrid(host, edit, remove) {
     return {
         update(nextAgents) {
             agents = nextAgents;
-            expanded.clear();
+            const currentIds = new Set(agents.map(agent => agent.id));
+            for (const id of expanded) {
+                if (!currentIds.has(id)) expanded.delete(id);
+            }
             // An empty refresh carries no new information about which columns were supplied.
             const hasCompany = agents.length ? agents.some(agent => Object.hasOwn(agent, 'companyName')) : Boolean(showCompany);
             if (showCompany !== hasCompany) {
@@ -557,6 +560,7 @@ export async function mount(container) {
     let runState = runsPayload;
     let runBusy = false;
     if (runsPayload) {
+        let polling = false;
         const runHost = document.createElement('section');
         runHost.className = 'agent-run';
         const runButton = button('Run queued agents', () => { startQueuedRun(); }, 'agent-button agent-primary');
@@ -603,17 +607,30 @@ export async function mount(container) {
         }
 
         async function refreshRun() {
-            if (!active) return;
+            if (!active || polling) return;
+            polling = true;
+            const wasRunning = runState?.run?.status === 'running';
+            let payload;
+            let pollError = '';
             try {
-                const payload = await request(`${runsEndpoint}/latest`);
-                if (active) showRun(payload);
-            } catch (error) {
-                if (!active) return;
-                if (error.status !== 403 && error.status !== 401) runAlert.textContent = error.message;
-                if (runState?.run?.status === 'running') {
-                    stopRunTimer();
-                    runTimer = setInterval(() => { refreshRun(); }, RUN_POLL_MS);
+                try {
+                    payload = await request(`${runsEndpoint}/latest`);
+                } catch (error) {
+                    if (error.status !== 403 && error.status !== 401) pollError = error.message;
                 }
+                if (!active) return;
+                if (wasRunning || payload?.run?.status === 'running') {
+                    try {
+                        await refreshList();
+                    } catch (error) {
+                        pollError = error.message;
+                    }
+                }
+                if (!active) return;
+                if (payload) showRun(payload);
+                if (pollError) runAlert.textContent = pollError;
+            } finally {
+                polling = false;
             }
         }
 
@@ -665,6 +682,15 @@ export async function mount(container) {
         if (!agents.length && options.canManageAgents && !openForm) {
             listHost.append(paragraph('agent-empty', 'No managed agents yet. Select New agent to queue your first search.'));
         }
+    }
+
+    async function refreshList() {
+        // Local writes replace the array, invalidating snapshots that started before them.
+        const previous = agents;
+        const { agents: latest } = await request(endpoint);
+        if (!active || agents !== previous) return;
+        agents = latest;
+        renderList();
     }
 
     function closeForm() {
@@ -780,9 +806,13 @@ export async function mount(container) {
 
             if (!active) return;
             setSubmitting(false);
-            agents = agent
-                ? agents.map(item => item.id === agent.id ? result.agent : item)
-                : [...result.agents, ...agents];
+            if (agent) {
+                agents = agents.map(item => item.id === agent.id ? result.agent : item);
+            } else {
+                // A poll can see a committed create before its response reaches this form.
+                const listedIds = new Set(agents.map(item => item.id));
+                agents = [...result.agents.filter(item => !listedIds.has(item.id)), ...agents];
+            }
             if (keepOpen) {
                 queued += 1;
                 fields.clearSearch();
