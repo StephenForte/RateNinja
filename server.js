@@ -380,7 +380,17 @@ async function handlePublicRates(request, response, url) {
     const page = parsePageNumber(url.searchParams.get('page'), 1, 10_000);
     const pageSize = parsePageNumber(url.searchParams.get('pageSize'), 50, 100);
     const { rates: records, total } = queryPublicRates({ carrier, originPort, destinationPort, page, pageSize });
-    const rates = records.map(record => mapRateRecord(record, null));
+    const rates = records.map(record => {
+        const mapped = mapRateRecord(record, null);
+        const row = {};
+        for (const [key, value] of Object.entries(mapped)) {
+            row[key] = value;
+            if (key === 'rateExpirationDate') {
+                row.maxSlotsAllowed = record.maxSlotsAllowed == null ? null : record.maxSlotsAllowed;
+            }
+        }
+        return row;
+    });
     sendJson(response, 200, {
         data: rates,
         meta: { total, page, pageSize, returned: rates.length }

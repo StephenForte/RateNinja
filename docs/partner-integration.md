@@ -188,7 +188,7 @@ MCP checks the tool arguments before the tool runs. `page` outside 1..10000, `pa
 | Session `GET /api/sailings` | Required `carrier`, `originPort`, and `after`. Case-insensitive exact match on the rows that account can see. The 400 text is `Carrier, origin port, and effective date are required.` The query parameter is still `after` |
 | Session `GET /api/rates/predictive` | Required `after`. Same 90-day rule |
 
-Demo rate objects use `notes1`, `rateType`, and no `source` field. Partner rate objects use `notes` and `source`. Session rate objects add `ownerCompanyName`.
+Demo rate objects use `notes1`, `rateType`, and no `source` field. Each `GET /api/v1/rates` row includes `maxSlotsAllowed` (an integer, or null when never set) immediately after `rateExpirationDate`. Partner rate objects use `notes` and `source`. Session rate objects add `ownerCompanyName`.
 
 ## API-to-tool coverage
 
@@ -521,7 +521,7 @@ Read the current nine-character code from the [CloudBBS rn announcement](https:/
 
 Customer rate and booking responses never receive base prices, margins or owner company ids. Customer REST sailing list rows match the session view, including its ownerCompanyId field. Owner rates, single sailings, predictive pricing, sailing date ranges, predictive date ranges and decisions return 403 owner_only to customer OAuth tokens. MCP sailing tools remain owner-only. Owners receive 403 customer_only on available-rates and create. MCP calls enforce company type before scopes and arguments; tools/list shows customers profile, the four current-rate reference lookups (rate-date-ranges, origin-ports, destination-ports, contract-owners), available rates, booking list, booking read and booking create. Owner discovery keeps the prior owner tools and adds the six reference lookups. Create annotations are readOnlyHint false, destructiveHint false and idempotentHint false; the tool changes data. The available-rates list is read-only. Company type is live on each call. Scopes remain independently required, and discovery advertises all five scopes. Connected apps lets both supported types list and revoke grants; revoked credentials stop working.
 
-Current-rate reference lookups (rate-date-ranges, origin-ports, destination-ports, contract-owners) use the same linked-owner current-rate set as available-rates for customers and the owner's own current rates for owners. A rate is current when it is not soft-deleted and its expiration allows use today in UTC (blank expiration or expiring today qualifies); rates not yet effective are included. These responses never include prices.
+Current-rate reference lookups (rate-date-ranges, origin-ports, destination-ports, contract-owners) use the same linked-owner current-rate set as available-rates for customers and the owner's own current rates for owners. A rate is current when it is not soft-deleted and its expiration allows use today in UTC (blank expiration or expiring today qualifies); rates not yet effective are included. These responses never include prices. Each rate-date-range row includes `maxSlotsAllowedMin` and `maxSlotsAllowedMax` immediately after `rateCount`: the lowest and highest non-null max slots among the grouped rates, or null and null when every grouped rate is null.
 
 ### ForteL2 approval receipts
 
