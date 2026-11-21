@@ -223,6 +223,33 @@ describe('r1-60 owner max slots', { concurrency: 1 }, () => {
         assert.equal(stored.row_version, before.row_version + 2);
     });
 
+    it('keeps the current max when an older undo snapshot has no max slots column', async () => {
+        insertRate(app.db, {
+            id: 'r160-legacy-undo',
+            owner: app.company.id,
+            expiration: utcDay(40),
+            maxSlotsAllowed: 4
+        });
+        const before = row('r160-legacy-undo');
+        const saved = await patch(before.row_version, { maxSlotsAllowed: 9 }, 'r160-legacy-undo');
+        assert.equal(saved.status, 200, saved.text);
+        assert.equal(row('r160-legacy-undo').max_slots_allowed, 9);
+        const item = app.db.prepare(`SELECT prior_json FROM data_operation_items WHERE operation_id = ?`).get(saved.body.operationId);
+        const prior = JSON.parse(item.prior_json);
+        delete prior.max_slots_allowed;
+        app.db.prepare(`UPDATE data_operation_items SET prior_json = ? WHERE operation_id = ?`).run(
+            JSON.stringify(prior),
+            saved.body.operationId
+        );
+        const undone = await readJson(await app.request(`/api/admin/data/operations/${saved.body.operationId}/undo`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ submissionId: 'r160-legacy-undo', companyId: app.company.id })
+        }));
+        assert.equal(undone.status, 200, undone.text);
+        assert.equal(row('r160-legacy-undo').max_slots_allowed, 9);
+    });
+
     it('still lets a blank import cell draw a trigger value from 0 to 5', async () => {
         const headers = ['Origin Port', 'Destination Port/Via Port', 'Carrier', '20D Rate', 'Effective Date', 'Expiry Date', 'Max Slots Allowed'];
         const mapping = headers.map(header => ({
