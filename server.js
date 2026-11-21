@@ -581,6 +581,14 @@ async function handleAdminClientRotate(request, response, session, clientId) {
     sendJson(response, 200, { client: result.client, clientSecret: result.clientSecret }, securityHeaders());
 }
 
+function handleAdminClientDelete(request, response, session, clientId) {
+    if (!requireSystemAdmin(response, session)) return;
+    if (!requireCsrf(request, response, session)) return;
+    const result = oauth.deleteClient(clientId, session.user.id);
+    if (!result.ok) return sendError(response, result.status, result.error);
+    sendJson(response, 200, { ok: true }, securityHeaders());
+}
+
 function sendOAuthResult(response, result) {
     if (result.type === 'redirect') return redirectTo(response, result.location);
     if (result.type === 'login') return redirectTo(response, `/login?next=${encodeURIComponent(result.next)}`);
@@ -1079,6 +1087,7 @@ const server = http.createServer(async (request, response) => {
         if (clientRotateMatch && request.method === 'POST') return handleAdminClientRotate(request, response, session, clientRotateMatch[1]);
         const clientMatch = pathname.match(/^\/api\/admin\/oauth-clients\/([\w-]+)$/);
         if (clientMatch && request.method === 'PATCH') return handleAdminClientUpdate(request, response, session, clientMatch[1]);
+        if (clientMatch && request.method === 'DELETE') return handleAdminClientDelete(request, response, session, clientMatch[1]);
         if (session && await dispatchModuleRoute(request, response, pathname, 'session', session)) return;
         if (pathname.startsWith('/api/') || pathname.startsWith('/oauth/')) return sendError(response, 404, 'API route not found.');
         if (await serveExactDocument(response, staticPathFromRequest(request.url))) return;
