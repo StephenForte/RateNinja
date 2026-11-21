@@ -41,6 +41,19 @@ function priorMigrations(directory) {
     return prior;
 }
 
+// 018 rewrites the CHECK and the insert trigger. These tests still boot a
+// database whose newest migration is 017, so they keep asserting 017 itself.
+function migrationsThrough017(directory) {
+    const dest = path.join(directory, 'through-017');
+    fs.mkdirSync(dest, { recursive: true });
+    for (const name of fs.readdirSync(migrations)) {
+        if (/^\d{3}-.+\.js$/.test(name) && name < '018') {
+            fs.copyFileSync(path.join(migrations, name), path.join(dest, name));
+        }
+    }
+    return dest;
+}
+
 function rateBodies(db) {
     const columns = db.prepare('PRAGMA table_info(rates)').all()
         .map(column => column.name)
@@ -115,7 +128,8 @@ describe('r1-54 max slots allowed', { concurrency: 1 }, () => {
             db.close();
             db = null;
 
-            boot(dbPath, migrations);
+            const through017 = migrationsThrough017(directory);
+            boot(dbPath, through017);
             db = new DatabaseSync(dbPath);
             assert.deepEqual(rateBodies(db), before);
             const filled = slotValues(db);
@@ -168,7 +182,7 @@ describe('r1-54 max slots allowed', { concurrency: 1 }, () => {
             db.close();
             db = null;
 
-            boot(dbPath, migrations);
+            boot(dbPath, through017);
             db = new DatabaseSync(dbPath);
             assert.deepEqual(rateBodies(db), bodiesBeforeRerun);
             assert.equal(db.prepare(`SELECT max_slots_allowed FROM rates WHERE id = ?`).get(keptId).max_slots_allowed, keptValue);
@@ -207,7 +221,7 @@ describe('r1-54 max slots allowed', { concurrency: 1 }, () => {
             db.close();
             db = null;
 
-            boot(dbPath, migrations);
+            boot(dbPath, migrationsThrough017(directory));
             db = new DatabaseSync(dbPath);
             assert.deepEqual(rateBodies(db), before);
             assert.equal(db.prepare(`SELECT max_slots_allowed, row_version FROM rates WHERE id = 'preset'`).get().max_slots_allowed, 9);
@@ -249,7 +263,8 @@ describe('r1-54 max slots allowed', { concurrency: 1 }, () => {
             `).run();
             db.close();
             db = null;
-            boot(dbPath, migrations);
+            const through017 = migrationsThrough017(directory);
+            boot(dbPath, through017);
             db = new DatabaseSync(dbPath);
             const existingBefore = db.prepare(`SELECT * FROM rates ORDER BY id`).all();
             const existingSlots = existingBefore.map(row => ({ id: row.id, max_slots_allowed: row.max_slots_allowed }));
@@ -376,6 +391,7 @@ describe('r1-54 max slots allowed', { concurrency: 1 }, () => {
                     ...process.env,
                     NODE_ENV: 'test',
                     SQLITE_DB_PATH: dbPath,
+                    MIGRATIONS_DIR: through017,
                     SESSION_SECRET: 'test-session-secret-value-which-is-long',
                     OAUTH_SIGNING_SECRET: 'test-oauth-signing-secret-value-long'
                 },

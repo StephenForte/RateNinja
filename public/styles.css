@@ -3041,3 +3041,9 @@ body {
 .admin-form .oauth-scope-fields label {
     display: block;
 }
+
+.booking-request-btn:disabled {
+    background: #d9e2ec;
+    color: #627d98;
+    cursor: not-allowed;
+}
