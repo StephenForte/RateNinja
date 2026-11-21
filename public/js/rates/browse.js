@@ -454,7 +454,7 @@ function visibleColumns() {
 }
 
 function columnCount() {
-    return visibleColumns().length + (state.canBook ? 1 : 0);
+    return visibleColumns().length + (state.canBook ? 2 : 0);
 }
 
 function rateIsExpired(rate) {
@@ -503,6 +503,9 @@ function renderHeader() {
         row.append(cell);
     });
     if (state.canBook) {
+        const slots = document.createElement('th');
+        slots.textContent = 'Max slots';
+        row.append(slots);
         const action = document.createElement('th');
         action.textContent = 'Booking';
         row.append(action);
@@ -594,9 +597,20 @@ function createRateRow(rate) {
             cells.push(cell);
         }
     }
-    if (state.canBook) cells.push(bookingCell(rate));
+    if (state.canBook) {
+        cells.push(maxSlotsCell(rate));
+        cells.push(bookingCell(rate));
+    }
     row.append(...cells);
     return row;
+}
+
+function maxSlotsCell(rate) {
+    const cell = document.createElement('td');
+    cell.className = 'max-slots';
+    const value = rate.maxSlotsAllowed;
+    cell.textContent = value == null ? '—' : String(value);
+    return cell;
 }
 
 function bookingCell(rate) {
@@ -607,7 +621,12 @@ function bookingCell(rate) {
     button.type = 'button';
     button.className = 'booking-request-btn';
     button.textContent = 'Request booking';
-    button.addEventListener('click', () => openBookingDialog(rate));
+    if (rate.maxSlotsAllowed === 0) {
+        button.disabled = true;
+        button.title = 'No slots available';
+    } else {
+        button.addEventListener('click', () => openBookingDialog(rate));
+    }
     cell.append(button);
     return cell;
 }
