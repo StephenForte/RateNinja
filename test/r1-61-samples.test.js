@@ -83,3 +83,40 @@ it('returns 422 and queues nothing when the only matching rate has a zero maximu
     const count = app.db.prepare('SELECT count(*) AS n FROM managed_agents WHERE created_by_user_id = ?').get(userId);
     assert.equal(count.n, 0);
 });
+
+it('excludes sample lanes where a matching rate can take all 12 slots', async () => {
+    app.db.exec(`
+        UPDATE rates SET max_slots_allowed = 0 WHERE id LIKE 'sample-%';
+        UPDATE rates SET max_slots_allowed = 3 WHERE id IN ('sample-sha-oak-low', 'sample-sha-lax-low');
+        UPDATE rates SET max_slots_allowed = NULL WHERE id = 'sample-sha-oak-high';
+    `);
+    const userId = world.users.testBuyer.id;
+    const seed = 'r1-61-baseline';
+    const preview = managedAgents.previewSampleAgents(userId, { seed });
+    assert.deepEqual(preview.agents.slice(3).map(agent => agent.destinationPort), ['LAX', 'LAX']);
+
+    app.db.exec("UPDATE rates SET max_slots_allowed = 0 WHERE id = 'sample-sha-lax-low'");
+    const setMixedMax = app.db.prepare("UPDATE rates SET max_slots_allowed = ? WHERE id = 'sample-sha-oak-high'");
+    for (const max of [null, 12]) {
+        setMixedMax.run(max);
+        assert.throws(() => managedAgents.previewSampleAgents(userId, { seed }), { status: 422 });
+        const response = await app.request(ROOT + '/samples', {
+            method: 'POST', body: JSON.stringify({ userId, seed }),
+            headers: { 'x-admin-api-key': ADMIN_KEY, 'content-type': 'application/json' },
+            cookie: false, csrf: false
+        });
+        assert.equal(response.status, 422);
+        assert.equal(app.db.prepare('SELECT count(*) AS n FROM managed_agents WHERE created_by_user_id = ?').get(userId).n, 0);
+    }
+
+    app.db.prepare(`
+        UPDATE rates SET rate_effective_date = ?, rate_expiration_date = ?
+        WHERE id = 'sample-sha-oak-high'
+    `).run(utcDay(1), utcDay(19));
+    for (const [draw, day] of [[0, 0], [0.999, 20]]) {
+        const { agents } = managedAgents.previewSampleAgents(userId, { random: () => draw });
+        assert.deepEqual(agents.slice(3).map(agent => [agent.destinationPort, agent.sailingDate]), [
+            ['OAK', utcDay(day)], ['OAK', utcDay(day)]
+        ]);
+    }
+});
