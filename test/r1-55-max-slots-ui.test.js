@@ -286,8 +286,8 @@ function copyMigrations(directory, newest) {
     return dest;
 }
 
-describe('r1-55 session rates field stays off the other surfaces', { concurrency: 1 }, () => {
-    it('adds maxSlotsAllowed only to a customer GET /api/rates', () => {
+describe('r1-55 rate responses across the migration to allow zero slots', { concurrency: 1 }, () => {
+    it('preserves slot limits on customer session, partner REST and MCP rates', () => {
         const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'rateninja-r155-surface-'));
         const dbPath = path.join(directory, 'app.db');
         const script = `
@@ -471,14 +471,16 @@ describe('r1-55 session rates field stays off the other surfaces', { concurrency
             assert.equal(after.zeroCustomer.rates.find(rate => rate.id === 'rate-three').maxSlotsAllowed, 3);
             assert.equal(before.zeroCustomer, null);
             for (const rate of after.available.data) {
-                assert.equal(Object.hasOwn(rate, 'maxSlotsAllowed'), false);
+                assert.equal(rate.maxSlotsAllowed, after.customer.rates.find(row => row.id === rate.id).maxSlotsAllowed);
                 assert.equal(Object.hasOwn(rate, 'max_slots_allowed'), false);
             }
             for (const rate of after.owner.rates) {
                 assert.equal(Object.hasOwn(rate, 'maxSlotsAllowed'), false);
             }
             assert.equal(JSON.stringify(after.predictiveCustomer).includes('maxSlotsAllowed'), false);
-            assert.equal(JSON.stringify(after.mcp).includes('maxSlotsAllowed'), false);
+            for (const rate of after.mcp.data) {
+                assert.equal(rate.maxSlotsAllowed, after.customer.rates.find(row => row.id === rate.id).maxSlotsAllowed);
+            }
         } finally {
             fs.rmSync(directory, { recursive: true, force: true });
         }

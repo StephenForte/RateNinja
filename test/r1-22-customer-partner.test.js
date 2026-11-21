@@ -118,7 +118,7 @@ describe('R1-22 customer partner boundary', { concurrency: 1 }, () => {
             const appRate = grid.json.rates.find(r => r.id === rate.id);
             for (const key of ['rate20D', 'rate40D', 'rate40HC']) assert.equal(rate[key], appRate[key]);
             assert.equal(rate.bookable, !['expired', 'no-price'].includes(rate.id));
-            assert.deepEqual(Object.keys(rate).sort(), ['id', 'carrier', 'originPort', 'destinationPort', 'inlandDeliveryLocation', 'commodityType', 'contractOwner', 'ownerCompanyName', 'contractNumber', 'rate20D', 'rate40D', 'rate40HC', 'rateEffectiveDate', 'rateExpirationDate', 'notes', 'bookable'].sort());
+            assert.deepEqual(Object.keys(rate).sort(), ['id', 'carrier', 'originPort', 'destinationPort', 'inlandDeliveryLocation', 'commodityType', 'contractOwner', 'ownerCompanyName', 'contractNumber', 'rate20D', 'rate40D', 'rate40HC', 'rateEffectiveDate', 'rateExpirationDate', 'maxSlotsAllowed', 'notes', 'bookable'].sort());
         }
         const filtered = await get(token.access_token, `${ROOT}/available-rates?carrier=msc&originPort=sha&destinationPort=lax&page=2&pageSize=2`);
         assert.equal(filtered.body.meta.total, 5); assert.equal(filtered.body.data.length, 2);
