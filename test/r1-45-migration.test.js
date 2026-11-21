@@ -33,9 +33,13 @@ function snapshot(db) {
     return Object.fromEntries(db.prepare("SELECT name FROM sqlite_schema WHERE type = 'table' ORDER BY name").all()
         .flatMap(({ name }) => {
             if (name === 'managed_agent_runs') return [];
-            const filter = name === 'schema_migrations' ? " WHERE id <> '016'" : '';
+            const filter = name === 'schema_migrations' ? " WHERE id NOT IN ('016', '017')" : '';
             const table = '"' + name.replaceAll('"', '""') + '"';
-            return [[name, db.prepare(`SELECT * FROM ${table}${filter}`).all()]];
+            const rows = db.prepare(`SELECT * FROM ${table}${filter}`).all();
+            if (name === 'rates') {
+                for (const row of rows) delete row.max_slots_allowed;
+            }
+            return [[name, rows]];
         }));
 }
 
