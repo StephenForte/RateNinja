@@ -90,7 +90,7 @@ it('lists only active customer-company users and requires the admin key', async 
     assert.equal(leaksBasePrice(json, BASE_LOW), false);
 });
 
-it('creates three customer-priced sample agents or nothing', async () => {
+it('creates five customer-priced sample agents or nothing', async () => {
     const userId = world.users.alan.id;
     assert.equal((await admin('/samples')).status, 400);
     assert.equal((await admin('/samples', { method: 'POST', body: {} })).status, 400);
@@ -109,14 +109,16 @@ it('creates three customer-priced sample agents or nothing', async () => {
     assert.equal(created.status, 201, created.text);
     assert.equal(created.json.userId, userId);
     assert.equal(created.json.companyId, world.companies.blackwater);
-    assert.equal(created.json.agents.length, 3);
-    assert.deepEqual(created.json.agents.map(agent => agent.sampleKind), ['lowball', 'regular', 'no_booking']);
+    assert.equal(created.json.agents.length, 5);
+    assert.deepEqual(created.json.agents.map(agent => agent.sampleKind), [
+        'lowball', 'regular', 'no_booking', 'slots_over_skip', 'slots_over_accept'
+    ]);
     assert.equal(leaksBasePrice(created.json, BASE_HIGH), false);
     assert.equal(leaksBasePrice(created.json, BASE_LOW), false);
     assert.equal(leaksBasePrice(created.json, EXPIRED_BASE), false);
 
     const rows = app.db.prepare('SELECT * FROM managed_agents WHERE created_by_user_id = ? ORDER BY rowid').all(userId);
-    assert.equal(rows.length, 3);
+    assert.equal(rows.length, 5);
     assert.equal(new Set(rows.map(row => row.batch_id)).size, 1);
     assert.ok(rows.every(row => row.company_id === world.companies.blackwater));
     const today = new Date().toISOString().slice(0, 10);
@@ -144,7 +146,12 @@ it('creates three customer-priced sample agents or nothing', async () => {
         assert.ok(agent.sailingDate <= utcDay(20));
         assert.equal(['20D', '40D', '40HC'].includes(agent.containerType), true);
         if (agent.allowBookingRequest) {
-            assert.equal(Number.isInteger(agent.bookingSlots) && agent.bookingSlots >= 1 && agent.bookingSlots <= 3, true);
+            if (agent.sampleKind === 'slots_over_skip' || agent.sampleKind === 'slots_over_accept') {
+                assert.equal(agent.bookingSlots, 12);
+                assert.equal(agent.acceptMaxSlots, agent.sampleKind === 'slots_over_accept');
+            } else {
+                assert.equal(Number.isInteger(agent.bookingSlots) && agent.bookingSlots >= 1 && agent.bookingSlots <= 3, true);
+            }
             for (const base of [BASE_LOW, BASE_HIGH, EXPIRED_BASE]) {
                 assert.notEqual(agent.priceMax, base);
                 assert.notEqual(agent.priceMax, Math.floor(0.5 * base));
@@ -168,10 +175,12 @@ it('creates three customer-priced sample agents or nothing', async () => {
         SELECT actor_user_id, detail FROM audit_events
         WHERE event_type = 'managed_agent_created' AND actor_user_id = ?
     `).all(userId);
-    assert.equal(audits.length, 3);
+    assert.equal(audits.length, 5);
     const details = audits.map(row => JSON.parse(row.detail));
     assert.ok(details.every(detail => detail.adminSample === true));
-    assert.deepEqual(details.map(detail => detail.sampleKind).sort(), ['lowball', 'no_booking', 'regular']);
+    assert.deepEqual(details.map(detail => detail.sampleKind).sort(), [
+        'lowball', 'no_booking', 'regular', 'slots_over_accept', 'slots_over_skip'
+    ]);
     assert.deepEqual(details.map(detail => detail.agentId).sort(), created.json.agents.map(agent => agent.id).sort());
 
     const plain = agents.create(loadActor(userId), [{
@@ -216,7 +225,7 @@ it('repeats a fixed draw and keeps the sailing date on the window edge', () => {
     const first = agents.buildSampleAgents(actor, { random, now });
     const second = agents.buildSampleAgents(actor, { random, now });
     assert.deepEqual(first, second);
-    assert.equal(first.length, 3);
+    assert.equal(first.length, 5);
     for (const item of first) {
         assert.equal(item.input.sailingDate, today);
         assert.equal(item.input.sailingDate, utcDay(0));
@@ -225,7 +234,7 @@ it('repeats a fixed draw and keeps the sailing date on the window edge', () => {
         assert.ok(item.input.sailingDate >= today);
     }
     const created = agents.createSampleAgents(world.users.edge.id, { random, now });
-    assert.equal(created.agents.length, 3);
+    assert.equal(created.agents.length, 5);
     assert.ok(created.agents.every(agent => agent.sailingDate === today));
-    assert.equal(countAgents(world.users.edge.id), 3);
+    assert.equal(countAgents(world.users.edge.id), 5);
 });

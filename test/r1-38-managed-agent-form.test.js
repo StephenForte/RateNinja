@@ -77,7 +77,7 @@ test('one editor puts saved queries first and Queue agent posts one item then cl
     assert.deepEqual(nodes.filter(node => node.tag === 'label').map(label =>
         label.children.find(node => node.tag === '#text').textContent), [
         queryField, 'Rate type', 'Origin port', 'Destination port', 'Sailing date', 'Container type',
-        alternativesField, bookingField, minField, maxField, 'Slots'
+        alternativesField, bookingField, 'Use AI for slot selection', minField, maxField, 'Slots'
     ]);
     assert.equal(ui.activeElement(), ui.control(queryField));
     ui.set(queryField, 'chi');
@@ -98,20 +98,25 @@ test('Queue and add another clears the search, retains settings and updates the 
     const form = ui.form();
     ui.set(queryField, 'chi');
     configureBooking(ui);
+    const slotSelection = 'Use AI for slot selection';
+    ui.set(slotSelection, true);
     await ui.submit(anotherButton);
     assert.equal(ui.form(), form);
     assert.equal(ui.activeElement(), ui.control(queryField));
-    assert.deepEqual(values(ui), ['', '', '', '', '', '20D', true, true, '0', '1350.75', '3']);
+    assert.deepEqual(values(ui), ['', '', '', '', '', '20D', true, true, true, '0', '1350.75', '3']);
+    assert.equal(ui.control(slotSelection).checked, true);
     assert.equal(form.querySelector('.agent-confirmation').textContent, 'Queued SHA → CHI (1 queued this session)');
 
     ui.set('Rate type', 'Port');
     ui.set('Destination port', 'LAX');
     await ui.submit(anotherButton);
-    assert.deepEqual(ui.calls.map(call => call.body), [
+    assert.deepEqual(ui.calls.map(call => call.body[0].acceptMaxSlots), [true, true]);
+    assert.deepEqual(ui.calls.map(call => call.body.map(({ acceptMaxSlots, ...settings }) => settings)), [
         [requested],
         [{ ...requested, rateType: 'Port', destinationPort: 'LAX', sailingDate: today, savedQueryId: null }]
     ]);
-    assert.deepEqual(values(ui), ['', '', '', '', '', '20D', true, true, '0', '1350.75', '3']);
+    assert.deepEqual(values(ui), ['', '', '', '', '', '20D', true, true, true, '0', '1350.75', '3']);
+    assert.equal(ui.control(slotSelection).checked, true);
     assert.equal(form.querySelector('.agent-confirmation').textContent, 'Queued SHA → LAX (2 queued this session)');
     const grid = ui.container.querySelector('.agent-grid-scroll');
     for (const lane of ['SHA → CHI', 'SHA → LAX']) {
