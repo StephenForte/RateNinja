@@ -38,7 +38,7 @@ A contract owner can list and read the company's booking requests with scope `bo
 
 For owner tokens, the company must own the request. Another company's id is the same not-found response as a missing id. The body is the owner view: customer price and requester, and not the base price. `bookings:read` does not include `bookings:write`. The decide tool changes data and the decision is final. The first decision wins. A repeat is `already_decided`. Reading through the partner API or MCP does not change unread state. A decision made there is unread for the customer in the app, the same as a decision made in the app.
 
-Customers can authorize the partner API and MCP, list available customer-priced rates and create booking requests. Discovery does not advertise `bookings:read` or `bookings:write`. A client must request those scopes explicitly, for example with `scopes` in Cursor's `mcp.json` auth block, and the client must be allowed them.
+Customers can authorize the partner API and MCP, list available customer-priced rates and create booking requests. Discovery advertises `bookings:read` and `bookings:write` with the three read scopes. The server grants a requested scope only when the client is allowed it.
 
 ## Phase 2
 
@@ -53,7 +53,7 @@ Customers use OAuth with `bookings:write` to call `POST /api/partner/v1/me/booki
 
 Read the current nine-character code from the [CloudBBS rn announcement](https://cloudbbs.ai/supa/rn). Each option 9 post rotates the code. RateNinja trims and compares codes case-insensitively and may cache the current code for up to 60 seconds. An omitted, blank or wrong code returns HTTP 403 `invalid_booking_code`. If RateNinja cannot read a valid code, it returns HTTP 503 `booking_code_unavailable`, even when the request omits the code. MCP includes the error in `result.structuredContent.error`. Website bookings use the signed-in session and require no code.
 
-Customer tokens never receive base prices, margins or owner company ids. Owner rates, sailings, predictive pricing and decisions return 403 owner_only to customers. Owners receive 403 customer_only on available-rates and create. MCP calls enforce company type before scopes and arguments; tools/list shows customers exactly profile, available rates, booking list, booking read and booking create. Owner discovery is unchanged. Create annotations are readOnlyHint false, destructiveHint false and idempotentHint false; the tool changes data. The available-rates list is read-only. Company type is live on each call. Scopes remain independently required, and discovery still advertises only the three read scopes. Connected apps lets both supported types list and revoke grants; revoked credentials stop working.
+Customer tokens never receive base prices, margins or owner company ids. Owner rates, sailings, predictive pricing and decisions return 403 owner_only to customers. Owners receive 403 customer_only on available-rates and create. MCP calls enforce company type before scopes and arguments; tools/list shows customers exactly profile, available rates, booking list, booking read and booking create. Owner discovery is unchanged. Create annotations are readOnlyHint false, destructiveHint false and idempotentHint false; the tool changes data. The available-rates list is read-only. Company type is live on each call. Scopes remain independently required, and discovery advertises all five scopes. Connected apps lets both supported types list and revoke grants; revoked credentials stop working.
 
 ## ForteL2 approval receipts
 

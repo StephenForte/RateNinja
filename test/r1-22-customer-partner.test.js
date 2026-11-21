@@ -11,6 +11,7 @@ const { insertCompany, insertUser, insertRate, insertMargin, activate, login, ca
     COMPANY_TYPE_CUSTOMER: CUSTOMER, COMPANY_TYPE_CONTRACT_OWNER: OWNER } = require('./helpers/r1-19');
 const { partnerSend } = require('./helpers/r1-21');
 const { leaksBasePrice } = require('./helpers/no-base-price');
+const { SCOPES } = require('../lib/constants');
 const ALL = 'profile:read rates:read sailings:read bookings:read bookings:write';
 const ROOT = '/api/partner/v1/me';
 const customerTools = [
@@ -316,9 +317,9 @@ describe('R1-22 customer partner boundary', { concurrency: 1 }, () => {
         token = await issue(buyer);
     });
 
-    it('keeps discovery at three scopes and blocks new surfaces when OAuth is disabled', async () => {
+    it('publishes every scope in discovery and blocks new surfaces when OAuth is disabled', async () => {
         for (const p of ['/.well-known/oauth-authorization-server', '/.well-known/oauth-protected-resource']) {
-            const response = await get('', p); assert.deepEqual(response.body.scopes_supported, ['profile:read', 'rates:read', 'sailings:read']);
+            const response = await get('', p); assert.deepEqual(response.body.scopes_supported, SCOPES);
         }
         process.env.PARTNER_OAUTH_ENABLED = 'false';
         try {
