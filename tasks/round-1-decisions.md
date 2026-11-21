@@ -1180,3 +1180,51 @@ any scope the client was not allowed.
 - **Capacity Exchange cannot be deleted** (409, disable it instead): boot re-seeds it
   (`lib/foundation.js:110`), so a delete would silently come back.
 - **The confirm names the client and its active connection count.**
+
+### D-053 — Max slots allowed on rates (2026-11-21, operator request)
+
+- **Column:** `rates.max_slots_allowed INTEGER`, nullable, `CHECK (max_slots_allowed IS NULL OR
+  max_slots_allowed >= 1)`, no column DEFAULT, no upper bound in the schema (later rules may allow
+  more than 5). Migration 017.
+- **Existing rates:** every row with no value gets an independent uniform random 1–5, including
+  soft-deleted rows and every owner. A row that already has a value keeps it.
+- **New rates:** trigger `trg_rates_max_slots_default` (AFTER INSERT, WHEN the value is NULL) sets a
+  random 1–5 on that row only; a supplied value is kept. Updates are not covered. Pull-forward copies
+  get a new random value, not the source's.
+- **Why a trigger:** SQLite accepts a non-constant column DEFAULT on an empty table and rejects it on
+  a populated one, so a DEFAULT would pass tests and abort startup in production (measured
+  2026-11-21).
+- **No surface change yet:** imports, the UI, the partner API, MCP, exports and booking rules gain
+  the field in later tasks.
+
+### D-054 — Zero max slots and the customer grid (2026-11-21, operator request; amends D-053)
+
+- **Schema:** `max_slots_allowed INTEGER CHECK (max_slots_allowed IS NULL OR max_slots_allowed >= 0)`.
+  Migration 018 swaps the column (add, copy, drop, rename) because SQLite cannot alter a CHECK in
+  place; every existing value and every other column, `row_version` included, is kept.
+- **New rates:** `trg_rates_max_slots_default` now sets `abs(random()) % 6` (0–5) when the value is
+  NULL on insert. A supplied value, 0 included, is kept. Pull-forward copies get a fresh 0–5.
+- **Customer view:** `GET /api/rates` rows for a signed-in customer carry `maxSlotsAllowed` (integer
+  or null; predictive rows null). The value lives on the store record outside `fields`, so the
+  partner API, MCP, the owner view, exports and CloudBBS posts do not gain it.
+- **Grid:** a "Max slots" column sits immediately before Request booking; at 0 the button is
+  disabled with "No slots available" and opens nothing. Null and 1–5 behave as before.
+- **Not yet:** the server still accepts a booking on a 0 rate and does not cap slots; the booking
+  logic task owns that.
+
+### D-055 — Per-request slot cap (2026-11-21, operator request)
+
+- **Per request, not a running total:** a request's `slots` must be ≤ the rate's
+  `max_slots_allowed`. Other requests on the rate do not count; two separate 5-slot requests on a
+  max-5 rate are both allowed.
+- **0 refuses every request; null means no per-rate cap** (the 1–1000 rule still applies).
+- **One check for every channel:** `createRequest` enforces it after the rate is visible and priced
+  and before the insert, so the web dialog, partner REST, MCP and the admin managed-agent route all
+  inherit it, and a hidden rate still answers not_found.
+- **Messages (400):** "This rate allows at most N slots per request." and "This rate has no slots
+  available." Partner REST and MCP return `invalid_request` with that text. Nothing is written on a
+  refusal; an agent keeps its status and no booking id.
+- **Dialog:** the slot field gets `max` = N, clamps to it on open, and shows "Up to N slots"; the
+  server stays the authority.
+- **Not yet:** partner and MCP output do not carry the max, so API clients learn it from the
+  refusal; the managed-agent runner does not pick another rate.
