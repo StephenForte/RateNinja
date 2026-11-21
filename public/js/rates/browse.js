@@ -454,7 +454,7 @@ function visibleColumns() {
 }
 
 function columnCount() {
-    return visibleColumns().length + (state.canBook ? 2 : 0);
+    return visibleColumns().length + 1 + (state.canBook ? 1 : 0);
 }
 
 function rateIsExpired(rate) {
@@ -502,10 +502,10 @@ function renderHeader() {
         }
         row.append(cell);
     });
+    const slots = document.createElement('th');
+    slots.textContent = 'Max slots';
+    row.append(slots);
     if (state.canBook) {
-        const slots = document.createElement('th');
-        slots.textContent = 'Max slots';
-        row.append(slots);
         const action = document.createElement('th');
         action.textContent = 'Booking';
         row.append(action);
@@ -597,10 +597,8 @@ function createRateRow(rate) {
             cells.push(cell);
         }
     }
-    if (state.canBook) {
-        cells.push(maxSlotsCell(rate));
-        cells.push(bookingCell(rate));
-    }
+    cells.push(maxSlotsCell(rate));
+    if (state.canBook) cells.push(bookingCell(rate));
     row.append(...cells);
     return row;
 }

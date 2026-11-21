@@ -92,7 +92,7 @@ function syncSelectAllLabel() {
 function renderRows() {
     const body = document.getElementById('dataTableBody');
     body.replaceChildren();
-    const columns = state.dataset === 'rates' ? 9 : 7;
+    const columns = state.dataset === 'rates' ? 11 : 7;
     if (!state.records.length) {
         const row = document.createElement('tr');
         const cell = textCell('No matching records');
@@ -131,7 +131,8 @@ function renderRows() {
                 textCell(record.rateExpirationDate || ''),
                 textCell(record.rate20D ?? ''),
                 textCell(record.rate40D ?? ''),
-                textCell(record.rate40HC ?? '')
+                textCell(record.rate40HC ?? ''),
+                textCell(record.maxSlotsAllowed == null ? '—' : String(record.maxSlotsAllowed))
             );
         } else {
             row.append(
@@ -328,6 +329,7 @@ function openEdit(record) {
         setDialogField('edit20', record.rate20D);
         setDialogField('edit40', record.rate40D);
         setDialogField('edit40hc', record.rate40HC);
+        setDialogField('editMaxSlots', record.maxSlotsAllowed);
         setDialogField('editRateType', record.rateType);
         setDialogField('editContractNumber', record.contractNumber);
         setDialogField('editNotes', record.notes1);
@@ -344,6 +346,12 @@ function openEdit(record) {
 
 function priceOrNull(id) {
     const text = document.getElementById(id).value.trim();
+    if (!text) return null;
+    return Number(text);
+}
+
+function maxSlotsFromDialog() {
+    const text = document.getElementById('editMaxSlots').value.trim();
     if (!text) return null;
     return Number(text);
 }
@@ -368,6 +376,7 @@ function editBody() {
             rate20D: priceOrNull('edit20'),
             rate40D: priceOrNull('edit40'),
             rate40HC: priceOrNull('edit40hc'),
+            maxSlotsAllowed: maxSlotsFromDialog(),
             rateType: document.getElementById('editRateType').value,
             contractNumber: document.getElementById('editContractNumber').value,
             notes1: document.getElementById('editNotes').value,
@@ -427,6 +436,7 @@ function buildDialog() {
         ['edit20', '20D price', 'number'],
         ['edit40', '40D price', 'number'],
         ['edit40hc', '40HC price', 'number'],
+        ['editMaxSlots', 'Max slots', 'number'],
         ['editRateType', 'Rate type', 'text'],
         ['editContractNumber', 'Contract number', 'text'],
         ['editNotes', 'Notes', 'text']
@@ -435,7 +445,7 @@ function buildDialog() {
         const node = input(id, type);
         if (type === 'number') {
             node.min = '0';
-            node.step = 'any';
+            node.step = id === 'editMaxSlots' ? '1' : 'any';
         }
         rateFields.append(fieldLabel(label, node));
     }
@@ -475,7 +485,7 @@ function setDataset(dataset) {
     const head = document.getElementById('dataTableHead');
     head.replaceChildren();
     const labels = dataset === 'rates'
-        ? ['', 'Origin', 'Destination', 'Carrier', 'Effective', 'Expiration', '20D', '40D', '40HC', '']
+        ? ['', 'Origin', 'Destination', 'Carrier', 'Effective', 'Expiration', '20D', '40D', '40HC', 'Max slots', '']
         : ['', 'Carrier', 'Departure port', 'Departure', 'Arrival', 'Vessel', ''];
     for (const label of labels) head.append(textCell(label, 'th'));
 }

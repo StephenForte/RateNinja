@@ -328,7 +328,7 @@ describe('r1-59 import max slots', { concurrency: 1 }, () => {
         assert.equal(values[index], '3');
     });
 
-    it('keeps an existing max on a data-ops edit that does not send the field', async () => {
+    it('keeps an existing max when an edit omits it, and stores one when the edit sends it', async () => {
         insertRate(app.db, {
             id: 'slot-edit',
             origin: 'Edit Harbor',
@@ -355,7 +355,7 @@ describe('r1-59 import max slots', { concurrency: 1 }, () => {
         const row = app.db.prepare(`SELECT carrier, max_slots_allowed, row_version FROM rates WHERE id = 'slot-edit'`).get();
         assert.equal(row.carrier, 'EDITED SLOTS');
         assert.equal(row.max_slots_allowed, 4);
-        const rejected = await readJson(await app.request('/api/admin/data/rates/slot-edit', {
+        const edited = await readJson(await app.request('/api/admin/data/rates/slot-edit', {
             method: 'PATCH',
             headers: {
                 'content-type': 'application/json',
@@ -364,10 +364,10 @@ describe('r1-59 import max slots', { concurrency: 1 }, () => {
             },
             body: JSON.stringify(ratePatch(app.company.id, row.row_version, { maxSlotsAllowed: 9 }))
         }));
-        assert.equal(rejected.status, 400, rejected.text);
-        assert.equal(rejected.body.code, 'validation');
-        assert.match(rejected.body.error, /maxSlotsAllowed/);
-        assert.equal(app.db.prepare(`SELECT max_slots_allowed FROM rates WHERE id = 'slot-edit'`).get().max_slots_allowed, 4);
+        assert.equal(edited.status, 200, edited.text);
+        const stored = app.db.prepare(`SELECT max_slots_allowed, row_version FROM rates WHERE id = 'slot-edit'`).get();
+        assert.equal(stored.max_slots_allowed, 9);
+        assert.equal(stored.row_version, row.row_version + 1);
         assert.deepEqual(RATE_FIELDS, RATE_FIELD_LIST);
     });
 });
