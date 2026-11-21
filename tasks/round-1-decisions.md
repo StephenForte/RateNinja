@@ -1159,3 +1159,24 @@ any scope the client was not allowed.
 - **Not now:** a `scope=` hint on `WWW-Authenticate`, insufficient-scope step-up, dynamic client
   registration, editing an existing client's scopes in the admin screen (use
   `PATCH /api/admin/oauth-clients/{id}`).
+
+### D-052 — Edit and delete OAuth clients; effective scopes are live (2026-11-20, operator request; amended the same day after the R1-53 first run)
+
+- **Edit:** Admin → OAuth clients edits display name, redirect URIs, allowed scopes and status. Client
+  type is fixed.
+- **Effective scopes = stored ∩ the client's current allowed scopes**, computed at code exchange, at
+  refresh (the new refresh row stores the intersected set) and in `verifyAccessToken` on every call. An
+  empty result at exchange or refresh is `invalid_grant`. Narrowing takes effect on the next call
+  and revokes nothing; widening never adds a scope a connection did not store. The update audit
+  lists removed scopes. *Amended:* the first version revoked grants holding a removed scope; the R1-53
+  worker showed tokens can carry scopes their grant does not record (code exchange binds the code's
+  scopes to the latest grant; refresh re-issues stored scopes; verify trusted payload scopes).
+- **Accepted residual:** re-allowing a scope makes it usable again on a credential that still stores
+  it: an access token of at most 10 minutes, or a refresh token not used while narrowed. The user
+  consented to it and an admin re-allowed it.
+- **Delete:** `DELETE /api/admin/oauth-clients/{id}` (system admin, CSRF) removes codes, grants,
+  refresh tokens and the client in one transaction; audit rows stay; `oauth_client_deleted` records
+  the id, name and grants removed. Tokens from a deleted client get 401 on the next call.
+- **Capacity Exchange cannot be deleted** (409, disable it instead): boot re-seeds it
+  (`lib/foundation.js:110`), so a delete would silently come back.
+- **The confirm names the client and its active connection count.**
