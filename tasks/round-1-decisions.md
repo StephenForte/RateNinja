@@ -357,7 +357,7 @@ below are pending product review.
   client gets the three read scopes it has today, not the booking scopes. New clients in the admin
   screen do not get `bookings:write` by default. A client only gets it when a system admin allows
   it and the user consents.
-- **Discovery stays minimal (added 2026-11-03, R1-21 review).** `scopes_supported` publishes only `profile:read`, `rates:read`, and `sailings:read`. MCP clients request everything published, and `parseScopes` rejects a request with any scope the client is not allowed, so publishing booking scopes breaks sign-in for existing clients. Clients ask for booking scopes explicitly.
+- **Discovery stays minimal (added 2026-11-03, R1-21 review; superseded 2026-11-20 by D-051).** `scopes_supported` publishes only `profile:read`, `rates:read`, and `sailings:read`. MCP clients request everything published, and `parseScopes` rejects a request with any scope the client is not allowed, so publishing booking scopes breaks sign-in for existing clients. Clients ask for booking scopes explicitly.
 - **Consent must say what write does.** The consent page describes `bookings:write` in words: it
   lets the app approve or decline booking requests for the company.
 - **One rule set.** Partner and MCP calls go through `lib/booking-requests.js`, the same rules and
@@ -1138,3 +1138,24 @@ alive safely. The operator chose a server-side key bound to one buyer account.
   ForteL2" (RPC down or not configured). Read-only: nothing is signed or sent.
 - **Not now:** showing receipts for declined requests, hashing in the browser, exposing details on
   the partner or buyer API, storing check results.
+
+### D-051 — Discovery publishes every scope; authorize grants the allowed subset (2026-11-20, operator request; supersedes D-028's discovery bullet)
+
+ChatGPT's connector lets a user choose only scopes that discovery advertises, so a customer could not
+get `bookings:write` there (measured 2026-11-20 as Test Buyer: granted `profile:read rates:read
+sailings:read`). D-028 kept discovery minimal because `parseScopes` rejected a whole request containing
+any scope the client was not allowed.
+
+- **Discovery:** `scopes_supported` in the authorization-server and both protected-resource documents
+  is all of `SCOPES`, in `lib/constants.js` order.
+- **Narrow, don't reject:** at authorize, granted = requested ∩ client-allowed ∩ `SCOPES`, duplicates
+  removed, request order kept. Unknown or disallowed names are dropped (RFC 6749 §3.3). An empty result,
+  or a blank or missing `scope`, is `invalid_scope`. Client registration still rejects unknown names.
+- **D-028's "No silent grants" still holds:** a client gets a scope only when a system admin allowed it
+  on the client and the user approved it. Existing clients' allowed scopes are unchanged.
+- **Consent shows what is granted:** the page lists the granted scopes, posts them in the hidden field,
+  and shows the `bookings:write` note only when that scope is granted, so the POST cannot grant more
+  than the page showed even if the client is widened in between.
+- **Not now:** a `scope=` hint on `WWW-Authenticate`, insufficient-scope step-up, dynamic client
+  registration, editing an existing client's scopes in the admin screen (use
+  `PATCH /api/admin/oauth-clients/{id}`).
