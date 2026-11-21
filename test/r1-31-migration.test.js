@@ -34,13 +34,19 @@ it('R1-31 migration 012 preserves seeded 011 rows, enforces a unique hash, and i
         insertMargin(db, { id: 'margin', owner: 'owner', customer: 'buyer', percent: 0.1 });
         db.prepare("INSERT INTO sailings (id, owner_company_id, carrier, departure_port) VALUES ('sailing', 'owner', 'MSC', 'SHA')").run();
         const tables = ['users', 'companies', 'company_margins', 'rates', 'sailings'];
-        const snapshot = () => tables.map(table => JSON.stringify(db.prepare(`SELECT * FROM ${table} ORDER BY id`).all()));
+        const snapshot = () => tables.map(table => {
+            const rows = db.prepare(`SELECT * FROM ${table} ORDER BY id`).all();
+            if (table === 'rates') {
+                for (const row of rows) delete row.max_slots_allowed;
+            }
+            return JSON.stringify(rows);
+        });
         const before = snapshot();
         db.close(); db = null;
         boot(migrations);
         db = new DatabaseSync(dbPath);
         assert.deepEqual(snapshot(), before);
-        assert.deepEqual(db.prepare("SELECT id FROM schema_migrations WHERE id >= '012' ORDER BY id").all().map(row => row.id), ['012', '013', '014', '015', '016']);
+        assert.deepEqual(db.prepare("SELECT id FROM schema_migrations WHERE id >= '012' ORDER BY id").all().map(row => row.id), ['012', '013', '014', '015', '016', '017']);
         assert.deepEqual(db.prepare('PRAGMA table_info(buyer_api_keys)').all().map(c => c.name),
             ['id', 'user_id', 'label', 'key_prefix', 'key_hash', 'created_at', 'last_used_at', 'revoked_at']);
         const unique = db.prepare('PRAGMA index_list(buyer_api_keys)').all().find(i => i.name === 'buyer_api_keys_hash_unique');

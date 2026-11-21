@@ -16,8 +16,11 @@ function hashTables(db, { skipAudit = false, migrationComparison = false } = {})
         if (skipAudit && name === 'audit_events') continue;
         if (migrationComparison && (name === 'booking_receipts' || name === 'managed_agent_runs')) continue;
         const table = '"' + name.replaceAll('"', '""') + '"';
-        const where = migrationComparison && name === 'schema_migrations' ? " WHERE id NOT IN ('014', '015', '016')" : '';
+        const where = migrationComparison && name === 'schema_migrations' ? " WHERE id NOT IN ('014', '015', '016', '017')" : '';
         const rows = db.prepare(`SELECT * FROM ${table}${where}`).all();
+        if (migrationComparison && name === 'rates') {
+            for (const row of rows) delete row.max_slots_allowed;
+        }
         if (migrationComparison && name === 'managed_agents') {
             for (const row of rows) {
                 delete row.booking_slots;
