@@ -1228,3 +1228,16 @@ any scope the client was not allowed.
   server stays the authority.
 - **Not yet:** partner and MCP output do not carry the max, so API clients learn it from the
   refusal; the managed-agent runner does not pick another rate.
+
+### D-056 — Max slots on the partner API and MCP (2026-11-21, operator request; supersedes D-054's "not on partner or MCP")
+
+- **Customer available rates** (REST `/api/partner/v1/me/available-rates` and MCP
+  `rateninja_list_available_rates`, same rows) carry `maxSlotsAllowed` (integer or null) right after
+  `rateExpirationDate`. `bookable` is false when it is 0; expiry and price rules are unchanged.
+- **Owner rates** (`partnerRateDto`: REST list and get, MCP `rateninja_list_my_rates` and
+  `rateninja_get_my_rate`) carry the same field in the same position. `capacityQuantity` stays null
+  and is not reused.
+- **Tool descriptions** for `rateninja_list_available_rates` and `rateninja_create_booking_request`
+  state the per-request rule (at most `maxSlotsAllowed`; 0 cannot be booked; null no per-rate limit).
+- **Unchanged:** the public `/api/v1` API, exports, CloudBBS posts, the managed-agent runner,
+  predictive outputs and the owner session view.
