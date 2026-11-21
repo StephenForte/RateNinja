@@ -325,6 +325,8 @@ Sample:
 <sample>
 ```
 
+The server builds that rate-target line from the live target list, which now includes optional `maxSlotsAllowed` after `rate40HC`.
+
 ### Response schema
 
 Discard the response when `JSON.parse` fails or any check below fails.
