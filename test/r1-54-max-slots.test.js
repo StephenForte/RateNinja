@@ -502,13 +502,15 @@ describe('r1-54 max slots allowed', { concurrency: 1 }, () => {
                     const ownerRate = (owner.rates || []).find(rate => rate.id === 'surface-rate');
                     const partnerRate = (partner.data || []).find(rate => rate.id === 'surface-rate');
                     if (!ownerRate || !partnerRate) throw new Error('missing rate ' + JSON.stringify({ owner, partner }));
+                    const storedRate = db.prepare('SELECT * FROM rates WHERE id = ?').get('surface-rate');
                     console.log('R154 ' + JSON.stringify({
                         ownerKeys: Object.keys(ownerRate).sort(),
                         partnerKeys: Object.keys(partnerRate).sort(),
                         ownerTop: Object.keys(owner).sort(),
                         partnerTop: Object.keys(partner).sort(),
                         ownerRate,
-                        partnerRate
+                        partnerRate,
+                        storedMaxSlotsAllowed: storedRate.max_slots_allowed ?? null
                     }));
                     server.close();
                     db.close();
@@ -546,11 +548,12 @@ describe('r1-54 max slots allowed', { concurrency: 1 }, () => {
             assert.deepEqual(after.ownerTop, before.ownerTop);
             assert.deepEqual(after.partnerTop, before.partnerTop);
             assert.deepEqual(after.ownerRate, before.ownerRate);
-            assert.deepEqual(after.partnerRate, before.partnerRate);
+            assert.equal(before.partnerRate.maxSlotsAllowed, null);
+            assertSlotsInRange([after.storedMaxSlotsAllowed]);
+            assert.deepEqual(after.partnerRate, { ...before.partnerRate, maxSlotsAllowed: after.storedMaxSlotsAllowed });
             assert.equal(after.ownerKeys.includes('max_slots_allowed'), false);
             assert.equal(after.partnerKeys.includes('max_slots_allowed'), false);
             assert.equal(after.ownerKeys.includes('maxSlotsAllowed'), false);
-            assert.equal(after.partnerKeys.includes('maxSlotsAllowed'), false);
         } finally {
             fs.rmSync(directory, { recursive: true, force: true });
         }
