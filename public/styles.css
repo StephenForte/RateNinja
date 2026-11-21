@@ -3047,3 +3047,10 @@ body {
     color: #627d98;
     cursor: not-allowed;
 }
+
+.booking-slots-hint {
+    margin: -6px 0 12px;
+    color: #627d98;
+    font-size: 13px;
+    font-weight: 400;
+}
