@@ -1291,3 +1291,7 @@ any scope the client was not allowed.
 - **Samples (CLI option 13):** two more agents per customer user (five in all): 12 slots on one
   lane and date where a matching rate has max 1–11, one with the flag off (expect no booking) and
   one with it on (expect a booking for that max). Three customers → 15 agents.
+- **Amended 2026-11-21 (R1-61, after Bugbot):** a lane is eligible for the two 12-slot samples only if
+  a matching rate has max 1–11 and no matching rate would take 12 slots as-is (max NULL or ≥ 12);
+  max-0 rates do not disqualify. A mixed lane let the flag-off sample book 12 on the uncapped rate.
+  No eligible lane → 422, none of the five created.
