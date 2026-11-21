@@ -1180,3 +1180,19 @@ any scope the client was not allowed.
 - **Capacity Exchange cannot be deleted** (409, disable it instead): boot re-seeds it
   (`lib/foundation.js:110`), so a delete would silently come back.
 - **The confirm names the client and its active connection count.**
+
+### D-053 — Max slots allowed on rates (2026-11-21, operator request)
+
+- **Column:** `rates.max_slots_allowed INTEGER`, nullable, `CHECK (max_slots_allowed IS NULL OR
+  max_slots_allowed >= 1)`, no column DEFAULT, no upper bound in the schema (later rules may allow
+  more than 5). Migration 017.
+- **Existing rates:** every row with no value gets an independent uniform random 1–5, including
+  soft-deleted rows and every owner. A row that already has a value keeps it.
+- **New rates:** trigger `trg_rates_max_slots_default` (AFTER INSERT, WHEN the value is NULL) sets a
+  random 1–5 on that row only; a supplied value is kept. Updates are not covered. Pull-forward copies
+  get a new random value, not the source's.
+- **Why a trigger:** SQLite accepts a non-constant column DEFAULT on an empty table and rejects it on
+  a populated one, so a DEFAULT would pass tests and abort startup in production (measured
+  2026-11-21).
+- **No surface change yet:** imports, the UI, the partner API, MCP, exports and booking rules gain
+  the field in later tasks.
