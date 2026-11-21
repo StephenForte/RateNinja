@@ -1211,3 +1211,20 @@ any scope the client was not allowed.
   disabled with "No slots available" and opens nothing. Null and 1–5 behave as before.
 - **Not yet:** the server still accepts a booking on a 0 rate and does not cap slots; the booking
   logic task owns that.
+
+### D-055 — Per-request slot cap (2026-11-21, operator request)
+
+- **Per request, not a running total:** a request's `slots` must be ≤ the rate's
+  `max_slots_allowed`. Other requests on the rate do not count; two separate 5-slot requests on a
+  max-5 rate are both allowed.
+- **0 refuses every request; null means no per-rate cap** (the 1–1000 rule still applies).
+- **One check for every channel:** `createRequest` enforces it after the rate is visible and priced
+  and before the insert, so the web dialog, partner REST, MCP and the admin managed-agent route all
+  inherit it, and a hidden rate still answers not_found.
+- **Messages (400):** "This rate allows at most N slots per request." and "This rate has no slots
+  available." Partner REST and MCP return `invalid_request` with that text. Nothing is written on a
+  refusal; an agent keeps its status and no booking id.
+- **Dialog:** the slot field gets `max` = N, clamps to it on open, and shows "Up to N slots"; the
+  server stays the authority.
+- **Not yet:** partner and MCP output do not carry the max, so API clients learn it from the
+  refusal; the managed-agent runner does not pick another rate.
