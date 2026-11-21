@@ -13,6 +13,7 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { validateToolArguments } = require('../lib/mcp-schema');
 const { customerPrice } = require('../lib/pricing');
+const { SCOPES } = require('../lib/constants');
 const { startApp } = require('./helpers/app');
 const {
     PASSWORD,
@@ -304,7 +305,7 @@ describe('owner booking requests on the partner API and MCP', { concurrency: 1 }
         app.db.prepare('UPDATE companies SET company_type = ?, company_type_id = NULL WHERE id = ?').run(COMPANY_TYPE_CUSTOMER, 'book-customer-a');
     });
 
-    it('keeps booking scopes out of discovery and still accepts an explicit request', async () => {
+    it('publishes every scope in discovery and grants a narrow client only its allowed scopes', async () => {
         async function document(pathname) {
             const response = await fetch(`${app.baseUrl}${pathname}`);
             const body = await response.json();
@@ -329,18 +330,22 @@ describe('owner booking requests on the partner API and MCP', { concurrency: 1 }
 
         const resource = await document('/.well-known/oauth-protected-resource');
         const authorization = await document('/.well-known/oauth-authorization-server');
-        assert.deepEqual(resource.scopes_supported, SEEDED_SCOPES);
-        assert.deepEqual(authorization.scopes_supported, SEEDED_SCOPES);
-        assert.equal(JSON.stringify(resource).includes('bookings:'), false);
-        assert.equal(JSON.stringify(authorization).includes('bookings:'), false);
+        assert.deepEqual(resource.scopes_supported, SCOPES);
+        assert.deepEqual(authorization.scopes_supported, SCOPES);
 
         const fromResource = await authorize(narrowClient, resource.scopes_supported);
         assert.equal(fromResource.status, 200, fromResource.location || fromResource.html);
         assert.match(fromResource.html, /wants to read data/);
+        assert.deepEqual([...fromResource.html.matchAll(/<li>([^<]+)<\/li>/g)].map(match => match[1]), SEEDED_SCOPES);
+        assert.equal(fromResource.html.includes('bookings:write'), false);
+        assert.equal(fromResource.html.includes('This app can approve or decline booking requests'), false);
+        assert.equal(fromResource.html.includes('This app can request bookings'), false);
 
         const fromAuthorization = await authorize(narrowClient, authorization.scopes_supported);
         assert.equal(fromAuthorization.status, 200, fromAuthorization.location || fromAuthorization.html);
         assert.match(fromAuthorization.html, /wants to read data/);
+        assert.deepEqual([...fromAuthorization.html.matchAll(/<li>([^<]+)<\/li>/g)].map(match => match[1]), SEEDED_SCOPES);
+        assert.equal(fromAuthorization.html.includes('bookings:write'), false);
 
         const explicit = await authorize(fullClient, ['bookings:read', 'bookings:write']);
         assert.equal(explicit.status, 200, explicit.location || explicit.html);
