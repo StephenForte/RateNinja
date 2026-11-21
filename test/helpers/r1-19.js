@@ -92,8 +92,9 @@ function insertRate(db, {
     rate40hc = 1900,
     effective = '2026-04-01',
     expiration = null,
-    notes = null
-}) {
+    notes = null,
+    maxSlotsAllowed
+} = {}) {
     db.prepare(`
         INSERT INTO rates (
             id, carrier, origin_port, destination_port, contract_owner, contract_number,
@@ -101,6 +102,14 @@ function insertRate(db, {
             owner_company_id
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(id, carrier, origin, destination, contractOwner, contractNumber, rate20, rate40, rate40hc, effective, expiration, notes, owner);
+    // The insert trigger draws 0–5 when the column is omitted. Existing booking fixtures
+    // were written when a request had no per-rate cap, so an omitted max is stored as NULL
+    // (no per-rate limit). Pass maxSlotsAllowed, including 0, to keep a number.
+    const column = db.prepare("SELECT 1 FROM pragma_table_info('rates') WHERE name = 'max_slots_allowed'").get();
+    if (!column) return;
+    const source = arguments[1] && typeof arguments[1] === 'object' ? arguments[1] : {};
+    const value = Object.prototype.hasOwnProperty.call(source, 'maxSlotsAllowed') ? maxSlotsAllowed : null;
+    db.prepare('UPDATE rates SET max_slots_allowed = ? WHERE id = ?').run(value, id);
 }
 
 function insertMargin(db, { id, owner, customer, percent, number = 0, status = 'active' }) {

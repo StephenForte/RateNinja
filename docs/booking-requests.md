@@ -6,7 +6,7 @@ Contract Owner users cannot request a booking, and the rates grid does not show 
 
 ## What a request is
 
-One saved rate, one container size (`20D`, `40D`, or `40HC`), and a whole number of slots from 1 to 1000 (`MAX_BOOKING_SLOTS` in `lib/limits.js`). The size must have a customer price. A missing price is rejected. A price of 0 is allowed.
+One saved rate, one container size (`20D`, `40D`, or `40HC`), and a whole number of slots from 1 to 1000 (`MAX_BOOKING_SLOTS` in `lib/limits.js`). The size must have a customer price. A missing price is rejected. A price of 0 is allowed. When the rate's max slots is a number, that request may ask for at most that many (other requests on the rate do not count), zero refuses every request with "This rate has no slots available.", and a request over the max is refused with "This rate allows at most N slots per request."; a blank max keeps the 1 to 1000 rule.
 
 The price stored on the request is the customer's price at that moment, from the same path as the rates grid (`customerPricedRate` in `lib/visibility.js`). It is not the owner's base price. The row also copies the rate's route, carrier, dates, and the owner company's name, so it stays readable after the rate is edited, soft-deleted, or pulled forward.
 

@@ -41,6 +41,50 @@ function rateIsExpired(rate) {
     return date.getTime() < todayUtc;
 }
 
+function rateSlotCap(maxSlotsAllowed) {
+    return typeof maxSlotsAllowed === 'number' && Number.isInteger(maxSlotsAllowed) && maxSlotsAllowed >= 1
+        ? maxSlotsAllowed
+        : null;
+}
+
+function bookingSlotsHint(slots) {
+    let hint = document.getElementById('bookingDialogSlotsHint');
+    if (hint) return hint;
+    hint = document.createElement('p');
+    hint.id = 'bookingDialogSlotsHint';
+    hint.className = 'booking-slots-hint';
+    const field = slots.parentNode;
+    const container = field && field.parentNode;
+    if (container && typeof container.insertBefore === 'function') {
+        container.insertBefore(hint, field.nextSibling || null);
+    } else {
+        document.getElementById('bookingDialogForm').append(hint);
+    }
+    return hint;
+}
+
+// Keep a whole number already inside 1..max. Clamp an over-max value down to max.
+// Anything else starts at 1, which is what the dialog did before a per-rate cap.
+function applySlotCap(slots, maxSlotsAllowed) {
+    const cap = rateSlotCap(maxSlotsAllowed);
+    const hint = bookingSlotsHint(slots);
+    if (!cap) {
+        slots.value = '1';
+        slots.max = '';
+        if (typeof slots.removeAttribute === 'function') slots.removeAttribute('max');
+        hint.textContent = '';
+        hint.hidden = true;
+        return;
+    }
+    slots.max = String(cap);
+    if (typeof slots.setAttribute === 'function') slots.setAttribute('max', String(cap));
+    const current = Number(slots.value);
+    if (!Number.isInteger(current) || current < 1) slots.value = '1';
+    else if (current > cap) slots.value = String(cap);
+    hint.textContent = `Up to ${cap} slots`;
+    hint.hidden = false;
+}
+
 function showMessage(text, kind) {
     const message = document.getElementById('bookingDialogMessage');
     if (!message) return;
@@ -54,6 +98,9 @@ function bindDialog() {
     dialogBound = true;
     const dialog = document.getElementById('bookingDialog');
     const form = document.getElementById('bookingDialogForm');
+    // The max attribute limits the stepper. Skip browser constraint checks so a typed
+    // value over that max still reaches the server, which remains the authority.
+    form.noValidate = true;
     document.getElementById('bookingDialogClose').addEventListener('click', closeBookingDialog);
     dialog.addEventListener('click', event => {
         if (event.target === dialog) closeBookingDialog();
@@ -115,7 +162,7 @@ export function openBookingDialog(rate) {
         option.textContent = `${choice.label} · ${money(choice.price)}`;
         select.append(option);
     });
-    slots.value = '1';
+    applySlotCap(slots, rate.maxSlotsAllowed);
     submit.disabled = choices.length === 0;
     showMessage(choices.length ? '' : 'This rate has no priced container size.', choices.length ? '' : 'error');
     dialog.hidden = false;
