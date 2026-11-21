@@ -111,13 +111,13 @@ describe('R1-57 partner rate slot limits', () => {
         }
     });
 
-    it('keeps the slot limit off public API rates', async () => {
+    it('publishes the same slot limit on public API rates', async () => {
         const response = await fetch(`${app.baseUrl}/api/v1/rates`, { headers: { 'x-api-key': process.env.RATE_NINJA_API_KEY } });
         assert.equal(response.status, 200);
         const { data } = await response.json();
         assert.deepEqual(data.map(rate => rate.id).sort(), Object.keys(LIMITS).sort());
         for (const rate of data) {
-            assert.equal(Object.hasOwn(rate, 'maxSlotsAllowed'), false);
+            assertLimit(rate);
             assert.equal(Object.hasOwn(rate, 'max_slots_allowed'), false);
         }
     });

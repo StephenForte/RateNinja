@@ -116,9 +116,9 @@ it('matches customer prices, inclusive dates and range, open expiration, allowed
     assert.equal(status, 200);
     assert.deepEqual(json.matches, [
         { rateId: RATE_ID, carrier: 'MSC', contractOwner: 'Kings', ownerCompanyName: 'Synthetic Owner', price: 1070,
-            rateEffectiveDate: utcDay(2), rateExpirationDate: utcDay(30), bookable: true, withinPriceRange: true },
+            rateEffectiveDate: utcDay(2), rateExpirationDate: utcDay(30), maxSlotsAllowed: null, bookable: true, withinPriceRange: true },
         { rateId: 'r134-open-end', carrier: 'MSC', contractOwner: 'Kings', ownerCompanyName: 'Synthetic Owner', price: 1284,
-            rateEffectiveDate: utcDay(2), rateExpirationDate: null, bookable: true, withinPriceRange: true }
+            rateEffectiveDate: utcDay(2), rateExpirationDate: null, maxSlotsAllowed: null, bookable: true, withinPriceRange: true }
     ]);
     assert.deepEqual(json.sailings.map(row => row.departure), [2, 3, 4, 5, 6].map(utcDay));
     assert.doesNotMatch(JSON.stringify(json), /ownerCompanyId|basePrice|margin|rate20D/);
