@@ -1241,3 +1241,27 @@ any scope the client was not allowed.
   state the per-request rule (at most `maxSlotsAllowed`; 0 cannot be booked; null no per-rate limit).
 - **Unchanged:** the public `/api/v1` API, exports, CloudBBS posts, the managed-agent runner,
   predictive outputs and the owner session view.
+
+### D-057 — Max slots on the public API, reference ranges and the agent runner (2026-11-21, operator request)
+
+- **Public `/api/v1/rates`:** each row carries `maxSlotsAllowed` right after `rateExpirationDate`
+  (set in `handlePublicRates`; `mapRateRecord` unchanged). Sailings and predictive public outputs
+  are unchanged.
+- **Rate-date-range rows** (partner REST, MCP, admin reference, CloudBBS `reads.rateDateRanges`)
+  carry `maxSlotsAllowedMin` and `maxSlotsAllowedMax` after `rateCount`: the lowest and highest
+  non-null max among the grouped rates, null/null when all are null. Grouping and `rateCount` are
+  unchanged; the CloudBBS schema stays `rateninja.reference.v1` (additive).
+- **Managed agents:** a match carries `maxSlotsAllowed`; `bookable` requires expiry AND (null, or
+  max ≥ 1 and `booking_slots` ≤ max). The runner prompt notes that `bookable` accounts for the
+  agent's slot count. No rate re-selection or slot lowering.
+
+### D-058 — Max slots column in rate imports (2026-11-21, operator request; there is no export feature)
+
+- **Optional import target** `maxSlotsAllowed` ("Max slots allowed", kind integer) after `rate40HC`;
+  the Claude mapping and the UI pick it up from the target list.
+- **Values:** a whole number ≥ 0 is stored; blank or missing stores NULL so the insert trigger draws
+  0–5; anything else is a row error ("Must be a whole number of 0 or more."). No upper bound.
+- **Template:** `public/templates/rates.csv` gains "Max Slots Allowed" after "40HC Rate".
+- **Not through `validateRate` or `RATE_FIELDS`:** data-ops edits accept `RATE_FIELDS` but write an
+  explicit column list, so adding the field there would accept and silently drop it. Data-grid
+  editing is out of scope.
