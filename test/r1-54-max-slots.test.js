@@ -547,13 +547,19 @@ describe('r1-54 max slots allowed', { concurrency: 1 }, () => {
             assert.deepEqual(after.partnerKeys, before.partnerKeys);
             assert.deepEqual(after.ownerTop, before.ownerTop);
             assert.deepEqual(after.partnerTop, before.partnerTop);
-            assert.deepEqual(after.ownerRate, before.ownerRate);
+            const afterOwner = { ...after.ownerRate };
+            const beforeOwner = { ...before.ownerRate };
+            delete afterOwner.maxSlotsAllowed;
+            delete beforeOwner.maxSlotsAllowed;
+            assert.deepEqual(afterOwner, beforeOwner);
+            assert.equal(before.ownerRate.maxSlotsAllowed, null);
+            assert.equal(after.ownerRate.maxSlotsAllowed, after.storedMaxSlotsAllowed);
             assert.equal(before.partnerRate.maxSlotsAllowed, null);
             assertSlotsInRange([after.storedMaxSlotsAllowed]);
             assert.deepEqual(after.partnerRate, { ...before.partnerRate, maxSlotsAllowed: after.storedMaxSlotsAllowed });
             assert.equal(after.ownerKeys.includes('max_slots_allowed'), false);
             assert.equal(after.partnerKeys.includes('max_slots_allowed'), false);
-            assert.equal(after.ownerKeys.includes('maxSlotsAllowed'), false);
+            assert.equal(after.ownerKeys.includes('maxSlotsAllowed'), true);
         } finally {
             fs.rmSync(directory, { recursive: true, force: true });
         }

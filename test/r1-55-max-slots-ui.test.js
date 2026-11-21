@@ -264,9 +264,12 @@ describe('r1-55 max slots on the customer grid', () => {
         }
 
         await showRates({ canBook: false });
-        assert.equal(headerLabels().includes('Max slots'), false);
+        assert.equal(headerLabels().at(-1), 'Max slots');
         assert.equal(headerLabels().includes('Booking'), false);
-        assert.equal(walk(document.getElementById('ratesTableBody')).some(node => node.className === 'max-slots'), false);
+        assert.equal(rowFor('zero').children.at(-1).textContent, '0');
+        assert.equal(rowFor('zero').children.at(-1).className, 'max-slots');
+        assert.equal(rowFor('four').children.at(-1).textContent, '4');
+        assert.equal(rowFor('missing').children.at(-1).textContent, '—');
         assert.equal(walk(document.getElementById('ratesTableBody')).some(node => node.textContent === 'Request booking'), false);
 
         const css = fs.readFileSync(path.join(root, 'public', 'styles.css'), 'utf8');
@@ -475,7 +478,7 @@ describe('r1-55 rate responses across the migration to allow zero slots', { conc
                 assert.equal(Object.hasOwn(rate, 'max_slots_allowed'), false);
             }
             for (const rate of after.owner.rates) {
-                assert.equal(Object.hasOwn(rate, 'maxSlotsAllowed'), false);
+                assert.equal(rate.maxSlotsAllowed, after.customer.rates.find(row => row.id === rate.id).maxSlotsAllowed);
             }
             assert.equal(JSON.stringify(after.predictiveCustomer).includes('maxSlotsAllowed'), false);
             for (const rate of after.mcp.data) {
