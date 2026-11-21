@@ -3032,3 +3032,12 @@ body {
     display: block;
     margin: 0 0 0.5rem;
 }
+
+.admin-form .oauth-scope-fields input[type="checkbox"] {
+    width: auto;
+    margin-inline-end: .25rem;
+}
+
+.admin-form .oauth-scope-fields label {
+    display: block;
+}

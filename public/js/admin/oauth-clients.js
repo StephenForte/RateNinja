@@ -2,6 +2,14 @@ import { request } from '../api.js';
 import { adminFailureMessage } from '../permissions.js';
 import { errorBox, heading, paragraph, textCell } from '../dom.js';
 
+const scopeDefaults = [
+    ['profile:read', true],
+    ['rates:read', true],
+    ['sailings:read', true],
+    ['bookings:read', true],
+    ['bookings:write', false]
+];
+
 export async function mount(container) {
     container.replaceChildren();
     const errors = errorBox();
@@ -27,27 +35,7 @@ export async function mount(container) {
     const redirects = document.createElement('textarea');
     redirects.rows = 3;
     redirects.placeholder = 'https://partner.example/callback';
-    const scopeDefaults = [
-        ['profile:read', true],
-        ['rates:read', true],
-        ['sailings:read', true],
-        ['bookings:read', true],
-        ['bookings:write', false]
-    ];
-    const scopes = document.createElement('fieldset');
-    const legend = document.createElement('legend');
-    legend.textContent = 'Scopes';
-    scopes.append(legend);
-    for (const [scope, checked] of scopeDefaults) {
-        const input = document.createElement('input');
-        input.type = 'checkbox';
-        input.name = 'oauthScope';
-        input.value = scope;
-        input.checked = checked;
-        const label = document.createElement('label');
-        label.append(input, document.createTextNode(` ${scope}`));
-        scopes.append(label);
-    }
+    const scopes = scopeFields();
     const submit = document.createElement('button');
     submit.type = 'submit';
     submit.className = 'save-btn';
@@ -60,13 +48,16 @@ export async function mount(container) {
         submit
     );
 
+    const editor = document.createElement('div');
+    editor.hidden = true;
+
     const wrap = document.createElement('div');
     wrap.className = 'admin-table-container';
     const table = document.createElement('table');
     table.className = 'admin-table';
     const head = document.createElement('thead');
     const headRow = document.createElement('tr');
-    for (const label of ['Name', 'Client id', 'Redirect URIs', 'Type', 'Status', '']) {
+    for (const label of ['Name', 'Client id', 'Redirect URIs', 'Type', 'Status', 'Active connections', '']) {
         headRow.append(textCell(label, 'th'));
     }
     head.append(headRow);
@@ -79,6 +70,7 @@ export async function mount(container) {
         notice,
         errors.box,
         form,
+        editor,
         wrap
     );
 
@@ -92,27 +84,9 @@ export async function mount(container) {
         body.replaceChildren();
         clients.forEach(client => {
             const row = document.createElement('tr');
-            const redirectInput = document.createElement('textarea');
-            redirectInput.rows = 2;
-            redirectInput.value = (client.redirectUris || []).join('\n');
-            const redirectCell = document.createElement('td');
-            redirectCell.append(redirectInput);
             const actions = document.createElement('td');
-            const saveRedirects = document.createElement('button');
-            saveRedirects.type = 'button';
-            saveRedirects.className = 'save-btn';
-            saveRedirects.textContent = 'Save redirects';
-            saveRedirects.addEventListener('click', () => updateClient(client, {
-                redirectUris: redirectInput.value.split(/\n+/).map(value => value.trim()).filter(Boolean)
-            }));
-            const toggle = document.createElement('button');
-            toggle.type = 'button';
-            toggle.className = 'back-btn';
-            toggle.textContent = client.status === 'active' ? 'Disable' : 'Enable';
-            toggle.addEventListener('click', () => updateClient(client, {
-                status: client.status === 'active' ? 'disabled' : 'active'
-            }));
-            actions.append(saveRedirects, toggle);
+            const edit = actionButton('Edit', () => openEditor(client));
+            actions.append(edit);
             if (client.clientType === 'confidential') {
                 const rotate = document.createElement('button');
                 rotate.type = 'button';
@@ -121,12 +95,16 @@ export async function mount(container) {
                 rotate.addEventListener('click', () => rotateSecret(client.id));
                 actions.append(rotate);
             }
+            if (client.canDelete) {
+                actions.append(actionButton('Delete', event => deleteClient(client, event.currentTarget)));
+            }
             row.append(
                 textCell(client.displayName),
                 textCell(client.id),
-                redirectCell,
+                textCell(client.redirectUris.join(', ')),
                 textCell(client.clientType),
                 textCell(client.status),
+                textCell(String(client.activeGrantCount)),
                 actions
             );
             body.append(row);
@@ -139,16 +117,82 @@ export async function mount(container) {
         render(clients);
     }
 
-    async function updateClient(client, patch) {
+    function closeEditor() {
+        editor.hidden = true;
+        editor.replaceChildren();
+    }
+
+    function openEditor(client) {
+        const editForm = document.createElement('form');
+        editForm.className = 'admin-form';
+        const name = document.createElement('input');
+        name.required = true;
+        name.maxLength = 80;
+        name.value = client.displayName;
+        const uris = document.createElement('textarea');
+        uris.rows = 3;
+        uris.value = client.redirectUris.join('\n');
+        const allowed = scopeFields(client.allowedScopes);
+        const status = document.createElement('select');
+        status.add(new Option('Active', 'active'));
+        status.add(new Option('Disabled', 'disabled'));
+        status.value = client.status;
+        const save = document.createElement('button');
+        save.type = 'submit';
+        save.className = 'save-btn';
+        save.textContent = 'Save changes';
+        editForm.append(
+            labeled('Display name ', name),
+            labeled('Redirect URIs, one per line ', uris),
+            allowed,
+            labeled('Status ', status),
+            save,
+            actionButton('Cancel', closeEditor)
+        );
+        editForm.addEventListener('submit', async event => {
+            event.preventDefault();
+            save.disabled = true;
+            errors.hide();
+            try {
+                await request(`/api/admin/oauth-clients/${client.id}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({
+                        displayName: name.value,
+                        redirectUris: redirectValues(uris),
+                        allowedScopes: selectedScopes(allowed),
+                        status: status.value
+                    })
+                });
+                if (editor.contains(editForm)) closeEditor();
+                await reload();
+            } catch (error) {
+                errors.show(adminFailureMessage(error, error.message));
+            } finally {
+                save.disabled = false;
+            }
+        });
+        const title = document.createElement('h3');
+        title.textContent = `Edit ${client.displayName}`;
+        editor.replaceChildren(title, editForm);
+        editor.hidden = false;
+        editor.dataset.clientId = client.id;
+        name.focus();
+    }
+
+    async function deleteClient(client, button) {
+        const count = client.activeGrantCount;
+        const connections = count === 1 ? 'connection' : 'connections';
+        if (!window.confirm(`Permanently delete "${client.displayName}"? This will cut ${count} active ${connections}.`)) return;
+        button.disabled = true;
         errors.hide();
         try {
-            await request(`/api/admin/oauth-clients/${client.id}`, {
-                method: 'PATCH',
-                body: JSON.stringify(patch)
-            });
+            await request(`/api/admin/oauth-clients/${client.id}`, { method: 'DELETE' });
+            if (editor.dataset.clientId === client.id) closeEditor();
             await reload();
         } catch (error) {
             errors.show(adminFailureMessage(error, error.message));
+        } finally {
+            button.disabled = false;
         }
     }
 
@@ -169,23 +213,19 @@ export async function mount(container) {
     form.addEventListener('submit', async event => {
         event.preventDefault();
         errors.hide();
-        const allowedScopes = [...form.querySelectorAll('input[name="oauthScope"]:checked')].map(input => input.value);
+        const allowedScopes = selectedScopes(scopes);
         try {
             const result = await request('/api/admin/oauth-clients', {
                 method: 'POST',
                 body: JSON.stringify({
                     displayName: displayName.value,
                     clientType: clientType.value,
-                    redirectUris: redirects.value.split(/\n+/).map(value => value.trim()).filter(Boolean),
+                    redirectUris: redirectValues(redirects),
                     allowedScopes
                 })
             });
             showSecret(result.clientSecret);
             form.reset();
-            for (const input of form.querySelectorAll('input[name="oauthScope"]')) {
-                const entry = scopeDefaults.find(([scope]) => scope === input.value);
-                input.checked = Boolean(entry && entry[1]);
-            }
             await reload();
         } catch (error) {
             errors.show(adminFailureMessage(error, error.message));
@@ -197,6 +237,41 @@ export async function mount(container) {
     } catch (error) {
         errors.show(adminFailureMessage(error, `Failed to load administration data: ${error.message}`));
     }
+}
+
+function actionButton(text, onClick) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'back-btn';
+    button.textContent = text;
+    button.addEventListener('click', onClick);
+    return button;
+}
+
+function scopeFields(selected) {
+    const fieldset = document.createElement('fieldset');
+    fieldset.className = 'oauth-scope-fields';
+    const legend = document.createElement('legend');
+    legend.textContent = 'Scopes';
+    fieldset.append(legend);
+    for (const [scope, checked] of scopeDefaults) {
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.value = scope;
+        input.defaultChecked = selected ? selected.includes(scope) : checked;
+        const label = document.createElement('label');
+        label.append(input, document.createTextNode(` ${scope}`));
+        fieldset.append(label);
+    }
+    return fieldset;
+}
+
+function selectedScopes(fieldset) {
+    return [...fieldset.querySelectorAll('input:checked')].map(input => input.value);
+}
+
+function redirectValues(control) {
+    return control.value.split(/\n+/).map(value => value.trim()).filter(Boolean);
 }
 
 function labeled(text, control) {
