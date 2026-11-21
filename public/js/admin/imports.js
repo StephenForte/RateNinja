@@ -24,6 +24,7 @@ const HEADER_TARGETS = {
     '20D Rate': 'rate20D',
     '40D rate': 'rate40D',
     '40HC Rate': 'rate40HC',
+    'Max Slots Allowed': 'maxSlotsAllowed',
     'Effective Date': 'rateEffectiveDate',
     'Expiry Date': 'rateExpirationDate',
     'Notes 1': 'notes1',
