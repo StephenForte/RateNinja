@@ -1196,3 +1196,18 @@ any scope the client was not allowed.
   2026-11-21).
 - **No surface change yet:** imports, the UI, the partner API, MCP, exports and booking rules gain
   the field in later tasks.
+
+### D-054 — Zero max slots and the customer grid (2026-11-21, operator request; amends D-053)
+
+- **Schema:** `max_slots_allowed INTEGER CHECK (max_slots_allowed IS NULL OR max_slots_allowed >= 0)`.
+  Migration 018 swaps the column (add, copy, drop, rename) because SQLite cannot alter a CHECK in
+  place; every existing value and every other column, `row_version` included, is kept.
+- **New rates:** `trg_rates_max_slots_default` now sets `abs(random()) % 6` (0–5) when the value is
+  NULL on insert. A supplied value, 0 included, is kept. Pull-forward copies get a fresh 0–5.
+- **Customer view:** `GET /api/rates` rows for a signed-in customer carry `maxSlotsAllowed` (integer
+  or null; predictive rows null). The value lives on the store record outside `fields`, so the
+  partner API, MCP, the owner view, exports and CloudBBS posts do not gain it.
+- **Grid:** a "Max slots" column sits immediately before Request booking; at 0 the button is
+  disabled with "No slots available" and opens nothing. Null and 1–5 behave as before.
+- **Not yet:** the server still accepts a booking on a 0 rate and does not cap slots; the booking
+  logic task owns that.
