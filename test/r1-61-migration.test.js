@@ -75,8 +75,9 @@ it('applies 019 to a populated 018 database and defaults all 50 agents to off', 
         boot(dbPath, migrations);
         db = new DatabaseSync(dbPath);
         const afterIds = applied();
-        assert.deepEqual(afterIds.slice(0, -1), beforeIds);
-        assert.equal(afterIds.at(-1).id, '019');
+        assert.deepEqual(afterIds.slice(0, -2), beforeIds);
+        assert.equal(afterIds.at(-2).id, '019');
+        assert.equal(afterIds.at(-1).id, '020');
         const after = snapshot(db);
         assert.deepEqual(after, {
             ...before,
