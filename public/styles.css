@@ -3054,3 +3054,7 @@ body {
     font-size: 13px;
     font-weight: 400;
 }
+
+.agent-slot-help {
+    margin: 0 0 0 1.5rem;
+}

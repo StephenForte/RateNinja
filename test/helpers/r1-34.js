@@ -16,7 +16,7 @@ function hashTables(db, { skipAudit = false, migrationComparison = false } = {})
         if (skipAudit && name === 'audit_events') continue;
         if (migrationComparison && (name === 'booking_receipts' || name === 'managed_agent_runs')) continue;
         const table = '"' + name.replaceAll('"', '""') + '"';
-        const where = migrationComparison && name === 'schema_migrations' ? " WHERE id NOT IN ('014', '015', '016', '017', '018')" : '';
+        const where = migrationComparison && name === 'schema_migrations' ? " WHERE id NOT IN ('014', '015', '016', '017', '018', '019')" : '';
         const rows = db.prepare(`SELECT * FROM ${table}${where}`).all();
         if (migrationComparison && name === 'rates') {
             for (const row of rows) delete row.max_slots_allowed;
@@ -25,6 +25,7 @@ function hashTables(db, { skipAudit = false, migrationComparison = false } = {})
             for (const row of rows) {
                 delete row.booking_slots;
                 delete row.booking_request_id;
+                delete row.accept_max_slots;
             }
         }
         result[name] = createHash('sha256').update(JSON.stringify(rows.map(row => JSON.stringify(row)).sort())).digest('hex');

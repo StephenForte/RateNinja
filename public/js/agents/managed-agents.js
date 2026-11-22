@@ -64,6 +64,7 @@ function editor(options, initial = {}) {
     const sailingDate = input('date', initial.sailingDate);
     const alternative = input('checkbox', initial.allowAlternativeRoutes);
     const booking = input('checkbox', options.canRequestBooking && initial.allowBookingRequest);
+    const acceptMaxSlots = input('checkbox', initial.acceptMaxSlots);
     const priceMin = input('number', initial.priceMin);
     const priceMax = input('number', initial.priceMax);
     const bookingSlots = input('number', initial.bookingSlots);
@@ -97,7 +98,15 @@ function editor(options, initial = {}) {
     permissions.className = 'agent-permissions';
     permissions.append(checkbox('Allow AI Agent to search for alternative routes', alternative));
     if (options.canRequestBooking) {
-        permissions.append(checkbox('Allow AI Agent to request a booking', booking));
+        const slotsHelp = textCell('If a rate allows fewer slots than you requested, book the rate’s maximum.',
+            'span', 'agent-hint agent-slot-help');
+        slotsHelp.id = 'agent-slot-help';
+        acceptMaxSlots.setAttribute('aria-describedby', slotsHelp.id);
+        permissions.append(
+            checkbox('Allow AI Agent to request a booking', booking),
+            checkbox('Use AI for slot selection', acceptMaxSlots),
+            slotsHelp
+        );
     }
     const prices = document.createElement('div');
     prices.className = 'agent-fields agent-prices';
@@ -109,7 +118,7 @@ function editor(options, initial = {}) {
 
     function togglePrices() {
         prices.hidden = !booking.checked;
-        priceMin.disabled = priceMax.disabled = bookingSlots.disabled = !booking.checked;
+        priceMin.disabled = priceMax.disabled = bookingSlots.disabled = acceptMaxSlots.disabled = !booking.checked;
     }
 
     let previousLane;
@@ -242,7 +251,8 @@ function editor(options, initial = {}) {
             allowBookingRequest: booking.checked,
             priceMin: booking.checked ? priceMin.valueAsNumber : null,
             priceMax: booking.checked ? priceMax.valueAsNumber : null,
-            bookingSlots: booking.checked ? bookingSlots.valueAsNumber : null
+            bookingSlots: booking.checked ? bookingSlots.valueAsNumber : null,
+            ...(booking.checked && acceptMaxSlots.checked ? { acceptMaxSlots: true } : {})
         })
     };
 }
@@ -296,7 +306,8 @@ function agentDetail(agent, edit, remove) {
     card.className = 'agent-detail-panel';
     const values = [
         ['Alternative routes', agent.allowAlternativeRoutes ? 'Allowed' : 'Off'],
-        ['Booking request', agent.allowBookingRequest ? 'Allowed' : 'Off']
+        ['Booking request', agent.allowBookingRequest ? 'Allowed' : 'Off'],
+        ['Use AI for slot selection', agent.acceptMaxSlots ? 'On' : 'Off']
     ];
     if (agent.allowBookingRequest) {
         values.push(['Slots', String(agent.bookingSlots)]);

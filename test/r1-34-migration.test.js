@@ -51,7 +51,7 @@ it('applies 014 to populated 013 data and reopens without changing rows or creat
         boot(dbPath, root, migrations);
         db = new DatabaseSync(dbPath);
         assert.deepEqual(db.prepare("SELECT id FROM schema_migrations WHERE id >= '014' ORDER BY id").all()
-            .map(row => row.id), ['014', '015', '016', '017', '018']);
+            .map(row => row.id), ['014', '015', '016', '017', '018', '019']);
         assert.deepEqual(hashTables(db, { migrationComparison: true }), before);
         assert.deepEqual(db.prepare('SELECT id, booking_slots, booking_request_id FROM managed_agents ORDER BY id').all()
             .map(row => [row.id, row.booking_slots, row.booking_request_id]), [

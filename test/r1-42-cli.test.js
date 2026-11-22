@@ -86,10 +86,10 @@ it('pre-selects Alan, Bob and TestBuyer and writes nothing without confirmation'
 it('creates one batch per selected user with --yes and continues after a per-user failure', async () => {
     const created = await cli(['managed-agents-samples', '--yes']);
     assert.equal(created.status, 0, created.stderr + created.stdout);
-    assert.equal(agentCount(), 9);
-    assert.equal(agentCount(world.users.alan.id), 3);
-    assert.equal(agentCount(world.users.bob.id), 3);
-    assert.equal(agentCount(world.users.testBuyer.id), 3);
+    assert.equal(agentCount(), 15);
+    assert.equal(agentCount(world.users.alan.id), 5);
+    assert.equal(agentCount(world.users.bob.id), 5);
+    assert.equal(agentCount(world.users.testBuyer.id), 5);
     assert.equal(agentCount(world.users.nora.id), 0);
     assert.equal(agentCount(world.users.bobby.id), 0);
     const ids = app.db.prepare('SELECT id FROM managed_agents').all().map(row => row.id);
@@ -106,12 +106,12 @@ it('creates one batch per selected user with --yes and continues after a per-use
     assert.equal(partial.status, 1, partial.stdout);
     assert.match(partial.stderr, /no lane with a matching customer price/);
     assert.match(partial.stderr, /not an active customer user/);
-    assert.equal(agentCount(world.users.alan.id), 3);
+    assert.equal(agentCount(world.users.alan.id), 5);
     assert.equal(agentCount(world.users.empty.id), 0);
     assert.equal(agentCount(world.users.owner.id), 0);
     const body = JSON.parse(partial.stdout);
     assert.equal(body.results.length, 1);
-    assert.equal(body.results[0].agentIds.length, 3);
+    assert.equal(body.results[0].agentIds.length, 5);
     assert.equal(`${partial.stdout}${partial.stderr}`.includes(ADMIN_KEY), false);
 });
 

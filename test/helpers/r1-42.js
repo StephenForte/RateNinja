@@ -92,7 +92,7 @@ function seedSampleWorld(db) {
                 effective: utcDay(0),
                 expiration: utcDay(20)
             });
-            db.prepare('UPDATE rates SET rate_type = ? WHERE id = ?').run(RATE_TYPE, id);
+            db.prepare('UPDATE rates SET rate_type = ?, max_slots_allowed = 3 WHERE id = ?').run(RATE_TYPE, id);
         }
     }
     insertRate(db, {
@@ -142,7 +142,7 @@ function seedSampleWorld(db) {
         effective: utcDay(0),
         expiration: utcDay(0)
     });
-    db.prepare('UPDATE rates SET rate_type = ? WHERE id = ?').run(RATE_TYPE, 'sample-edge');
+    db.prepare('UPDATE rates SET rate_type = ?, max_slots_allowed = 3 WHERE id = ?').run(RATE_TYPE, 'sample-edge');
     insertRate(db, {
         id: 'sample-edge-expired',
         owner: companies.edgeOwner,

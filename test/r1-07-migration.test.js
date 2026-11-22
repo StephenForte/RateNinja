@@ -145,7 +145,7 @@ describe('r1-07 migration 005', { concurrency: 1 }, () => {
         afterDb.close();
         assert.equal(after.length, beforeCount);
         assert.deepEqual(after, before);
-        assert.deepEqual(applied.map(row => row.id), ['001', '002', '003', '004', '005', '006', '008', '010', '011', '012', '013', '014', '015', '016', '017', '018']);
+        assert.deepEqual(applied.map(row => row.id), ['001', '002', '003', '004', '005', '006', '008', '010', '011', '012', '013', '014', '015', '016', '017', '018', '019']);
         for (const row of statuses) {
             assert.equal(row.status, 'active', row.id);
             assert.equal(row.revoked_at, null, row.id);

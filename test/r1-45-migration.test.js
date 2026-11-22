@@ -33,7 +33,7 @@ function snapshot(db) {
     return Object.fromEntries(db.prepare("SELECT name FROM sqlite_schema WHERE type = 'table' ORDER BY name").all()
         .flatMap(({ name }) => {
             if (name === 'managed_agent_runs') return [];
-            const filter = name === 'schema_migrations' ? " WHERE id NOT IN ('016', '017', '018')" : '';
+            const filter = name === 'schema_migrations' ? " WHERE id NOT IN ('016', '017', '018', '019')" : '';
             const table = '"' + name.replaceAll('"', '""') + '"';
             const rows = db.prepare(`SELECT * FROM ${table}${filter}`).all();
             if (name === 'rates') {
@@ -77,7 +77,11 @@ it('applies migration 016 to a populated database and does nothing on a re-run',
 
         boot(dbPath, path.join(root, 'lib/migrations'));
         db = new DatabaseSync(dbPath);
-        assert.deepEqual(snapshot(db), before);
+        assert.deepEqual(snapshot(db), {
+            ...before,
+            managed_agents: before.managed_agents.map(row =>
+                Object.assign(Object.create(null), row, { accept_max_slots: 0 }))
+        });
         assert.equal(db.prepare("SELECT COUNT(*) AS n FROM schema_migrations WHERE id = '016'").get().n, 1);
         assert.equal(db.prepare('SELECT COUNT(*) AS n FROM managed_agent_runs').get().n, 0);
         const index = db.prepare("SELECT sql FROM sqlite_master WHERE name = 'managed_agent_runs_one_running'").get();

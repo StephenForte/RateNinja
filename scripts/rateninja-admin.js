@@ -425,15 +425,22 @@ async function pickSampleUsers(customers, ask) {
 }
 
 function printSamplePreview(plans) {
-    const labels = { lowball: 'lowball', regular: 'regular', no_booking: 'no booking' };
+    const labels = {
+        lowball: 'lowball',
+        regular: 'regular',
+        no_booking: 'no booking',
+        slots_over_skip: 'over limit (skip)',
+        slots_over_accept: 'over limit (accept max)'
+    };
     for (const plan of plans) {
         stdout.write(`${sampleLabel(plan)} — ${plan.companyName}\n`);
         for (const agent of plan.agents) {
             const booking = agent.allowBookingRequest ? 'booking on' : 'booking off';
             const ceiling = agent.allowBookingRequest ? ` ceiling ${agent.priceMax}` : '';
+            const slots = agent.acceptMaxSlots === undefined ? '' : ` ${agent.bookingSlots} slots`;
             stdout.write(
                 `  ${labels[agent.sampleKind] || agent.sampleKind}  ${agent.originPort} → ${agent.destinationPort}  ` +
-                `${agent.sailingDate}  ${agent.containerType}  ${booking}${ceiling}\n`
+                `${agent.sailingDate}  ${agent.containerType}  ${booking}${slots}${ceiling}\n`
             );
         }
     }
