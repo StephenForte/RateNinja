@@ -50,7 +50,7 @@ requests and report back. The customer watches the whole run, agent by agent.
   403 `swarm_not_enabled`.
 - **System admin**: enables the flag per company, sets the CloudBBS project and token, sees all
   runs of all customers.
-- **Contract owner admin**: sees runs of the customers linked to their company (assumption A1).
+- **Contract owner admin**: sees runs of the customers linked to their company (A1).
 
 ## 5. The wizard (tab `/swarm`)
 
@@ -143,7 +143,7 @@ R1-63 and R1-64 can run in parallel after R1-62 merges.
 - Scheduled or repeating runs.
 - Billing for premium.
 
-## 11. Assumptions to confirm
+## 11. Assumptions (confirmed by the operator 2026-11-22)
 
 - **A1**: a contract owner admin sees runs only for customers linked to their company; a system
   admin sees all.

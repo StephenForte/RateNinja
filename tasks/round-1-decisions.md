@@ -1319,7 +1319,7 @@ any scope the client was not allowed.
   creation; server-created CloudBBS projects; scheduled runs; billing.
 - **Unmeasured:** tokens and wall time per run, and so the turn and time caps. The engine task
   (R1-64) measures a 3-lane and a 25-lane run before the numbers are fixed.
-- **Assumptions awaiting the operator (PRD §11):** A1 owner admins see only linked customers'
+- **Assumptions confirmed by the operator 2026-11-22 ("Yes, all five"; PRD §11):** A1 owner admins see only linked customers'
   runs; A2 both caps required when any lane books, spend = customer price × slots requested;
   A3 company-wide list, creator or company admin edits; A4 bookings in the name of the user who
   pressed Run; A5 date flex is ± N days inside a rate window.
