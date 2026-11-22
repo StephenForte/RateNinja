@@ -1241,3 +1241,57 @@ any scope the client was not allowed.
   state the per-request rule (at most `maxSlotsAllowed`; 0 cannot be booked; null no per-rate limit).
 - **Unchanged:** the public `/api/v1` API, exports, CloudBBS posts, the managed-agent runner,
   predictive outputs and the owner session view.
+
+### D-057 — Max slots on the public API, reference ranges and the agent runner (2026-11-21, operator request)
+
+- **Public `/api/v1/rates`:** each row carries `maxSlotsAllowed` right after `rateExpirationDate`
+  (set in `handlePublicRates`; `mapRateRecord` unchanged). Sailings and predictive public outputs
+  are unchanged.
+- **Rate-date-range rows** (partner REST, MCP, admin reference, CloudBBS `reads.rateDateRanges`)
+  carry `maxSlotsAllowedMin` and `maxSlotsAllowedMax` after `rateCount`: the lowest and highest
+  non-null max among the grouped rates, null/null when all are null. Grouping and `rateCount` are
+  unchanged; the CloudBBS schema stays `rateninja.reference.v1` (additive).
+- **Managed agents:** a match carries `maxSlotsAllowed`; `bookable` requires expiry AND (null, or
+  max ≥ 1 and `booking_slots` ≤ max). The runner prompt notes that `bookable` accounts for the
+  agent's slot count. No rate re-selection or slot lowering.
+
+### D-058 — Max slots column in rate imports (2026-11-21, operator request; there is no export feature)
+
+- **Optional import target** `maxSlotsAllowed` ("Max slots allowed", kind integer) after `rate40HC`;
+  the Claude mapping and the UI pick it up from the target list.
+- **Values:** a whole number ≥ 0 is stored; blank or missing stores NULL so the insert trigger draws
+  0–5; anything else is a row error ("Must be a whole number of 0 or more."). No upper bound.
+- **Template:** `public/templates/rates.csv` gains "Max Slots Allowed" after "40HC Rate".
+- **Not through `validateRate` or `RATE_FIELDS`:** data-ops edits accept `RATE_FIELDS` but write an
+  explicit column list, so adding the field there would accept and silently drop it. Data-grid
+  editing is out of scope.
+
+### D-059 — Owners see and edit max slots (2026-11-21, operator request)
+
+- **View:** the contract owner's Rates grid shows a "Max slots" column (owner `appRates` gains
+  `maxSlotsAllowed`); Admin → Data rates list shows it too.
+- **Edit:** the Admin → Data rate edit dialog changes it. Same rule as D-058: whole number ≥ 0, no
+  upper bound, "Must be a whole number of 0 or more." An edit cannot set it to blank (NULL); the
+  trigger only fills inserts.
+- **Path:** it is written by the data-ops UPDATE (explicit column, same `row_version` bump), not by
+  adding it to `RATE_FIELDS` / `validateRate`, which imports and other callers share.
+- Bookings already made are not changed; the cap (D-055) applies to new requests.
+
+### D-060 — "Use AI for slot selection" on managed agents (2026-11-21, operator request)
+
+- **Flag:** `managed_agents.accept_max_slots` (migration 019, 0/1, default 0). Web form checkbox
+  "Use AI for slot selection", only with booking allowed; otherwise stored 0. Not on the partner
+  API or MCP (managed agents are web-only; operator chose web form only).
+- **Rule:** flag on and requested slots > rate max ≥ 1 → the rate is bookable and the booking is for
+  the rate's max (12 requested, max 3 → 3). Max 0 is never bookable. When the request fits, nothing
+  changes. Flag off keeps D-057 (bookable only when the request fits).
+- **Where:** decided server-side in `matchRate` / `bookForAdmin` from the rate's max read in the
+  booking transaction, so the laptop runner and the Render run button behave the same.
+- **Record:** the summary says requested and booked slots when they differ.
+- **Samples (CLI option 13):** two more agents per customer user (five in all): 12 slots on one
+  lane and date where a matching rate has max 1–11, one with the flag off (expect no booking) and
+  one with it on (expect a booking for that max). Three customers → 15 agents.
+- **Amended 2026-11-21 (R1-61, after Bugbot):** a lane is eligible for the two 12-slot samples only if
+  a matching rate has max 1–11 and no matching rate would take 12 slots as-is (max NULL or ≥ 12);
+  max-0 rates do not disqualify. A mixed lane let the flag-off sample book 12 on the uncapped rate.
+  No eligible lane → 422, none of the five created.
