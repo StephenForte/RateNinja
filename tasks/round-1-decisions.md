@@ -1295,3 +1295,58 @@ any scope the client was not allowed.
   a matching rate has max 1–11 and no matching rate would take 12 slots as-is (max NULL or ≥ 12);
   max-0 rates do not disqualify. A mixed lane let the flag-off sample book 12 on the uncapped rate.
   No eligible lane → 422, none of the five created.
+
+### D-061 — Managed Agent Swarm (Premium): product and architecture (2026-11-22, operator request)
+
+- **Why:** operator asked for a third customer tab where a customer saves lanes and rules, and one
+  master agent spawns search agents, decides, then spawns booking agents. Full text:
+  `tasks/prd-managed-agent-swarm.md`.
+- **Operator answers (2026-11-22):** the master is a Claude tool-use loop and each sub-agent is its
+  own Claude call chain; code enforces the caps. SQLite is the truth; agents also keep keyed state
+  in a private CloudBBS project per customer (never `rn`). Runs execute in the Render web process.
+  Bookings are automatic inside the caps. Premium is a per-company flag set by a system admin;
+  other customers see the tab with a premium panel. Separate swarm tables; managed agents (D-039
+  to D-060) are untouched. Global rules: total spend cap and total slots cap (both hard),
+  per-lane priority, free-text or uploaded `.md` instructions. Web only. The operator creates the
+  CloudBBS project and token by hand and a system admin pastes them in. A redirect is once per
+  lane, to a nearby destination or another date in the lane's window. The master template is a
+  file in the repo. Limits: 25 lanes, one run at a time per company, master turn and time cap,
+  customer cancel. Customers see their runs; rate owners and system admins see runs per customer.
+- **Guards are code:** a booking needs a rate id that this run's search agent fetched for that
+  lane (bookable, in range), must fit both caps, and is checked and recorded in one transaction.
+  The instructions text is untrusted and can never widen a guard.
+- **Roadmap, not now:** background worker; "I must approve first" checkbox; CLI, partner API or MCP
+  creation; server-created CloudBBS projects; scheduled runs; billing.
+- **Unmeasured:** tokens and wall time per run, and so the turn and time caps. The engine task
+  (R1-64) measures a 3-lane and a 25-lane run before the numbers are fixed.
+- **Assumptions awaiting the operator (PRD §11):** A1 owner admins see only linked customers'
+  runs; A2 both caps required when any lane books, spend = customer price × slots requested;
+  A3 company-wide list, creator or company admin edits; A4 bookings in the name of the user who
+  pressed Run; A5 date flex is ± N days inside a rate window.
+- **Tasks:** R1-62 foundation, R1-63 wizard, R1-64 engine, R1-65 customer dashboard, R1-66 owner
+  and admin view.
+
+### D-062 — Swarm foundation: premium flag, CloudBBS settings, swarm definitions (2026-11-22; R1-62, migration 020)
+
+- **Tables (migration 020):** `company_swarm_settings` (`company_id` PK = `companies.id`,
+  `enabled` 0/1, `bbs_project`, `bbs_token_enc`, `updated_at`, `updated_by_user_id`); `swarms`
+  (`id`, `company_id`, `created_by_user_id`, `name`, `instructions`, `total_spend_cap`,
+  `total_slots_cap`, timestamps); `swarm_lanes` (`swarm_id` cascade, `position`, the managed-agent
+  search and booking fields, `priority` high/normal/low, `date_flex_days` 0–14).
+- **Company identity:** `actor.company.id` (`companies.id`), never `users.company_id` (D-039
+  correction).
+- **Token at rest:** AES-256-GCM with a key derived from `SESSION_SECRET` under its own label.
+  The token is never returned by any route, never logged, never in an audit row; reads show
+  `hasBbsToken`. An unreadable token (secret rotated) counts as not set.
+- **Enable rule:** `enabled` may be 1 only for a customer-type company with a project and a
+  readable token.
+- **System admin routes:** `GET /api/admin/swarm/companies`,
+  `PUT /api/admin/swarm/companies/{companyId}`. Audit `swarm_settings_updated`.
+- **Customer routes:** `GET /api/swarm/access`; `GET|POST /api/swarms`;
+  `GET|PUT|DELETE /api/swarms/{id}`. Not enabled → 403 `swarm_not_enabled`. Another company's
+  swarm → 404. Company-wide list; creator or company admin changes (A3).
+- **Validation:** name 1–100; instructions 0–20,000 characters, stored and returned as text; 1–25
+  lanes, each valid by the managed-agent rules (visible lane, date in a rate window, container,
+  booking fields) plus priority and date flex; both caps required and positive when any lane
+  allows booking (A2). `PUT` replaces the swarm and its lanes in one transaction.
+- **Not in R1-62:** any UI, any run, any Claude or CloudBBS call (the token is stored, not tested).

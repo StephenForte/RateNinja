@@ -54,9 +54,11 @@ Owner of this file and the decisions log: the planner. **Workers never edit eith
 | 017 | `lib/migrations/017-rate-max-slots.js` | R1-54 |
 | 018 | `lib/migrations/018-rate-max-slots-zero.js` | R1-55 |
 | 019 | `lib/migrations/019-managed-agent-accept-max-slots.js` | R1-61 |
-| 020+ | unassigned | ask the planner |
+| 020 | `lib/migrations/020-swarm-foundation.js` | R1-62 |
+| 021 | swarm runs (name set in the R1-64 brief) | R1-64 |
+| 022+ | unassigned | ask the planner |
 
-Next free: **020**. (007 and 009 were reserved and never used; don't reuse them without a planner decision.)
+Next free: **022**. (007 and 009 were reserved and never used; don't reuse them without a planner decision.)
 
 ## Task tree
 
@@ -126,7 +128,12 @@ Model names are the planner's proposal; operator overrides recorded in the Run c
 | R1-58 | Public `/api/v1/rates` gains `maxSlotsAllowed`; rate-date-range rows (partner, MCP, admin reference, CloudBBS post) gain `maxSlotsAllowedMin`/`Max`; managed-agent matches bookable only when `booking_slots` fits the max (0 never, null always) | D-057 | — | O / Opus 5.5 | merged 2026-11-21 (PR #121, `d967ed8`), deployed |
 | R1-59 | Rate imports accept an optional "Max Slots Allowed" column (whole number ≥ 0; blank → trigger 0–5); template CSV gains it; not routed through `validateRate` | D-058 | — | S / Sonnet 5.5 | merged 2026-11-21 (PR #123, `ab0ad65`), deployed |
 | R1-60 | Contract owners see max slots on their Rates grid and Admin → Data, and edit it in the Data edit dialog (whole number ≥ 0) | D-059 | — | S / Sonnet 5.5 | merged 2026-11-21 (PR #124, `d9a3b8b`), deployed |
-| R1-61 | Managed agents: "Use AI for slot selection" flag (migration 019) books the rate max when the request is larger; CLI samples add two 12-slot agents per customer (flag off / on) | D-060 | — | O / Opus 5.5 | approved 2026-11-21 (PR #125 at `032347d`) |
+| R1-61 | Managed agents: "Use AI for slot selection" flag (migration 019) books the rate max when the request is larger; CLI samples add two 12-slot agents per customer (flag off / on) | D-060 | — | O / Opus 5.5 | merged 2026-11-21 (PR #125, `a670224`), deployed |
+| R1-62 | Swarm foundation: migration 020, per-company premium flag and CloudBBS settings (system admin API, token encrypted), swarm definition API | D-061, D-062, `tasks/prd-managed-agent-swarm.md` | — | S / Opus 5.5 | briefed 2026-11-22 |
+| R1-63 | Swarm wizard tab `/swarm`, premium panel, system-admin settings panel | D-061, `tasks/prd-managed-agent-swarm.md` §5 | R1-62 | M / Sonnet 5.5 | planned |
+| R1-64 | Swarm run engine: migration 021, master tool loop, search and booking agents, code guards, `prompts/`, start and cancel, interrupted recovery, CloudBBS state | D-061, `tasks/prd-managed-agent-swarm.md` §6–7 | R1-62 | S / Opus 5.5 | planned |
+| R1-65 | Customer run dashboard, Run and Cancel buttons | D-061, `tasks/prd-managed-agent-swarm.md` §8 | R1-63, R1-64 | M / Sonnet 5.5 | planned |
+| R1-66 | Owner and system-admin runs view per customer | D-061, `tasks/prd-managed-agent-swarm.md` §8 | R1-64 | S / Sonnet 5.5 | planned |
 
 ### Run order (waves)
 
@@ -221,6 +228,7 @@ Peak concurrency is 4 (W2). If the operator runs fewer agents, drop R1-05 to W3 
 | R1-59 | `test/r1-59-*` | `lib/imports/fields.js`, `lib/imports/convert.js`, `lib/imports/jobs.js` (`insertCreated`), `lib/imports/schema.js` (prompt target line, declared), `public/js/admin/imports.js` (header seed, declared), `public/templates/rates.csv`, `docs/imports-discovery.md`; not `lib/record-validation.js` or `lib/data-ops.js` |
 | R1-60 | `test/r1-60-*` | `lib/visibility.js` (`appRates` owner branch only), `lib/data-ops.js` (`rateDto`, `editRecord`), `public/js/rates/browse.js` (owner Max slots column), `public/js/admin/data.js`, docs; not `lib/record-validation.js` |
 | R1-61 | `lib/migrations/019-managed-agent-accept-max-slots.js` (new), `test/r1-61-*` | `lib/managed-agents.js` (validate, create/update, present, `matchRate`, `bookForAdmin`, sample plan), `lib/migrations/index.js`, `lib/managed-agent-runner.js` (prompt and summary lines), `public/js/agents/managed-agents.js`, `scripts/rateninja-admin.js` (sample labels), `docs/admin-cli.md`, `docs/managed-agents*`, migration-list tests (add `019` only; declare) |
+| R1-62 | `lib/migrations/020-swarm-foundation.js`, `lib/swarms.js`, `lib/swarm-settings.js`, `lib/swarm-secrets.js`, `lib/routes/swarms.js`, `lib/routes/admin-swarm.js`, `test/r1-62-*`, `docs/managed-agent-swarm.md` (all new) | `lib/migrations/index.js`, the route registry, `lib/audit.js` (one event constant), `lib/managed-agents.js` (export existing lane validation only, no behaviour change), `public/api-docs.html`, migration-list tests (add `020` only; declare) |
 | R1-39 | `test/helpers/no-base-price.js` (new), `test/r1-39-*` (new) | `test/helpers/r1-21.js` (`assertNoBase` body only), `test/r1-19-booking-requests.test.js` (`containsNumber`/`assertNoBase` and the audit-detail check only), `test/r1-22-customer-partner.test.js` (`safe()` number check only); declare each, no product code |
 | R1-40 | `lib/booking-receipts.js` (new), `lib/migrations/015-booking-receipts.js` (new), `test/r1-40-*`, `test/helpers/r1-40.js` (new) | `lib/booking-requests.js` (`decideRequest`: queue the receipt in the approval transaction; `present()`: add `receipt`), `server.js` (start/stop the sender only), `lib/config.js` (env reads), `public/js/rates/booking-requests.js` (show the receipt), `public/styles.css` (append-only), `package.json`/`package-lock.json` (one signing dependency, exact pin), `.env.example` and `render.yaml` (env var names, `sync: false`, no values), `docs/booking-requests.md`, `docs/partner-integration.md`, tests asserting the applied migration list (add `015` only; declare), `test/r1-33-migration.test.js`, `test/r1-34-migration.test.js`, `test/helpers/r1-33.js`, `test/helpers/r1-34.js` (authorized 2026-11-19 after the worker asked: account for migration `015` and the new receipts table only; every pre-existing table still compared; declare) |
 
@@ -276,6 +284,7 @@ Every migration task must also prove: fresh DB, prod-shaped copy, and re-run (id
 
 ## Review log
 
+- 2026-11-22 · **Swarm wave opened: PRD, D-061, D-062; R1-62 briefed (migration 020).** Operator asked for a "Managed Agent Swarm (Premium)" tab and answered twelve scoping questions (D-061). Planner read main `dbf9ee1`: the runner is code with two Claude calls per agent (`lib/managed-agent-runner.js`), no premium concept exists (grep for premium/tier in `lib` and `public`: no hits), only MFA secrets are encrypted at rest (`lib/mfa.js`). Tokens and wall time per run are unmeasured; R1-64 measures before the caps are fixed. R1-49 and R1-61 rows still say approved; both are merged (`f8fca29`, #125 `a670224`).
 - 2026-11-21 · **R1-61, PR #125: approved at `032347d`, merge as-is.** Base `d9a3b8b` (R1-60 merge); worked in a temp clone (authorized; deleted). Fresh clone: check pass, 598/595/0/3, matches. Planner forward proof of 019: booted at 018, 60 agents in five statuses, then 019: rows unchanged, flag 0, CHECK rejects 2, integrity ok. Mutants 9/10 caught (book requested 12, flag ignored, max 0 accepted, flag without booking, Bugbot mixed lane, both flags on, present drop, summary, non-boolean); survivor is an untested max = requested − 1 boundary where the code is correct. Authorized test edits: migration lists +019, sample counts 3 → 5, fixture caps 3, form label and queue-another flag; D-060 sample eligibility amended after Bugbot. Review comment on #125.
 - 2026-11-21 · **R1-60, PR #124: approved at `83a389d`, merge as-is.** Fix is the requested `restoreEditedRow` line plus a regression test. Fresh clone: check pass, 585/582/0/3; reverting the fix turns the new test red. CI green.
 - 2026-11-21 · **R1-60, PR #124: changes requested at `a17de80`.** Base `ab0ad65`; scratch clone check pass, 584/581/0/3, matches; mutants 7/7 caught; changed r1-54/55/59 tests are strengthenings. Blocking: `restoreEditedRow` writes `prior.max_slots_allowed`, which is absent from `prior_json` recorded before migration 017, so undoing such an edit (30-day window) sets the column to NULL = no cap. Probe in the branch harness: undo 200, max 4 → NULL; with `prior.max_slots_allowed === undefined ? current.max_slots_allowed : prior.max_slots_allowed` it stays 4. Planner error: the R1-60 brief said the column is NOT NULL after 018; it is nullable. Review comment on #124.
