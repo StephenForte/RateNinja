@@ -1458,4 +1458,7 @@ any scope the client was not allowed.
   caller's view returns the same 404 as one that does not exist.
 - **Data shown:** customer prices as recorded on the run, never a base price; token counts; not
   the customer's instructions.
+- **Amended 2026-11-23 (R1-66 worker stop):** the client gate `adminSectionNeedsCompany`
+  (`public/js/permissions.js`) exempts `swarm-runs`, as it does `oauth-clients` and `ports`, so a
+  system admin opens the page without selecting a company.
 
