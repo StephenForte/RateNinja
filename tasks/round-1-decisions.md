@@ -1405,3 +1405,9 @@ any scope the client was not allowed.
   are R1-66.
 - **Untrusted text:** the customer's instructions and all model output are data. They never widen
   a guard, and reports are stored with secrets redacted and shown as text.
+- **Amended 2026-11-22 (R1-64 worker question):** a snapshot or report larger than one CloudBBS
+  post stays in the run's thread: the root post holds part 1 and numbered replies ("part 2 of 4")
+  hold the rest, split on UTF-8 byte boundaries; `read_state` joins them. Instructions can be
+  20,000 characters (up to about 80,000 bytes) and the repo's own post cap is 16,384 bytes
+  (`lib/client-agent.js` `POST_BODY_CAP`). The worker reported a 32 KiB CloudBBS limit; the planner
+  has not verified that number.
