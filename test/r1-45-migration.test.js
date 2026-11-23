@@ -32,8 +32,8 @@ function boot(dbPath, migrationsDir) {
 function snapshot(db) {
     return Object.fromEntries(db.prepare("SELECT name FROM sqlite_schema WHERE type = 'table' ORDER BY name").all()
         .flatMap(({ name }) => {
-            if (name === 'managed_agent_runs') return [];
-            const filter = name === 'schema_migrations' ? " WHERE id NOT IN ('016', '017', '018', '019')" : '';
+            if (name === 'managed_agent_runs' || name === 'company_swarm_settings' || name === 'swarms' || name === 'swarm_lanes') return [];
+            const filter = name === 'schema_migrations' ? " WHERE id NOT IN ('016', '017', '018', '019', '020')" : '';
             const table = '"' + name.replaceAll('"', '""') + '"';
             const rows = db.prepare(`SELECT * FROM ${table}${filter}`).all();
             if (name === 'rates') {

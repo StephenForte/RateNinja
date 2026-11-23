@@ -19,6 +19,8 @@ const routeNames = [
     'booking-requests',
     'managed-agents',
     'managed-agent-runs',
+    'swarms',
+    'admin-swarm',
     'cloudbbs-post',
     'partner-bookings',
     'partner',
@@ -189,6 +191,23 @@ describe('r1-01 routes and exact documents', { concurrency: 1 }, () => {
                 assert.deepEqual(mod.routes.map(route => [route.method, route.path, route.access]), [
                     ['GET', '/api/managed-agents/runs/latest', 'session'],
                     ['POST', '/api/managed-agents/runs', 'session']
+                ]);
+            } else if (name === 'swarms') {
+                assert.equal(mod.routes.length, 6);
+                assert.ok(mod.routes.every(route => route.access === 'session'));
+                assert.deepEqual(mod.routes.map(route => [route.method, route.path || route.pattern.source]), [
+                    ['GET', '/api/swarm/access'],
+                    ['GET', '/api/swarms'],
+                    ['POST', '/api/swarms'],
+                    ['GET', '^\\/api\\/swarms\\/([^/]+)$'],
+                    ['PUT', '^\\/api\\/swarms\\/([^/]+)$'],
+                    ['DELETE', '^\\/api\\/swarms\\/([^/]+)$']
+                ]);
+            } else if (name === 'admin-swarm') {
+                assert.equal(mod.routes.length, 2);
+                assert.deepEqual(mod.routes.map(route => [route.method, route.path || route.pattern.source, route.access]), [
+                    ['GET', '/api/admin/swarm/companies', 'session'],
+                    ['PUT', '^\\/api\\/admin\\/swarm\\/companies\\/([^/]+)$', 'session']
                 ]);
             } else if (name === 'cloudbbs-post') {
                 assert.deepEqual(mod.routes.map(route => [route.method, route.path, route.access]), [
