@@ -1411,3 +1411,13 @@ any scope the client was not allowed.
   20,000 characters (up to about 80,000 bytes) and the repo's own post cap is 16,384 bytes
   (`lib/client-agent.js` `POST_BODY_CAP`). The worker reported a 32 KiB CloudBBS limit; the planner
   has not verified that number.
+- **Amended 2026-11-22 (R1-64 review):** (1) ordinary limits do not fail a run: a CloudBBS
+  `rate_limited` answer waits for the window and retries the same call with the same idempotency
+  key; a Claude 429, 529 or 5xx is retried a bounded number of times with backoff; both inside the
+  run deadline and stopping on cancel. CloudBBS allows 30 writes per token per calendar minute
+  (`agent-message-board` `1cb3c60`, `WRITE_LIMIT`), and a run with N booking lanes makes at least
+  3N + 1 writes. (2) Search agents also receive the customer's instructions as untrusted data;
+  they pick the one rate the master may book, so without this the instructions cannot affect the
+  rate chosen (planner's brief omitted it). (3) Correction: the CloudBBS body limit is 32,768
+  bytes, as the worker said (`messages_body_len` check); the engine keeps the repo's 16,384-byte
+  cap per part.
