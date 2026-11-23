@@ -20,6 +20,7 @@ const routeNames = [
     'managed-agents',
     'managed-agent-runs',
     'swarms',
+    'swarm-runs',
     'admin-swarm',
     'cloudbbs-post',
     'partner-bookings',
@@ -202,6 +203,13 @@ describe('r1-01 routes and exact documents', { concurrency: 1 }, () => {
                     ['GET', '^\\/api\\/swarms\\/([^/]+)$'],
                     ['PUT', '^\\/api\\/swarms\\/([^/]+)$'],
                     ['DELETE', '^\\/api\\/swarms\\/([^/]+)$']
+                ]);
+            } else if (name === 'swarm-runs') {
+                assert.deepEqual(mod.routes.map(route => [route.method, route.path || route.pattern.source, route.access]), [
+                    ['POST', '^\\/api\\/swarms\\/([^/]+)\\/runs$', 'session'],
+                    ['GET', '/api/swarm-runs', 'session'],
+                    ['GET', '^\\/api\\/swarm-runs\\/([^/]+)$', 'session'],
+                    ['POST', '^\\/api\\/swarm-runs\\/([^/]+)\\/cancel$', 'session']
                 ]);
             } else if (name === 'admin-swarm') {
                 assert.equal(mod.routes.length, 2);

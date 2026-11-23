@@ -33,7 +33,7 @@ function snapshot(db) {
     return Object.fromEntries(db.prepare("SELECT name FROM sqlite_schema WHERE type = 'table' ORDER BY name").all()
         .flatMap(({ name }) => {
             if (name === 'managed_agent_runs' || name === 'company_swarm_settings' || name === 'swarms' || name === 'swarm_lanes') return [];
-            const filter = name === 'schema_migrations' ? " WHERE id NOT IN ('016', '017', '018', '019', '020')" : '';
+            const filter = name === 'schema_migrations' ? " WHERE id NOT IN ('016', '017', '018', '019', '020', '021')" : '';
             const table = '"' + name.replaceAll('"', '""') + '"';
             const rows = db.prepare(`SELECT * FROM ${table}${filter}`).all();
             if (name === 'rates') {
@@ -79,6 +79,8 @@ it('applies migration 016 to a populated database and does nothing on a re-run',
         db = new DatabaseSync(dbPath);
         assert.deepEqual(snapshot(db), {
             ...before,
+            swarm_runs: [],
+            swarm_run_agents: [],
             managed_agents: before.managed_agents.map(row =>
                 Object.assign(Object.create(null), row, { accept_max_slots: 0 }))
         });

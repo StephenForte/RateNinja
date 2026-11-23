@@ -2,6 +2,7 @@
 
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const { createHash } = require('node:crypto');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
@@ -51,8 +52,11 @@ it('applies 014 to populated 013 data and reopens without changing rows or creat
         boot(dbPath, root, migrations);
         db = new DatabaseSync(dbPath);
         assert.deepEqual(db.prepare("SELECT id FROM schema_migrations WHERE id >= '014' ORDER BY id").all()
-            .map(row => row.id), ['014', '015', '016', '017', '018', '019', '020']);
-        assert.deepEqual(hashTables(db, { migrationComparison: true }), before);
+            .map(row => row.id), ['014', '015', '016', '017', '018', '019', '020', '021']);
+        const emptyTableHash = createHash('sha256').update('[]').digest('hex');
+        assert.deepEqual(hashTables(db, { migrationComparison: true }), {
+            ...before, swarm_runs: emptyTableHash, swarm_run_agents: emptyTableHash
+        });
         assert.deepEqual(db.prepare('SELECT id, booking_slots, booking_request_id FROM managed_agents ORDER BY id').all()
             .map(row => [row.id, row.booking_slots, row.booking_request_id]), [
             ['booking-off', null, null], ['booking-on', 1, null]

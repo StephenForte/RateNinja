@@ -67,3 +67,26 @@ What the page shows comes from the signed-in user's permissions and `GET /api/sw
 - Everyone else sees "Premium feature. Contact Kings to enable Managed Agent Swarm." and no form.
 
 Names, instructions, and server messages are shown as text. The instructions are not rendered as Markdown or HTML.
+
+## Runs
+
+- `POST /api/swarms/{id}/runs` returns 202 with `{ run }`. Any user of an enabled customer
+  company can start a run. If a lane can book, the caller must be able to request bookings.
+  A second active run in that company returns 409 `run_active`. Editing or deleting a swarm
+  during its run also returns 409 `run_active`. Missing service credentials return 409
+  `swarm_not_ready` with a list of missing requirements. Disabled access returns 403
+  `swarm_not_enabled`.
+- `GET /api/swarm-runs` returns `{ runs }` with up to 50 of the company's runs, newest first.
+  `GET /api/swarm-runs/{id}` returns `{ run }` with its agents in start order. Company runs
+  stay in history after deletion of their saved swarm. Cross-company IDs return 404.
+- `POST /api/swarm-runs/{id}/cancel` returns 202 with `{ run }` and requests cancellation
+  between steps. An ended run returns 409 `not_running`. Both POST routes require the session
+  CSRF token.
+- Run states are `running`, `completed`, `failed`, `cancelled` and `interrupted`. Rates and
+  booking permissions are checked live against the saved run policy. Existing booking
+  requests remain pending with Kings after cancellation, error or restart.
+- The service posts the snapshot, notes and reports in one thread in the configured private
+  CloudBBS project. Large entries use numbered parts. A CloudBBS failure ends the run with
+  `failureReason: "cloudbbs"`. SQLite retains the run and any requests made to that point.
+- Provisional limits are 40 master turns, 6 turns per sub-agent, 15 minutes per run, five
+  concurrent searches and one booking agent at a time.
