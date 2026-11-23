@@ -133,6 +133,15 @@ export const sections = [
     },
     {
         area: 'admin',
+        id: 'swarm-runs',
+        label: 'Swarm runs',
+        group: 'Admin',
+        path: '/admin/swarm-runs',
+        allow: ownerOrSystem,
+        load: () => import('./admin/swarm-runs.js')
+    },
+    {
+        area: 'admin',
         id: 'data',
         label: 'Data',
         group: 'Admin',

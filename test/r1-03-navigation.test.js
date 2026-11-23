@@ -48,6 +48,7 @@ describe('app shell routes', () => {
             [customerAdmin, '/admin/companies'],
             [customerAdmin, '/admin/oauth-clients'],
             [customerAdmin, '/admin/ports'],
+            [customerAdmin, '/admin/swarm-runs'],
             [ownerAdmin, '/admin/companies'],
             [ownerAdmin, '/admin/oauth-clients'],
             [ownerAdmin, '/admin/ports'],
@@ -61,6 +62,8 @@ describe('app shell routes', () => {
         assert.equal(resolveRoute('/profile/security', member).kind, 'section');
         assert.equal(resolveRoute('/admin/users', customerAdmin).kind, 'section');
         assert.equal(resolveRoute('/admin/customers', ownerAdmin).kind, 'section');
+        assert.equal(resolveRoute('/admin/swarm-runs', ownerAdmin).kind, 'section');
+        assert.equal(resolveRoute('/admin/swarm-runs', { ...systemAdmin, companyContext: null }).kind, 'section');
         assert.equal(resolveRoute('/admin/companies', systemAdmin).kind, 'section');
         assert.equal(resolveRoute('/admin/oauth-clients', systemAdmin).kind, 'section');
         assert.equal(resolveRoute('/admin/ports', systemAdmin).kind, 'section');
@@ -106,6 +109,7 @@ describe('menu matches the role', () => {
             '/profile/connected-apps',
             '/admin/users',
             '/admin/customers',
+            '/admin/swarm-runs',
             '/admin/data',
             '/admin/pull-forward',
             '/admin/imports',
@@ -122,6 +126,7 @@ describe('menu matches the role', () => {
             '/admin/users',
             '/admin/companies',
             '/admin/customers',
+            '/admin/swarm-runs',
             '/admin/data',
             '/admin/pull-forward',
             '/admin/imports',

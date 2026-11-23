@@ -98,3 +98,20 @@ An enabled customer company sees Run on every saved swarm. Run asks for confirma
 Below the swarms, Runs lists `GET /api/swarm-runs` (swarm, status, started, finished, spend and slots against the caps). A null cap reads None. Opening a run shows its status, times, summary, failure reason, spend and slots, master turns, and each agent in the order the API returned. Cancel is shown only while that run is running and cancellation is not yet requested. It posts `POST /api/swarm-runs/{id}/cancel` and shows the returned run.
 
 Summaries, reports and failure reasons are shown as text. The only link is `/profile/booking-requests`. Customers do not see token counts. While a shown run is running, the page re-reads it every 2 seconds, one request at a time, and stops when it is no longer running, when the user leaves the page, or on 401 or 403.
+
+## Admin view of runs
+
+Open **Admin → Swarm runs** and choose a customer. Contract owner admins can see customers with
+active links to their company. Revoking a link hides the customer's run history. System admins
+can see every customer with runs and can open the page without selecting a company.
+
+The read-only page shows the latest 50 runs, their recorded customer prices and the token counts
+for each run. Open a run to see its summary and agent reports. Views with a running run refresh
+every two seconds while visible. The session endpoints are:
+
+- `GET /api/admin/swarm-runs/companies` lists visible customers with run counts and status.
+- `GET /api/admin/swarm-runs?companyId=X` lists that customer's recent runs.
+- `GET /api/admin/swarm-runs/{id}` opens a run with its agents.
+
+Hidden and unknown customer or run IDs return the same 404. Run responses expose the saved swarm
+name and caps and omit its instructions and CloudBBS settings.
