@@ -1427,8 +1427,8 @@ any scope the client was not allowed.
 - **No API change.** The page uses the four run routes of D-064 as merged (`96ee5d0`).
 - **Run:** every swarm in the list has a Run button, for any user of the enabled company (D-064).
   A confirmation names the swarm and says the run may request bookings inside the caps. A 202
-  opens that run. Wizard step 5 offers "Save and run" and "Save without running"; when the start
-  is refused the swarm stays saved and the refusal is shown.
+  opens that run. Wizard step 5 offers "Save and run" beside the existing "Save" (save without
+  running); when the start is refused the swarm stays saved and the refusal is shown.
 - **Runs:** below the swarms, the company's last 50 runs, newest first. Opening one shows status,
   times, summary, failure reason, spend and slots against the caps, master turns, and every agent
   (role, lane, attempt, status, times, report, rate id, price, slots, booking request id).
@@ -1441,7 +1441,7 @@ any scope the client was not allowed.
 - **Client errors:** `public/js/api.js` errors gain `reasons` and `position` beside `code`; the
   `globalThis.fetch` wrapper in `public/js/swarm/client.js` is removed.
 - **Shared view:** `public/js/swarm/run-view.js` draws a runs table and one run and makes no
-  request, so R1-66 can reuse it.
+  request, so R1-66 can reuse it. It takes a `showTokens` option, off for customers.
 
 ### D-066 — Owner and system-admin view of swarm runs (2026-11-23; R1-66)
 
