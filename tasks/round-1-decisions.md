@@ -1421,3 +1421,41 @@ any scope the client was not allowed.
   rate chosen (planner's brief omitted it). (3) Correction: the CloudBBS body limit is 32,768
   bytes, as the worker said (`messages_body_len` check); the engine keeps the repo's 16,384-byte
   cap per part.
+
+### D-065 — Swarm run dashboard, Run and Cancel on `/swarm` (2026-11-23; R1-65)
+
+- **No API change.** The page uses the four run routes of D-064 as merged (`96ee5d0`).
+- **Run:** every swarm in the list has a Run button, for any user of the enabled company (D-064).
+  A confirmation names the swarm and says the run may request bookings inside the caps. A 202
+  opens that run. Wizard step 5 offers "Save and run" and "Save without running"; when the start
+  is refused the swarm stays saved and the refusal is shown.
+- **Runs:** below the swarms, the company's last 50 runs, newest first. Opening one shows status,
+  times, summary, failure reason, spend and slots against the caps, master turns, and every agent
+  (role, lane, attempt, status, times, report, rate id, price, slots, booking request id).
+- **Cancel:** shown while the run is running and cancel is not yet requested.
+- **Refresh:** every 2 seconds while a shown run is running (the `/agents` interval), one request
+  at a time; it stops when nothing is running and when the user leaves the page.
+- **Text only:** summaries and reports are model output shaped by customer text. They are shown
+  as text. No link target is ever built from them.
+- **Tokens** are not shown to customers (Kings pays for them). The admin view shows them (D-066).
+- **Client errors:** `public/js/api.js` errors gain `reasons` and `position` beside `code`; the
+  `globalThis.fetch` wrapper in `public/js/swarm/client.js` is removed.
+- **Shared view:** `public/js/swarm/run-view.js` draws a runs table and one run and makes no
+  request, so R1-66 can reuse it.
+
+### D-066 — Owner and system-admin view of swarm runs (2026-11-23; R1-66)
+
+- **Where:** Admin → "Swarm runs", `/admin/swarm-runs`. Read-only: no Run, no Cancel.
+- **Who sees whom (A1):** a system admin sees every customer company, without selecting a company
+  context. A company admin of a contract owner sees customers that have an `active`
+  `company_margins` row with that owner. Everyone else gets 403.
+- **Planner assumption:** a `revoked` link hides that customer's runs, history included. The
+  operator may reverse this.
+- **Routes:** `GET /api/admin/swarm-runs/companies` (visible customers that have at least one run:
+  `companyId`, `name`, `runCount`, `lastStartedAt`, `running`), `GET /api/admin/swarm-runs?companyId=`
+  (that company's last 50 runs), `GET /api/admin/swarm-runs/{id}` (one run with agents). Runs have
+  the customer fields of D-064 plus `companyId` and `companyName`. A company or run outside the
+  caller's view returns the same 404 as one that does not exist.
+- **Data shown:** customer prices as recorded on the run, never a base price; token counts; not
+  the customer's instructions.
+
