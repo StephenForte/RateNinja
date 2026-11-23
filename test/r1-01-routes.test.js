@@ -22,6 +22,7 @@ const routeNames = [
     'swarms',
     'swarm-runs',
     'admin-swarm',
+    'admin-swarm-runs',
     'cloudbbs-post',
     'partner-bookings',
     'partner',
@@ -216,6 +217,12 @@ describe('r1-01 routes and exact documents', { concurrency: 1 }, () => {
                 assert.deepEqual(mod.routes.map(route => [route.method, route.path || route.pattern.source, route.access]), [
                     ['GET', '/api/admin/swarm/companies', 'session'],
                     ['PUT', '^\\/api\\/admin\\/swarm\\/companies\\/([^/]+)$', 'session']
+                ]);
+            } else if (name === 'admin-swarm-runs') {
+                assert.deepEqual(mod.routes.map(route => [route.method, route.path || route.pattern.source, route.access]), [
+                    ['GET', '/api/admin/swarm-runs/companies', 'session'],
+                    ['GET', '/api/admin/swarm-runs', 'session'],
+                    ['GET', '^\\/api\\/admin\\/swarm-runs\\/([^/]+)$', 'session']
                 ]);
             } else if (name === 'cloudbbs-post') {
                 assert.deepEqual(mod.routes.map(route => [route.method, route.path, route.access]), [
