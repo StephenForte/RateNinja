@@ -531,13 +531,20 @@ export function openWizard(host, { options, swarm, onDone, onCancel }) {
         return '';
     }
 
+    function priceValue(value) {
+        if (typeof value === 'string' && value.trim() === '') return null;
+        if (value == null) return null;
+        const price = Number(value);
+        return Number.isFinite(price) ? price : null;
+    }
+
     function policyMessage(lane) {
         if (!Number.isInteger(lane.dateFlexDays) || lane.dateFlexDays < 0 || lane.dateFlexDays > 14) return FLEX_MESSAGE;
         if (!lane.allowBookingRequest) return '';
-        const min = Number(lane.priceMin);
-        const max = Number(lane.priceMax);
+        const min = priceValue(lane.priceMin);
+        const max = priceValue(lane.priceMax);
         const slots = Number(lane.bookingSlots);
-        if (![min, max].every(price => Number.isFinite(price) && price >= 0) || min > max) return PRICE_MESSAGE;
+        if (min === null || max === null || min < 0 || max < 0 || min > max) return PRICE_MESSAGE;
         if (!Number.isInteger(slots) || slots < 1 || slots > maxSlots) {
             return `Enter a whole number of slots from 1 to ${maxSlots}.`;
         }
@@ -631,8 +638,8 @@ export function openWizard(host, { options, swarm, onDone, onCancel }) {
             containerType: lane.containerType,
             allowAlternativeRoutes: lane.allowAlternativeRoutes === true,
             allowBookingRequest: booking,
-            priceMin: booking ? Number(lane.priceMin) : null,
-            priceMax: booking ? Number(lane.priceMax) : null,
+            priceMin: booking ? priceValue(lane.priceMin) : null,
+            priceMax: booking ? priceValue(lane.priceMax) : null,
             bookingSlots: booking ? Number(lane.bookingSlots) : null,
             acceptMaxSlots: booking && lane.acceptMaxSlots === true,
             priority: lane.priority,

@@ -453,6 +453,73 @@ test('delete asks for the swarm name and edit is hidden without canEdit', async 
     assert.equal(walk(container).some(node => node.textContent === 'Kept swarm'), true);
 });
 
+test('a blank booking price is refused and a zero price is sent as zero', async t => {
+    const posts = [];
+    const { container } = await mountSwarm(t, {
+        permissions: customer,
+        respond: customerFetch([], call => {
+            posts.push(call);
+            return saved(call.body);
+        })
+    });
+    await openNew(container, 'Blank price');
+    control(container, 'Total spend cap (USD)').value = '12';
+    control(container, 'Total slots cap').value = '4';
+    await click(container, 'Next');
+    await click(container, 'Add lane');
+    await click(container, 'Next');
+    const row = lanes(container)[0];
+    const booking = control(row, 'Allow booking');
+    booking.checked = true;
+    booking.events.change();
+    control(row, 'Min price (USD)').value = '';
+    control(row, 'Max price (USD)').value = '';
+    control(row, 'Slots').value = '1';
+    await click(container, 'Next');
+    assert.equal(posts.length, 0);
+    assert.equal(walk(container).some(node => node.textContent === 'Enter nonnegative minimum and maximum prices with minimum at or below maximum.'), true);
+    assert.equal(walk(container).find(node => String(node.className).split(' ').includes('swarm-step-4')).hidden, false);
+
+    control(row, 'Min price (USD)').value = '0';
+    control(row, 'Max price (USD)').value = '0';
+    await click(container, 'Next');
+    await click(container, 'Save');
+    assert.equal(posts.length, 1);
+    assert.equal(posts[0].body.lanes[0].priceMin, 0);
+    assert.equal(posts[0].body.lanes[0].priceMax, 0);
+});
+
+test('overlapping writes keep their own lane position and restore fetch', async t => {
+    let releaseFirst;
+    let enteredFirst;
+    const gate = new Promise(resolve => { releaseFirst = resolve; });
+    const entered = new Promise(resolve => { enteredFirst = resolve; });
+    const impl = async path => {
+        if (path === '/api/noise') return Response.json({ ok: true });
+        if (String(path).endsWith('/one')) {
+            enteredFirst();
+            await gate;
+            return Response.json({ error: 'lane one <script>', position: 2 }, { status: 400 });
+        }
+        return Response.json({ error: 'lane two', position: 4 }, { status: 400 });
+    };
+    t.mock.method(global, 'fetch', impl);
+    const installed = global.fetch;
+    const { write } = await import('../public/js/swarm/client.js');
+    const first = write('/api/swarms/one', 'PUT', { name: 'One' }).catch(error => error);
+    await entered;
+    const second = write('/api/swarms/two', 'PUT', { name: 'Two' });
+    const noise = global.fetch('/api/noise');
+    releaseFirst();
+    const [left, right, ignored] = await Promise.all([first, second.then(() => null, error => error), noise]);
+    assert.equal(left.position, 2);
+    assert.equal(left.message, 'lane one <script>');
+    assert.equal(right.position, 4);
+    assert.equal(right.message, 'lane two');
+    assert.equal(global.fetch, installed);
+    assert.equal(await (await ignored).json().then(body => body.ok), true);
+});
+
 test('swarm UI files do not build HTML from strings or store a token', () => {
     const directory = path.join(__dirname, '../public/js/swarm');
     const pattern = /innerHTML|insertAdjacentHTML|outerHTML|document\.write|localStorage|sessionStorage|console\./;
