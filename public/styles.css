@@ -3058,3 +3058,51 @@ body {
 .agent-slot-help {
     margin: 0 0 0 1.5rem;
 }
+
+.swarm-premium, .swarm-admin-row, .swarm-lane, .swarm-policy-template {
+    margin: 0 0 14px;
+    padding: 14px 16px;
+    border: 1px solid var(--border, #d9e2ec);
+    border-radius: 8px;
+    background: #fff;
+}
+
+.swarm-premium {
+    background: #f7fbfd;
+}
+
+.swarm-step-label, .swarm-count, .swarm-run-note {
+    color: #486581;
+}
+
+.swarm-instructions {
+    white-space: pre-wrap;
+}
+
+.swarm-lane-marked {
+    border-color: #a02d2d;
+}
+
+.swarm-step-error, .swarm-lane-error, .swarm-row-error {
+    color: #9e2828;
+}
+
+.swarm-admin-row {
+    display: grid;
+    gap: 10px;
+}
+
+.swarm-company-name {
+    font-weight: 700;
+}
+
+.swarm-admin-meta, .swarm-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.swarm-token {
+    max-width: 280px;
+}

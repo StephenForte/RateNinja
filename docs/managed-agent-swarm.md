@@ -55,3 +55,15 @@ Both routes require a signed-in system admin. Anyone else receives 403.
 The credential is encrypted at rest with AES-256-GCM (12-byte IV, 16-byte tag). The key is SHA-256 of `swarm-bbs:` plus `SESSION_SECRET`. No route, audit row, log line, or error returns the credential or its ciphertext. `hasBbsToken` is false when the row has no credential or the current secret cannot decrypt it. A later reader (`readBbsCredentials`) returns null in those cases, and also when the company is disabled or the row is missing.
 
 A successful settings write audits `swarm_settings_updated` with `companyId`, `enabled`, `bbsProject`, and `tokenChanged` (true or false).
+
+## Using the tab
+
+Signed-in users get a third tab, Managed Agent Swarm (Premium), at `/swarm`. A direct visit and a refresh both open that tab, and the tab is marked current.
+
+What the page shows comes from the signed-in user's permissions and `GET /api/swarm/access`, not from anything stored in the browser.
+
+- A system admin sees one row per customer company from `GET /api/admin/swarm/companies`. Each row has the company name, an enabled switch, the CloudBBS project, a token field, the last update, and Save. The token field is a password input and is empty on load. It shows "Token set" or "No token" from `hasBbsToken`. Save calls `PUT /api/admin/swarm/companies/{companyId}`. Leaving the token blank sends no `bbsToken`, so the stored credential stays. Clear token sends `bbsToken: null`. A 400 or 422 message is shown next to that row. The token value is not written back onto the page after a save.
+- A customer whose company is enabled sees the company's saved swarms and New swarm. The wizard has five steps: instructions (a name, text, or a `.md` or `.txt` file read in the browser), global rules (both caps), lanes (1 to 25, from `GET /api/managed-agents/options`), policy (per lane, with Apply to selected), and a read-only review. Save calls `POST /api/swarms` or `PUT /api/swarms/{id}`. There is no Run button. The review says that running a swarm arrives with the run dashboard.
+- Everyone else sees "Premium feature. Contact Kings to enable Managed Agent Swarm." and no form.
+
+Names, instructions, and server messages are shown as text. The instructions are not rendered as Markdown or HTML.

@@ -7,7 +7,7 @@ function stripTrailingSlash(pathname) {
 
 export function isClientRoute(pathname) {
     const path = stripTrailingSlash(pathname);
-    if (path === '/' || path === '/index.html' || path === '/rates' || path === '/agents' || path === '/profile') return true;
+    if (path === '/' || path === '/index.html' || path === '/rates' || path === '/agents' || path === '/swarm' || path === '/profile') return true;
     return /^\/profile\/[A-Za-z0-9-]+$/.test(path) || /^\/admin\/[A-Za-z0-9-]+$/.test(path);
 }
 
@@ -15,8 +15,9 @@ export function resolveRoute(pathname, permissions) {
     const path = stripTrailingSlash(pathname);
     if (path === '/' || path === '/index.html') return { kind: 'redirect', path: '/rates' };
     if (path === '/profile') return { kind: 'redirect', path: '/profile/account' };
-    if (path === '/rates' || path === '/agents') {
-        const section = sections.find(item => item.id === (path === '/rates' ? 'rates' : 'managed-agents'));
+    const rateSections = { '/rates': 'rates', '/agents': 'managed-agents', '/swarm': 'agent-swarm' };
+    if (rateSections[path]) {
+        const section = sections.find(item => item.id === rateSections[path]);
         if (!section.allow(permissions)) return { kind: 'access-denied', section };
         return { kind: 'section', section };
     }

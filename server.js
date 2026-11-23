@@ -881,7 +881,7 @@ function isAppShellPath(rawPath) {
     if (typeof rawPath !== 'string' || rawPath.includes('%') || rawPath.includes('\\') || rawPath.includes('\0')) return false;
     const pathOnly = rawPath.length > 1 && rawPath.endsWith('/') ? rawPath.slice(0, -1) : rawPath;
     if (hasDotSegment(pathOnly) || hasEmptySegment(pathOnly)) return false;
-    if (pathOnly === '/rates' || pathOnly === '/agents' || pathOnly === '/profile') return true;
+    if (pathOnly === '/rates' || pathOnly === '/agents' || pathOnly === '/swarm' || pathOnly === '/profile') return true;
     return /^\/(?:profile|admin)\/[A-Za-z0-9-]+$/.test(pathOnly);
 }
 
