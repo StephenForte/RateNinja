@@ -88,6 +88,9 @@ Names, instructions, and server messages are shown as text. The instructions are
 - The service posts the snapshot, notes and reports in one thread in the configured private
   CloudBBS project. Large entries use numbered parts. A CloudBBS failure ends the run with
   `failureReason: "cloudbbs"`. SQLite retains the run and any requests made to that point.
+- Claude failures use `claude_http_<status>` for a terminal HTTP error with a readable
+  response, `claude` for network errors or unreadable responses, and `claude_tool_use`
+  for invalid tool call IDs or consecutive replies without a tool call.
 - Provisional limits are 40 master turns, 6 turns per sub-agent, 15 minutes per run, five
   concurrent searches and one booking agent at a time.
 

@@ -448,18 +448,21 @@ it('retries search overload and honors Claude retry-after on 429 and 5xx', async
 });
 
 it('bounds persistent Claude overload and fails permanent statuses and malformed answers without retry', async () => {
-    for (const [status, expectedAttempts] of [[529, 3], [400, 1], [200, 1]]) {
+    for (const [status, expectedAttempts, reason] of [
+        [529, 3, 'claude_http_529'], [400, 1, 'claude_http_400'], [200, 1, 'claude']
+    ]) {
         const time = fakeTime();
         const attempts = [];
         const { run } = await execute(make(), [[spawn(1)]], {
             claudeResponse(role) {
                 if (role !== 'search') return;
                 attempts.push(time.clock());
-                return new Response('malformed answer', { status });
+                if (status === 200) return new Response('malformed answer');
+                return Response.json({ type: 'error', error: { type: 'api_error', message: 'Synthetic failure' } }, { status });
             }
         }, time);
         assert.equal(run.status, 'failed');
-        assert.equal(run.failureReason, 'claude');
+        assert.equal(run.failureReason, reason);
         assert.equal(attempts.length, expectedAttempts);
         if (status === 529) {
             assert.ok(attempts[1] > attempts[0]);
