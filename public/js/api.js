@@ -15,6 +15,12 @@ export function showLoginPage() {
     location.replace(next ? `/login?next=${encodeURIComponent(next)}` : '/login');
 }
 
+function reasonList(payload) {
+    if (!payload || !Array.isArray(payload.reasons)) return [];
+    if (!payload.reasons.every(item => typeof item === 'string')) return [];
+    return payload.reasons.slice();
+}
+
 export async function request(path, options = {}) {
     const { allowUnauthenticated = false, ...fetchOptions } = options;
     const method = String(fetchOptions.method || 'GET').toUpperCase();
@@ -32,6 +38,8 @@ export async function request(path, options = {}) {
         const error = new Error(payload.error || 'Request failed.');
         error.status = response.status;
         error.code = typeof payload.code === 'string' ? payload.code : '';
+        error.reasons = reasonList(payload);
+        if (Number.isInteger(payload.position)) error.position = payload.position;
         throw error;
     }
     return payload;

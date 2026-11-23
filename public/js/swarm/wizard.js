@@ -15,7 +15,6 @@ const PRICE_MESSAGE = 'Enter nonnegative minimum and maximum prices with minimum
 const BOOKING_REASON = 'Your company cannot request bookings.';
 const SPEND_MESSAGE = 'Enter a total spend cap greater than 0 when a lane allows booking.';
 const SLOTS_CAP_MESSAGE = 'Enter a total slots cap from 1 to 10000 when a lane allows booking.';
-const RUN_NOTE = 'Running a swarm arrives with the run dashboard.';
 
 function button(text, action, className = '') {
     const control = document.createElement('button');
@@ -180,11 +179,12 @@ export function openWizard(host, { options, swarm, onDone, onCancel }) {
     panels[5].append(review);
 
     const back = button('Back', () => go(step - 1), 'agent-button');
+    const saveAndRun = button('Save and run', null, 'agent-button agent-primary');
     const forward = button('Next', null, 'agent-button agent-primary');
     const cancel = button('Cancel', () => onCancel(), 'agent-button');
     const actions = document.createElement('div');
     actions.className = 'agent-actions swarm-actions';
-    actions.append(back, forward, cancel);
+    actions.append(back, saveAndRun, forward, cancel);
     root.append(title, stepLabel, panels[1], panels[2], panels[3], panels[4], panels[5], actions);
     host.replaceChildren(root);
 
@@ -601,12 +601,12 @@ export function openWizard(host, { options, swarm, onDone, onCancel }) {
         for (let index = 1; index <= 5; index += 1) panels[index].hidden = index !== step;
         back.hidden = step === 1;
         forward.textContent = step === 5 ? 'Save' : 'Next';
+        saveAndRun.hidden = step !== 5;
         stepLabel.textContent = `Step ${step} of 5`;
     }
 
     function renderReview() {
         review.replaceChildren();
-        review.append(paragraph('swarm-run-note', RUN_NOTE));
         const list = document.createElement('dl');
         list.className = 'agent-details';
         const booking = anyBooking();
@@ -656,7 +656,7 @@ export function openWizard(host, { options, swarm, onDone, onCancel }) {
         return '';
     }
 
-    async function save() {
+    async function save(runAfter) {
         readCurrent();
         if (!validate(4)) {
             step = 4;
@@ -679,10 +679,11 @@ export function openWizard(host, { options, swarm, onDone, onCancel }) {
             lanes: state.lanes.map(laneBody)
         };
         forward.disabled = true;
+        saveAndRun.disabled = true;
         try {
             const path = state.id ? `/api/swarms/${encodeURIComponent(state.id)}` : '/api/swarms';
             const result = await write(path, state.id ? 'PUT' : 'POST', body);
-            if (result && result.swarm) onDone(result.swarm);
+            if (result && result.swarm) await onDone(result.swarm, { run: runAfter === true });
             else showError(5, 'Could not save the swarm.');
         } catch (error) {
             const which = stepFor(error);
@@ -695,12 +696,18 @@ export function openWizard(host, { options, swarm, onDone, onCancel }) {
             if (Number.isInteger(error.position) && error.position >= 1) markLane(which, error.position, message);
         } finally {
             forward.disabled = false;
+            saveAndRun.disabled = false;
         }
     }
 
     forward.addEventListener('click', () => {
-        if (step === 5) return save();
+        if (forward.disabled) return;
+        if (step === 5) return save(false);
         go(step + 1);
+    });
+    saveAndRun.addEventListener('click', () => {
+        if (saveAndRun.disabled || forward.disabled) return;
+        return save(true);
     });
 
     for (const lane of state.lanes) step3Rows.push(buildStep3Row(lane));

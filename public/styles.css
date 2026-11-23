@@ -3106,3 +3106,30 @@ body {
 .swarm-token {
     max-width: 280px;
 }
+
+.swarm-runs {
+    margin-top: 22px;
+}
+
+.swarm-run-detail {
+    margin-top: 12px;
+}
+
+.swarm-summary,
+.swarm-report {
+    white-space: pre-wrap;
+}
+
+.swarm-run-actions,
+.swarm-refusal {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.swarm-reason,
+.swarm-cancel-requested,
+.swarm-run-alert {
+    margin: 0;
+}
