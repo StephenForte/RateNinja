@@ -90,3 +90,11 @@ Names, instructions, and server messages are shown as text. The instructions are
   `failureReason: "cloudbbs"`. SQLite retains the run and any requests made to that point.
 - Provisional limits are 40 master turns, 6 turns per sub-agent, 15 minutes per run, five
   concurrent searches and one booking agent at a time.
+
+## Running a swarm
+
+An enabled customer company sees Run on every saved swarm. Run asks for confirmation, naming the swarm and saying the run may request bookings inside its caps, then `POST /api/swarms/{id}/runs`. A 202 opens that run. Step 5 of the wizard has Save and run beside Save. Save and run saves, then starts, with no second confirmation. If the start is refused, the swarm stays in the list and the message is shown. `run_active` also offers the running run. `swarm_not_ready` shows each missing requirement.
+
+Below the swarms, Runs lists `GET /api/swarm-runs` (swarm, status, started, finished, spend and slots against the caps). A null cap reads None. Opening a run shows its status, times, summary, failure reason, spend and slots, master turns, and each agent in the order the API returned. Cancel is shown only while that run is running and cancellation is not yet requested. It posts `POST /api/swarm-runs/{id}/cancel` and shows the returned run.
+
+Summaries, reports and failure reasons are shown as text. The only link is `/profile/booking-requests`. Customers do not see token counts. While a shown run is running, the page re-reads it every 2 seconds, one request at a time, and stops when it is no longer running, when the user leaves the page, or on 401 or 403.

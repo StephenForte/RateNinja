@@ -21,6 +21,7 @@ function customerFetch(swarms, onWrite) {
         if (call.path === '/api/swarm/access' && call.method === 'GET') return Response.json({ enabled: true });
         if (call.path === '/api/swarms' && call.method === 'GET') return Response.json({ swarms });
         if (call.path === '/api/managed-agents/options' && call.method === 'GET') return Response.json(options);
+        if (call.path === '/api/swarm-runs' && call.method === 'GET') return Response.json({ runs: [] });
         if (onWrite) return onWrite(call);
         return Response.json({ error: `unexpected ${call.method} ${call.path}` }, { status: 500 });
     };
@@ -59,8 +60,9 @@ test('hostile swarm text is shown as text and creates no element', async t => {
     assert.deepEqual(review.map(node => node.textContent), [hostile, hostile]);
     assert.equal(tags(container).includes('script'), false);
     assert.equal(tags(container).includes('img'), false);
-    assert.equal(walk(container).some(node => node.tag === 'button' && node.textContent === 'Run'), false);
-    assert.equal(walk(container).some(node => node.textContent === 'Running a swarm arrives with the run dashboard.'), true);
+    assert.equal(walk(container).some(node => !hiddenDeep(node) && node.tag === 'button' && node.textContent === 'Run'), false);
+    assert.equal(walk(container).some(node => !hiddenDeep(node) && node.tag === 'button' && node.textContent === 'Save and run'), true);
+    assert.equal(walk(container).some(node => node.textContent === 'Running a swarm arrives with the run dashboard.'), false);
 });
 
 test('system admin, enabled customer, and everyone else see different views', async t => {
