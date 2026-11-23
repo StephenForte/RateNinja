@@ -1295,3 +1295,175 @@ any scope the client was not allowed.
   a matching rate has max 1–11 and no matching rate would take 12 slots as-is (max NULL or ≥ 12);
   max-0 rates do not disqualify. A mixed lane let the flag-off sample book 12 on the uncapped rate.
   No eligible lane → 422, none of the five created.
+
+### D-061 — Managed Agent Swarm (Premium): product and architecture (2026-11-22, operator request)
+
+- **Why:** operator asked for a third customer tab where a customer saves lanes and rules, and one
+  master agent spawns search agents, decides, then spawns booking agents. Full text:
+  `tasks/prd-managed-agent-swarm.md`.
+- **Operator answers (2026-11-22):** the master is a Claude tool-use loop and each sub-agent is its
+  own Claude call chain; code enforces the caps. SQLite is the truth; agents also keep keyed state
+  in a private CloudBBS project per customer (never `rn`). Runs execute in the Render web process.
+  Bookings are automatic inside the caps. Premium is a per-company flag set by a system admin;
+  other customers see the tab with a premium panel. Separate swarm tables; managed agents (D-039
+  to D-060) are untouched. Global rules: total spend cap and total slots cap (both hard),
+  per-lane priority, free-text or uploaded `.md` instructions. Web only. The operator creates the
+  CloudBBS project and token by hand and a system admin pastes them in. A redirect is once per
+  lane, to a nearby destination or another date in the lane's window. The master template is a
+  file in the repo. Limits: 25 lanes, one run at a time per company, master turn and time cap,
+  customer cancel. Customers see their runs; rate owners and system admins see runs per customer.
+- **Guards are code:** a booking needs a rate id that this run's search agent fetched for that
+  lane (bookable, in range), must fit both caps, and is checked and recorded in one transaction.
+  The instructions text is untrusted and can never widen a guard.
+- **Roadmap, not now:** background worker; "I must approve first" checkbox; CLI, partner API or MCP
+  creation; server-created CloudBBS projects; scheduled runs; billing.
+- **Unmeasured:** tokens and wall time per run, and so the turn and time caps. The engine task
+  (R1-64) measures a 3-lane and a 25-lane run before the numbers are fixed.
+- **Assumptions confirmed by the operator 2026-11-22 ("Yes, all five"; PRD §11):** A1 owner admins see only linked customers'
+  runs; A2 both caps required when any lane books, spend = customer price × slots requested;
+  A3 company-wide list, creator or company admin edits; A4 bookings in the name of the user who
+  pressed Run; A5 date flex is ± N days inside a rate window.
+- **Tasks:** R1-62 foundation, R1-63 wizard, R1-64 engine, R1-65 customer dashboard, R1-66 owner
+  and admin view.
+
+### D-062 — Swarm foundation: premium flag, CloudBBS settings, swarm definitions (2026-11-22; R1-62, migration 020)
+
+- **Tables (migration 020):** `company_swarm_settings` (`company_id` PK = `companies.id`,
+  `enabled` 0/1, `bbs_project`, `bbs_token_enc`, `updated_at`, `updated_by_user_id`); `swarms`
+  (`id`, `company_id`, `created_by_user_id`, `name`, `instructions`, `total_spend_cap`,
+  `total_slots_cap`, timestamps); `swarm_lanes` (`swarm_id` cascade, `position`, the managed-agent
+  search and booking fields, `priority` high/normal/low, `date_flex_days` 0–14).
+- **Company identity:** `actor.company.id` (`companies.id`), never `users.company_id` (D-039
+  correction).
+- **Token at rest:** AES-256-GCM with a key derived from `SESSION_SECRET` under its own label.
+  The token is never returned by any route, never logged, never in an audit row; reads show
+  `hasBbsToken`. An unreadable token (secret rotated) counts as not set.
+- **Enable rule:** `enabled` may be 1 only for a customer-type company with a project and a
+  readable token.
+- **System admin routes:** `GET /api/admin/swarm/companies`,
+  `PUT /api/admin/swarm/companies/{companyId}`. Audit `swarm_settings_updated`.
+- **Customer routes:** `GET /api/swarm/access`; `GET|POST /api/swarms`;
+  `GET|PUT|DELETE /api/swarms/{id}`. Not enabled → 403 `swarm_not_enabled`. Another company's
+  swarm → 404. Company-wide list; creator or company admin changes (A3).
+- **Validation:** name 1–100; instructions 0–20,000 characters, stored and returned as text; 1–25
+  lanes, each valid by the managed-agent rules (visible lane, date in a rate window, container,
+  booking fields) plus priority and date flex; both caps required and positive when any lane
+  allows booking (A2). `PUT` replaces the swarm and its lanes in one transaction.
+- **Not in R1-62:** any UI, any run, any Claude or CloudBBS call (the token is stored, not tested).
+
+### D-063 — Swarm wizard tab `/swarm` (2026-11-22; R1-63)
+
+- **Tab:** third link in the rates tabs, "Managed Agent Swarm (Premium)", path `/swarm`, shown to
+  every signed-in user.
+- **Three views by caller:** a system admin sees the company settings panel (enable, CloudBBS
+  project, token field that is never prefilled; `GET|PUT /api/admin/swarm/companies`); a customer
+  whose company is enabled sees their saved swarms and the wizard; everyone else sees a premium
+  panel ("Premium feature. Contact Kings to enable it.").
+- **Wizard, five steps:** instructions (name, text, or a `.md`/`.txt` file read in the browser into
+  the same field, 20,000 characters at most); global rules (both caps); lanes (1–25, picked from
+  `GET /api/managed-agents/options`); policy (per lane, with select all or some to apply one
+  policy to many); review and Save. Editing a saved swarm reuses the wizard.
+- **Run is not in R1-63.** The Run and Cancel buttons and the run dashboard are R1-65, after the
+  engine (R1-64) exists.
+- **Text only:** names, instructions and server messages are written with `textContent`; no
+  swarm text is ever parsed as HTML.
+
+### D-064 — Swarm run engine (2026-11-22; R1-64, migration 021)
+
+- **Where:** in the web process, started by `POST /api/swarms/{id}/runs` (202). One running run
+  per company (partial unique index). A run stores a JSON snapshot of the swarm; later edits do
+  not change it, and a swarm with a running run cannot be edited or deleted (409 `run_active`).
+- **Who:** any user of an enabled customer company. Bookings are made in the name of the user who
+  pressed Run (A4); a swarm with a booking lane needs a user who may request bookings.
+- **Ready check:** `ANTHROPIC_API_KEY` set and `readBbsCredentials(companyId)` not null, else 409
+  `swarm_not_ready` and nothing starts.
+- **Agents:** the master is a Claude tool-use loop with exactly these tools: `spawn_search`,
+  `redirect_search`, `spawn_booking`, `read_state`, `write_state`, `finish`. A search agent and a
+  booking agent are each their own short Claude tool loop. Templates are `prompts/swarm-master.md`,
+  `prompts/swarm-search.md`, `prompts/swarm-booking.md`, read from disk, never served over HTTP.
+- **Guards are code (D-061):** a booking needs a rate id recorded by this run's search agent for
+  that lane (bookable, in the lane's price range), one booking per lane per run, slots by the
+  lane's policy and the rate's max (D-055, D-060), and spend and slots inside both caps. The check
+  and the booking request are one transaction. Spend = customer price × slots.
+- **Redirect:** once per lane, only when the lane allows alternatives or has date flex: another
+  destination the customer has rates for from that origin, or a date within ± flex days, today or
+  later, inside a rate window.
+- **In-process, no booking code:** the engine calls the library directly, not the admin API, so
+  the `rn` booking code (D-043, a gate on outside agents) does not apply. Bookings carry channel
+  `swarm_agent`.
+- **State:** SQLite is the truth (`swarm_runs`, `swarm_run_agents`). In the company's private
+  CloudBBS project the run keeps one thread: the snapshot, each report, the plan, each booking
+  result. A CloudBBS failure fails the run at that step; bookings already requested stay. Nothing
+  goes to `rn`.
+- **Limits (provisional, unmeasured):** master 40 turns, sub-agent 6 turns, run 15 minutes, 5
+  searches at a time, bookings one at a time. Token counts are stored per run. The operator's
+  first live 3-lane and 25-lane runs decide the final numbers.
+- **Ends:** `completed`, `failed`, `cancelled` (customer cancel, checked between steps),
+  `interrupted` (process restart; set at boot). Nothing is rolled back.
+- **Customer routes:** `POST /api/swarms/{id}/runs`, `GET /api/swarm-runs`,
+  `GET /api/swarm-runs/{id}`, `POST /api/swarm-runs/{id}/cancel`. Owner and system-admin reads
+  are R1-66.
+- **Untrusted text:** the customer's instructions and all model output are data. They never widen
+  a guard, and reports are stored with secrets redacted and shown as text.
+- **Amended 2026-11-22 (R1-64 worker question):** a snapshot or report larger than one CloudBBS
+  post stays in the run's thread: the root post holds part 1 and numbered replies ("part 2 of 4")
+  hold the rest, split on UTF-8 byte boundaries; `read_state` joins them. Instructions can be
+  20,000 characters (up to about 80,000 bytes) and the repo's own post cap is 16,384 bytes
+  (`lib/client-agent.js` `POST_BODY_CAP`). The worker reported a 32 KiB CloudBBS limit; the planner
+  has not verified that number.
+- **Amended 2026-11-22 (R1-64 review):** (1) ordinary limits do not fail a run: a CloudBBS
+  `rate_limited` answer waits for the window and retries the same call with the same idempotency
+  key; a Claude 429, 529 or 5xx is retried a bounded number of times with backoff; both inside the
+  run deadline and stopping on cancel. CloudBBS allows 30 writes per token per calendar minute
+  (`agent-message-board` `1cb3c60`, `WRITE_LIMIT`), and a run with N booking lanes makes at least
+  3N + 1 writes. (2) Search agents also receive the customer's instructions as untrusted data;
+  they pick the one rate the master may book, so without this the instructions cannot affect the
+  rate chosen (planner's brief omitted it). (3) Correction: the CloudBBS body limit is 32,768
+  bytes, as the worker said (`messages_body_len` check); the engine keeps the repo's 16,384-byte
+  cap per part.
+
+- **Amended 2026-11-23 (first live run, R1-67):** the engine asks with `tool_choice` `auto`;
+  `claude-sonnet-5-5` answers 400 to `any`. A reply with no tool call gets one reminder, then the
+  run fails `claude_tool_use`. A non-retryable Claude status is stored as `claude_http_<status>`
+  and the provider's error type and message are logged once, redacted.
+
+### D-065 — Swarm run dashboard, Run and Cancel on `/swarm` (2026-11-23; R1-65)
+
+- **No API change.** The page uses the four run routes of D-064 as merged (`96ee5d0`).
+- **Run:** every swarm in the list has a Run button, for any user of the enabled company (D-064).
+  A confirmation names the swarm and says the run may request bookings inside the caps. A 202
+  opens that run. Wizard step 5 offers "Save and run" beside the existing "Save" (save without
+  running); when the start is refused the swarm stays saved and the refusal is shown.
+- **Runs:** below the swarms, the company's last 50 runs, newest first. Opening one shows status,
+  times, summary, failure reason, spend and slots against the caps, master turns, and every agent
+  (role, lane, attempt, status, times, report, rate id, price, slots, booking request id).
+- **Cancel:** shown while the run is running and cancel is not yet requested.
+- **Refresh:** every 2 seconds while a shown run is running (the `/agents` interval), one request
+  at a time; it stops when nothing is running and when the user leaves the page.
+- **Text only:** summaries and reports are model output shaped by customer text. They are shown
+  as text. No link target is ever built from them.
+- **Tokens** are not shown to customers (Kings pays for them). The admin view shows them (D-066).
+- **Client errors:** `public/js/api.js` errors gain `reasons` and `position` beside `code`; the
+  `globalThis.fetch` wrapper in `public/js/swarm/client.js` is removed.
+- **Shared view:** `public/js/swarm/run-view.js` draws a runs table and one run and makes no
+  request, so R1-66 can reuse it. It takes a `showTokens` option, off for customers.
+
+### D-066 — Owner and system-admin view of swarm runs (2026-11-23; R1-66)
+
+- **Where:** Admin → "Swarm runs", `/admin/swarm-runs`. Read-only: no Run, no Cancel.
+- **Who sees whom (A1):** a system admin sees every customer company, without selecting a company
+  context. A company admin of a contract owner sees customers that have an `active`
+  `company_margins` row with that owner. Everyone else gets 403.
+- **Revoked links (operator, 2026-11-23):** a `revoked` link hides that customer's runs from
+  the owner, history included.
+- **Routes:** `GET /api/admin/swarm-runs/companies` (visible customers that have at least one run:
+  `companyId`, `name`, `runCount`, `lastStartedAt`, `running`), `GET /api/admin/swarm-runs?companyId=`
+  (that company's last 50 runs), `GET /api/admin/swarm-runs/{id}` (one run with agents). Runs have
+  the customer fields of D-064 plus `companyId` and `companyName`. A company or run outside the
+  caller's view returns the same 404 as one that does not exist.
+- **Data shown:** customer prices as recorded on the run, never a base price; token counts; not
+  the customer's instructions.
+- **Amended 2026-11-23 (R1-66 worker stop):** the client gate `adminSectionNeedsCompany`
+  (`public/js/permissions.js`) exempts `swarm-runs`, as it does `oauth-clients` and `ports`, so a
+  system admin opens the page without selecting a company.
+
