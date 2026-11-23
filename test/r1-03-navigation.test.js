@@ -74,6 +74,7 @@ describe('menu matches the role', () => {
         assert.deepEqual(paths(member), [
             '/rates',
             '/agents',
+            '/swarm',
             '/profile/booking-requests',
             '/profile/account',
             '/profile/security',
@@ -84,6 +85,7 @@ describe('menu matches the role', () => {
         assert.deepEqual(paths(customerAdmin), [
             '/rates',
             '/agents',
+            '/swarm',
             '/profile/booking-requests',
             '/profile/account',
             '/profile/security',
@@ -96,6 +98,7 @@ describe('menu matches the role', () => {
         assert.deepEqual(paths(ownerAdmin), [
             '/rates',
             '/agents',
+            '/swarm',
             '/profile/booking-requests',
             '/profile/account',
             '/profile/security',
@@ -111,6 +114,7 @@ describe('menu matches the role', () => {
         assert.deepEqual(paths(systemAdmin), [
             '/rates',
             '/agents',
+            '/swarm',
             '/profile/booking-requests',
             '/profile/account',
             '/profile/security',
