@@ -428,7 +428,7 @@ describe('R1-62 swarm foundation', { concurrency: 1 }, () => {
         }
         const current = settingsRow(BUYER).bbs_token_enc;
         seenCipher.add(current);
-        const broken = `${current.slice(0, -1)}${current.endsWith('a') ? 'b' : 'a'}`;
+        const broken = `${current.slice(0, 20)}${current[20] === 'a' ? 'b' : 'a'}${current.slice(21)}`;
         app.db.prepare('UPDATE company_swarm_settings SET bbs_token_enc = ? WHERE company_id = ?').run(broken, BUYER);
         seenCipher.add(broken);
         const afterBreak = await api('systemAdmin', 'GET', '/api/admin/swarm/companies');
