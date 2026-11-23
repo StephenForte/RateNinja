@@ -1422,6 +1422,11 @@ any scope the client was not allowed.
   bytes, as the worker said (`messages_body_len` check); the engine keeps the repo's 16,384-byte
   cap per part.
 
+- **Amended 2026-11-23 (first live run, R1-67):** the engine asks with `tool_choice` `auto`;
+  `claude-sonnet-5-5` answers 400 to `any`. A reply with no tool call gets one reminder, then the
+  run fails `claude_tool_use`. A non-retryable Claude status is stored as `claude_http_<status>`
+  and the provider's error type and message are logged once, redacted.
+
 ### D-065 — Swarm run dashboard, Run and Cancel on `/swarm` (2026-11-23; R1-65)
 
 - **No API change.** The page uses the four run routes of D-064 as merged (`96ee5d0`).
