@@ -255,11 +255,43 @@ it('runs no more than five searches at once across a 25-lane swarm', async () =>
     const { run, seen } = await execute(swarm, [
         Array.from({ length: 25 }, (_, index) => spawn(index + 1)),
         [finish()]
-    ], { searchPause: () => new Promise(resolve => setImmediate(resolve)) });
-    assert.equal(run.status, 'completed');
+    ], {
+        searchPause: () => new Promise(resolve => setImmediate(resolve)),
+        minimumOutputBudget: (role, calls) => role === 'master' ? calls.length * 50 : 0
+    });
+    assert.equal(run.status, 'completed', run.failureReason);
+    assert.equal(seen.truncated.length, 0);
     assert.equal(seen.searchLanes.length, 25);
     assert.equal(seen.peak.search, 5);
     assert.equal(run.agents.length, 26);
+});
+
+it('counts truncated Claude responses and retries without executing their partial tools', async () => {
+    const swarm = make();
+    let startMessages;
+    const { run, seen } = await execute(swarm, [[spawn(1)], [finish()]], {
+        minimumOutputBudget(role, calls, request) {
+            if (role !== 'master' || calls[0].name !== 'spawn_search') return 0;
+            if (!startMessages) startMessages = request.messages;
+            else assert.deepEqual(request.messages, startMessages);
+            assert.equal(app.db.prepare(`
+                SELECT count(*) AS n FROM swarm_run_agents a JOIN swarm_runs r ON r.id = a.run_id
+                WHERE a.role = 'search' AND r.swarm_id = ?
+            `).get(swarm.id).n, 0);
+            return 6000;
+        }
+    });
+    assert.equal(run.status, 'completed', run.failureReason);
+    assert.equal(run.masterTurns, 3);
+    assert.equal(seen.truncated.length, 1);
+    assert.equal(seen.searchLanes.length, 1);
+
+    const exhausted = await execute(make(), [[spawn(1)]], {
+        minimumOutputBudget: () => Number.POSITIVE_INFINITY
+    });
+    assert.equal(exhausted.run.failureReason, 'claude_output_token_limit');
+    assert.equal(exhausted.run.masterTurns, 2);
+    assert.equal(exhausted.seen.searchLanes.length, 0);
 });
 
 it('stops on the master, sub-agent and elapsed time limits', async () => {

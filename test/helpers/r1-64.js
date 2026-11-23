@@ -36,7 +36,7 @@ function parseResults(message) {
 }
 
 function model(turns, options = {}) {
-    const seen = { writes: [], calls: [], master: [], searchLanes: [], bookingLanes: [], requests: 0, peak: {}, error: null };
+    const seen = { writes: [], calls: [], master: [], searchLanes: [], bookingLanes: [], truncated: [], requests: 0, peak: {}, error: null };
     const inflight = { master: 0, search: 0, booking: 0 };
     let threadStarted = false;
     let turn = 0;
@@ -105,7 +105,7 @@ function model(turns, options = {}) {
             try {
                 if (role === 'master') {
                     seen.master.push({ initial, results });
-                    const next = turns[turn++] ?? options.masterFallback;
+                    const next = turns[turn] ?? options.masterFallback;
                     calls = typeof next === 'function' ? await next({ initial, results }) : next;
                 } else if (role === 'search' && results.length === 0) {
                     seen.searchLanes.push(initial);
@@ -125,10 +125,15 @@ function model(turns, options = {}) {
                 inflight[role] -= 1;
             }
             assert.ok(Array.isArray(calls) && calls.length, `Unscripted ${role} turn`);
+            const minimumBudget = options.minimumOutputBudget?.(role, calls, body) ?? 0;
+            const truncated = body.max_tokens < minimumBudget;
+            if (truncated) seen.truncated.push({ role, maxTokens: body.max_tokens, messages: body.messages });
+            else if (role === 'master') turn += 1;
             return Response.json({
-                stop_reason: 'tool_use',
+                stop_reason: truncated ? 'max_tokens' : 'tool_use',
                 usage: { input_tokens: 5, output_tokens: 3 },
-                content: calls.map(call => ({ ...call, type: 'tool_use', id: `toolu_${++callId}` }))
+                content: (truncated ? calls.slice(0, 1) : calls)
+                    .map(call => ({ ...call, type: 'tool_use', id: `toolu_${++callId}` }))
             });
         } catch (error) {
             seen.error ??= error;
