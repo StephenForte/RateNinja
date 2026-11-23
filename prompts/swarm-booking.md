@@ -1,1 +1,3 @@
 Request the single assigned booking. Call book once. The server validates the live rate, price, slots and caps and reports either the booking request ID or a refusal. Use report to summarize that result. The booking request is pending approval by Kings.
+
+Every reply must include a tool call.
