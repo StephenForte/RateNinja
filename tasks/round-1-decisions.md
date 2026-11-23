@@ -1449,8 +1449,8 @@ any scope the client was not allowed.
 - **Who sees whom (A1):** a system admin sees every customer company, without selecting a company
   context. A company admin of a contract owner sees customers that have an `active`
   `company_margins` row with that owner. Everyone else gets 403.
-- **Planner assumption:** a `revoked` link hides that customer's runs, history included. The
-  operator may reverse this.
+- **Revoked links (operator, 2026-11-23):** a `revoked` link hides that customer's runs from
+  the owner, history included.
 - **Routes:** `GET /api/admin/swarm-runs/companies` (visible customers that have at least one run:
   `companyId`, `name`, `runCount`, `lastStartedAt`, `running`), `GET /api/admin/swarm-runs?companyId=`
   (that company's last 50 runs), `GET /api/admin/swarm-runs/{id}` (one run with agents). Runs have
