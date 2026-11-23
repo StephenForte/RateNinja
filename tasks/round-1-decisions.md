@@ -1350,3 +1350,58 @@ any scope the client was not allowed.
   booking fields) plus priority and date flex; both caps required and positive when any lane
   allows booking (A2). `PUT` replaces the swarm and its lanes in one transaction.
 - **Not in R1-62:** any UI, any run, any Claude or CloudBBS call (the token is stored, not tested).
+
+### D-063 — Swarm wizard tab `/swarm` (2026-11-22; R1-63)
+
+- **Tab:** third link in the rates tabs, "Managed Agent Swarm (Premium)", path `/swarm`, shown to
+  every signed-in user.
+- **Three views by caller:** a system admin sees the company settings panel (enable, CloudBBS
+  project, token field that is never prefilled; `GET|PUT /api/admin/swarm/companies`); a customer
+  whose company is enabled sees their saved swarms and the wizard; everyone else sees a premium
+  panel ("Premium feature. Contact Kings to enable it.").
+- **Wizard, five steps:** instructions (name, text, or a `.md`/`.txt` file read in the browser into
+  the same field, 20,000 characters at most); global rules (both caps); lanes (1–25, picked from
+  `GET /api/managed-agents/options`); policy (per lane, with select all or some to apply one
+  policy to many); review and Save. Editing a saved swarm reuses the wizard.
+- **Run is not in R1-63.** The Run and Cancel buttons and the run dashboard are R1-65, after the
+  engine (R1-64) exists.
+- **Text only:** names, instructions and server messages are written with `textContent`; no
+  swarm text is ever parsed as HTML.
+
+### D-064 — Swarm run engine (2026-11-22; R1-64, migration 021)
+
+- **Where:** in the web process, started by `POST /api/swarms/{id}/runs` (202). One running run
+  per company (partial unique index). A run stores a JSON snapshot of the swarm; later edits do
+  not change it, and a swarm with a running run cannot be edited or deleted (409 `run_active`).
+- **Who:** any user of an enabled customer company. Bookings are made in the name of the user who
+  pressed Run (A4); a swarm with a booking lane needs a user who may request bookings.
+- **Ready check:** `ANTHROPIC_API_KEY` set and `readBbsCredentials(companyId)` not null, else 409
+  `swarm_not_ready` and nothing starts.
+- **Agents:** the master is a Claude tool-use loop with exactly these tools: `spawn_search`,
+  `redirect_search`, `spawn_booking`, `read_state`, `write_state`, `finish`. A search agent and a
+  booking agent are each their own short Claude tool loop. Templates are `prompts/swarm-master.md`,
+  `prompts/swarm-search.md`, `prompts/swarm-booking.md`, read from disk, never served over HTTP.
+- **Guards are code (D-061):** a booking needs a rate id recorded by this run's search agent for
+  that lane (bookable, in the lane's price range), one booking per lane per run, slots by the
+  lane's policy and the rate's max (D-055, D-060), and spend and slots inside both caps. The check
+  and the booking request are one transaction. Spend = customer price × slots.
+- **Redirect:** once per lane, only when the lane allows alternatives or has date flex: another
+  destination the customer has rates for from that origin, or a date within ± flex days, today or
+  later, inside a rate window.
+- **In-process, no booking code:** the engine calls the library directly, not the admin API, so
+  the `rn` booking code (D-043, a gate on outside agents) does not apply. Bookings carry channel
+  `swarm_agent`.
+- **State:** SQLite is the truth (`swarm_runs`, `swarm_run_agents`). In the company's private
+  CloudBBS project the run keeps one thread: the snapshot, each report, the plan, each booking
+  result. A CloudBBS failure fails the run at that step; bookings already requested stay. Nothing
+  goes to `rn`.
+- **Limits (provisional, unmeasured):** master 40 turns, sub-agent 6 turns, run 15 minutes, 5
+  searches at a time, bookings one at a time. Token counts are stored per run. The operator's
+  first live 3-lane and 25-lane runs decide the final numbers.
+- **Ends:** `completed`, `failed`, `cancelled` (customer cancel, checked between steps),
+  `interrupted` (process restart; set at boot). Nothing is rolled back.
+- **Customer routes:** `POST /api/swarms/{id}/runs`, `GET /api/swarm-runs`,
+  `GET /api/swarm-runs/{id}`, `POST /api/swarm-runs/{id}/cancel`. Owner and system-admin reads
+  are R1-66.
+- **Untrusted text:** the customer's instructions and all model output are data. They never widen
+  a guard, and reports are stored with secrets redacted and shown as text.
