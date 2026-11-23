@@ -42,6 +42,15 @@ export const sections = [
         load: () => import('./agents/managed-agents.js')
     },
     {
+        area: 'rates',
+        id: 'agent-swarm',
+        label: 'Managed Agent Swarm (Premium)',
+        group: 'Rates',
+        path: '/swarm',
+        allow: signedIn,
+        load: () => import('./swarm/page.js')
+    },
+    {
         area: 'profile',
         id: 'booking-requests',
         label: 'Booking requests',
@@ -121,6 +130,15 @@ export const sections = [
         path: '/admin/customers',
         allow: ownerOrSystem,
         load: () => import('./admin/customers.js')
+    },
+    {
+        area: 'admin',
+        id: 'swarm-runs',
+        label: 'Swarm runs',
+        group: 'Admin',
+        path: '/admin/swarm-runs',
+        allow: ownerOrSystem,
+        load: () => import('./admin/swarm-runs.js')
     },
     {
         area: 'admin',

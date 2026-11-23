@@ -55,3 +55,66 @@ Both routes require a signed-in system admin. Anyone else receives 403.
 The credential is encrypted at rest with AES-256-GCM (12-byte IV, 16-byte tag). The key is SHA-256 of `swarm-bbs:` plus `SESSION_SECRET`. No route, audit row, log line, or error returns the credential or its ciphertext. `hasBbsToken` is false when the row has no credential or the current secret cannot decrypt it. A later reader (`readBbsCredentials`) returns null in those cases, and also when the company is disabled or the row is missing.
 
 A successful settings write audits `swarm_settings_updated` with `companyId`, `enabled`, `bbsProject`, and `tokenChanged` (true or false).
+
+## Using the tab
+
+Signed-in users get a third tab, Managed Agent Swarm (Premium), at `/swarm`. A direct visit and a refresh both open that tab, and the tab is marked current.
+
+What the page shows comes from the signed-in user's permissions and `GET /api/swarm/access`, not from anything stored in the browser.
+
+- A system admin sees one row per customer company from `GET /api/admin/swarm/companies`. Each row has the company name, an enabled switch, the CloudBBS project, a token field, the last update, and Save. The token field is a password input and is empty on load. It shows "Token set" or "No token" from `hasBbsToken`. Save calls `PUT /api/admin/swarm/companies/{companyId}`. Leaving the token blank sends no `bbsToken`, so the stored credential stays. Clear token sends `bbsToken: null`. A 400 or 422 message is shown next to that row. The token value is not written back onto the page after a save.
+- A customer whose company is enabled sees the company's saved swarms and New swarm. The wizard has five steps: instructions (a name, text, or a `.md` or `.txt` file read in the browser), global rules (both caps), lanes (1 to 25, from `GET /api/managed-agents/options`), policy (per lane, with Apply to selected), and a read-only review. Save calls `POST /api/swarms` or `PUT /api/swarms/{id}`. There is no Run button. The review says that running a swarm arrives with the run dashboard.
+- Everyone else sees "Premium feature. Contact Kings to enable Managed Agent Swarm." and no form.
+
+Names, instructions, and server messages are shown as text. The instructions are not rendered as Markdown or HTML.
+
+## Runs
+
+- `POST /api/swarms/{id}/runs` returns 202 with `{ run }`. Any user of an enabled customer
+  company can start a run. If a lane can book, the caller must be able to request bookings.
+  A second active run in that company returns 409 `run_active`. Editing or deleting a swarm
+  during its run also returns 409 `run_active`. Missing service credentials return 409
+  `swarm_not_ready` with a list of missing requirements. Disabled access returns 403
+  `swarm_not_enabled`.
+- `GET /api/swarm-runs` returns `{ runs }` with up to 50 of the company's runs, newest first.
+  `GET /api/swarm-runs/{id}` returns `{ run }` with its agents in start order. Company runs
+  stay in history after deletion of their saved swarm. Cross-company IDs return 404.
+- `POST /api/swarm-runs/{id}/cancel` returns 202 with `{ run }` and requests cancellation
+  between steps. An ended run returns 409 `not_running`. Both POST routes require the session
+  CSRF token.
+- Run states are `running`, `completed`, `failed`, `cancelled` and `interrupted`. Rates and
+  booking permissions are checked live against the saved run policy. Existing booking
+  requests remain pending with Kings after cancellation, error or restart.
+- The service posts the snapshot, notes and reports in one thread in the configured private
+  CloudBBS project. Large entries use numbered parts. A CloudBBS failure ends the run with
+  `failureReason: "cloudbbs"`. SQLite retains the run and any requests made to that point.
+- Claude failures use `claude_http_<status>` for a terminal HTTP error with a readable
+  response, `claude` for network errors or unreadable responses, and `claude_tool_use`
+  for invalid tool call IDs or consecutive replies without a tool call.
+- Provisional limits are 40 master turns, 6 turns per sub-agent, 15 minutes per run, five
+  concurrent searches and one booking agent at a time.
+
+## Running a swarm
+
+An enabled customer company sees Run on every saved swarm. Run asks for confirmation, naming the swarm and saying the run may request bookings inside its caps, then `POST /api/swarms/{id}/runs`. A 202 opens that run. Step 5 of the wizard has Save and run beside Save. Save and run saves, then starts, with no second confirmation. If the start is refused, the swarm stays in the list and the message is shown. `run_active` also offers the running run. `swarm_not_ready` shows each missing requirement.
+
+Below the swarms, Runs lists `GET /api/swarm-runs` (swarm, status, started, finished, spend and slots against the caps). A null cap reads None. Opening a run shows its status, times, summary, failure reason, spend and slots, master turns, and each agent in the order the API returned. Cancel is shown only while that run is running and cancellation is not yet requested. It posts `POST /api/swarm-runs/{id}/cancel` and shows the returned run.
+
+Summaries, reports and failure reasons are shown as text. The only link is `/profile/booking-requests`. Customers do not see token counts. While a shown run is running, the page re-reads it every 2 seconds, one request at a time, and stops when it is no longer running, when the user leaves the page, or on 401 or 403.
+
+## Admin view of runs
+
+Open **Admin → Swarm runs** and choose a customer. Contract owner admins can see customers with
+active links to their company. Revoking a link hides the customer's run history. System admins
+can see every customer with runs and can open the page without selecting a company.
+
+The read-only page shows the latest 50 runs, their recorded customer prices and the token counts
+for each run. Open a run to see its summary and agent reports. Views with a running run refresh
+every two seconds while visible. The session endpoints are:
+
+- `GET /api/admin/swarm-runs/companies` lists visible customers with run counts and status.
+- `GET /api/admin/swarm-runs?companyId=X` lists that customer's recent runs.
+- `GET /api/admin/swarm-runs/{id}` opens a run with its agents.
+
+Hidden and unknown customer or run IDs return the same 404. Run responses expose the saved swarm
+name and caps and omit its instructions and CloudBBS settings.

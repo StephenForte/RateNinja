@@ -29,7 +29,7 @@ it('applies migration 015 to fresh and populated databases without backfill, and
         return Object.fromEntries(db.prepare("SELECT name FROM sqlite_schema WHERE type = 'table' ORDER BY name").all()
             .flatMap(({ name }) => {
                 if (name === 'managed_agent_runs' || name === 'company_swarm_settings' || name === 'swarms' || name === 'swarm_lanes') return [];
-                const filter = name === 'schema_migrations' ? " WHERE id NOT IN ('015', '016', '017', '018', '019', '020')" : '';
+                const filter = name === 'schema_migrations' ? " WHERE id NOT IN ('015', '016', '017', '018', '019', '020', '021')" : '';
                 const table = '"' + name.replaceAll('"', '""') + '"';
                 return [[name, db.prepare(`SELECT * FROM ${table}${filter}`).all()]];
             }));
@@ -71,7 +71,7 @@ it('applies migration 015 to fresh and populated databases without backfill, and
 
         boot(populated, migrations);
         db = new DatabaseSync(populated);
-        assert.deepEqual(snapshot(), { ...before, booking_receipts: [] });
+        assert.deepEqual(snapshot(), { ...before, booking_receipts: [], swarm_runs: [], swarm_run_agents: [] });
         const applied = db.prepare("SELECT applied_at FROM schema_migrations WHERE id = '015'").get();
         assert.ok(applied);
         assert.equal(fs.readdirSync(path.join(dir, 'backups')).filter(name => name.endsWith('-pre-015.db')).length, 1);
