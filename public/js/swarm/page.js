@@ -82,7 +82,11 @@ async function renderCustomer(view, pageError, status, isActive, stops) {
     const newButton = button('New swarm', () => showWizard(null), 'agent-button agent-primary');
     bar.append(newButton);
     view.append(bar, listHost, refusal, runsHost, wizardHost);
-    const monitor = attachRuns(runsHost, { isActive, onNavigate: clearRefusal });
+    const monitor = attachRuns(runsHost, {
+        isActive,
+        onNavigate: clearRefusal,
+        onChange() { syncRunButtons(); }
+    });
     stops.push(() => monitor.stop());
 
     function clearRefusal() {

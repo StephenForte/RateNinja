@@ -347,6 +347,75 @@ test('a shown running run is re-read every 2 seconds, one request at a time, and
     assert.equal(deniedGets, 2);
 });
 
+test('a late read of one run does not replace the run just opened or keep Run disabled', async t => {
+    t.mock.timers.enable({ apis: ['setInterval'] });
+    const running = runRecord({ id: 'run-a', status: 'running', finishedAt: null, summary: 'Still A', cancelRequested: false });
+    const other = runRecord({ id: 'run-b', status: 'completed', summary: 'Run B', finishedAt: '2026-11-23T02:00:00.000Z' });
+    let getsB = 0;
+    let releaseA;
+    const switched = await mountSwarm(t, {
+        permissions: customer,
+        respond: call => {
+            if (call.path === '/api/swarm-runs' && call.method === 'GET') return Response.json({ runs: [running, other] });
+            if (call.path === '/api/swarm-runs/run-a') {
+                if (!releaseA) return Response.json({ run: running });
+                return new Promise(resolve => { releaseA = () => resolve(Response.json({ run: running })); });
+            }
+            if (call.path === '/api/swarm-runs/run-b') {
+                getsB += 1;
+                return Response.json({ run: other });
+            }
+            return customerReady([swarm()], [running, other])(call);
+        }
+    });
+    await buttons(switched.container, 'Open')[0].events.click();
+    releaseA = () => {};
+    await tick(t);
+    await click(switched.container, 'Back to runs');
+    const opening = buttons(switched.container, 'Open')[1].events.click();
+    releaseA(undefined);
+    await opening;
+    await flush();
+    assert.equal(getsB, 1);
+    assert.equal(visibleText(switched.container, 'Run B'), true);
+    assert.equal(visibleText(switched.container, 'Still A'), false);
+
+    const live = runRecord({ status: 'running', finishedAt: null, summary: 'Live', cancelRequested: false });
+    const done = runRecord({ status: 'completed', summary: 'Finished', finishedAt: '2026-11-23T02:00:00.000Z' });
+    let listGets = 0;
+    let detailGets = 0;
+    let release;
+    const { container } = await mountSwarm(t, {
+        permissions: customer,
+        respond: call => {
+            if (call.path === '/api/swarm-runs' && call.method === 'GET') {
+                listGets += 1;
+                return Response.json({ runs: [listGets === 1 ? live : done] });
+            }
+            if (call.path === '/api/swarm-runs/run-1') {
+                detailGets += 1;
+                if (detailGets === 2) return new Promise(resolve => { release = resolve; });
+                return Response.json({ run: live });
+            }
+            return customerReady([swarm()], [live])(call);
+        }
+    });
+    await click(container, 'Open');
+    await tick(t);
+    assert.equal(detailGets, 2);
+    await click(container, 'Back to runs');
+    await flush();
+    assert.equal(visibleText(container, 'completed'), true);
+    assert.equal(buttons(container, 'Run')[0].disabled, false);
+    release(Response.json({ run: live }));
+    await flush();
+    await tick(t, 10000);
+    assert.equal(detailGets, 2);
+    assert.equal(buttons(container, 'Run')[0].disabled, false);
+    assert.equal(visibleText(container, 'running'), false);
+    assert.equal(visibleText(container, 'Live'), false);
+});
+
 test('renderRunDetail omits Cancel and token counts unless asked', async t => {
     install(t);
     const { element } = require('./helpers/r1-65');

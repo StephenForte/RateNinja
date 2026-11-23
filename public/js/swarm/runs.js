@@ -13,7 +13,7 @@ function button(text, action, className = '') {
     return control;
 }
 
-export function attachRuns(host, { isActive, onNavigate } = {}) {
+export function attachRuns(host, { isActive, onNavigate, onChange } = {}) {
     let runs = [];
     let detail = null;
     let mode = 'list';
@@ -22,6 +22,7 @@ export function attachRuns(host, { isActive, onNavigate } = {}) {
     let stopped = false;
     let listBusy = false;
     let detailBusy = false;
+    let detailTarget = null;
     let cancelling = false;
     let listTimer = null;
     let detailTimer = null;
@@ -41,6 +42,10 @@ export function attachRuns(host, { isActive, onNavigate } = {}) {
 
     function alive() {
         return !stopped && (typeof isActive !== 'function' || isActive());
+    }
+
+    function changed() {
+        if (typeof onChange === 'function') onChange();
     }
 
     function showAlert(message) {
@@ -72,7 +77,7 @@ export function attachRuns(host, { isActive, onNavigate } = {}) {
     }
 
     function hasRunning() {
-        if (detail && detail.status === 'running') return true;
+        if (mode === 'detail' && detail && detail.status === 'running') return true;
         return runs.some(run => run.status === 'running');
     }
 
@@ -120,6 +125,7 @@ export function attachRuns(host, { isActive, onNavigate } = {}) {
             if (mode === 'list') paintList();
             showAlert('');
             arm();
+            changed();
         } catch (error) {
             if (!alive()) return;
             if (error.status === 401 || error.status === 403) haltPolls();
@@ -130,22 +136,44 @@ export function attachRuns(host, { isActive, onNavigate } = {}) {
     }
 
     async function refreshDetail(id) {
-        if (!alive() || !id || detailBusy) return false;
+        if (!alive() || !id) return false;
+        detailTarget = id;
+        if (detailBusy) return false;
         detailBusy = true;
+        let requested = id;
         try {
-            const payload = await read(`/api/swarm-runs/${encodeURIComponent(id)}`);
-            if (!alive()) return false;
-            if (!payload || !payload.run) return false;
-            detail = payload.run;
-            remember(detail);
-            if (mode === 'detail') paintDetail();
-            showAlert('');
-            arm();
-            return true;
-        } catch (error) {
-            if (!alive()) return false;
-            if (error.status === 401 || error.status === 403) haltPolls();
-            showAlert(error.message || 'Request failed.');
+            while (alive()) {
+                requested = detailTarget;
+                if (!requested || mode !== 'detail') return false;
+                try {
+                    const payload = await read(`/api/swarm-runs/${encodeURIComponent(requested)}`);
+                    if (!alive()) return false;
+                    if (mode !== 'detail' || detailTarget !== requested) {
+                        if (mode !== 'detail') return false;
+                        continue;
+                    }
+                    if (!payload || !payload.run) return false;
+                    detail = payload.run;
+                    remember(detail);
+                paintDetail();
+                showAlert('');
+                arm();
+                changed();
+                return true;
+                } catch (error) {
+                    if (!alive()) return false;
+                    if (error.status === 401 || error.status === 403) {
+                        haltPolls();
+                        showAlert(error.message || 'Request failed.');
+                        return false;
+                    }
+                    if (mode === 'detail' && detailTarget && detailTarget !== requested) continue;
+                    if (mode === 'detail' && detailTarget === requested) {
+                        showAlert(error.message || 'Request failed.');
+                    }
+                    return false;
+                }
+            }
             return false;
         } finally {
             detailBusy = false;
@@ -169,6 +197,7 @@ export function attachRuns(host, { isActive, onNavigate } = {}) {
     }
 
     function showList() {
+        detailTarget = null;
         if (detail) remember(detail);
         mode = 'list';
         detailHost.hidden = true;
@@ -192,6 +221,7 @@ export function attachRuns(host, { isActive, onNavigate } = {}) {
             if (mode === 'detail') paintDetail();
             showAlert('');
             arm();
+            changed();
         } catch (error) {
             if (!alive()) return;
             if (error.status === 409 && error.code === 'not_running') {
