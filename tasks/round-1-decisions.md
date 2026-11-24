@@ -1467,3 +1467,20 @@ any scope the client was not allowed.
   (`public/js/permissions.js`) exempts `swarm-runs`, as it does `oauth-clients` and `ports`, so a
   system admin opens the page without selecting a company.
 
+### D-067 — Whole-dollar display of money on `/agents` and `/swarm` (2026-11-23; R1-68)
+
+- **Rule:** every money amount these pages show is US dollars with a `$`, thousands separators
+  and no decimals, for example `$12,574`. Rounding is to the nearest dollar.
+- **Display only.** Inputs, validation, API bodies, stored values, guards and the prompts keep
+  the exact numbers. A stored maximum of 1350.75 shows as `$1,351` and is still enforced as
+  1350.75.
+- **Where:** `/agents` detail price range; `/swarm` list (spend cap); the wizard Review step
+  (total spend cap, each lane's minimum and maximum); the run table and run detail (spend
+  booked against the cap, each agent's price). The run views are shared (D-065), so
+  `/admin/swarm-runs` shows the same format.
+- **Not money:** slots, tokens and counts stay plain numbers. A missing cap stays `None`; a
+  missing price stays empty.
+- **Not changed:** text written by Claude (run summary, agent reports) and field labels.
+- **One helper:** `public/js/money.js` holds the formatter; the four page files use it.
+- **Planner assumption (operator may narrow):** "managed agent page" means both customer tabs,
+  and "confirm page" means the wizard's Review step.
