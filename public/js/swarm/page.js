@@ -1,4 +1,5 @@
 import { errorBox, heading, paragraph, textCell } from '../dom.js';
+import { formatDollars } from '../money.js';
 import { renderSettings } from './admin.js';
 import { read, write } from './client.js';
 import { attachRuns } from './runs.js';
@@ -167,7 +168,7 @@ async function renderCustomer(view, pageError, status, isActive, stops) {
                 textCell(swarm.name || '', 'td', 'swarm-name'),
                 textCell(swarm.instructions || '', 'td', 'swarm-instructions'),
                 textCell(String(Array.isArray(swarm.lanes) ? swarm.lanes.length : 0), 'td'),
-                textCell(money(swarm.totalSpendCap), 'td'),
+                textCell(formatDollars(swarm.totalSpendCap, 'None'), 'td'),
                 textCell(money(swarm.totalSlotsCap), 'td'),
                 textCell(swarm.updatedAt || '—', 'td')
             );

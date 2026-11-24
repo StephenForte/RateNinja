@@ -1,4 +1,5 @@
 import { paragraph, textCell } from '../dom.js';
+import { formatDollars } from '../money.js';
 
 const BOOKING_REQUESTS = '/profile/booking-requests';
 
@@ -11,10 +12,13 @@ function button(text, action, className = '') {
     return control;
 }
 
-function againstCap(booked, cap) {
+function againstCap(booked, cap, money = false) {
     const amount = booked == null ? '0' : String(booked);
     const limit = cap == null ? 'None' : String(cap);
-    return `${amount} / ${limit}`;
+    if (!money) return `${amount} / ${limit}`;
+    const shownAmount = booked == null ? formatDollars(0, '0') : formatDollars(booked, amount);
+    const shownLimit = cap == null ? 'None' : formatDollars(cap, limit);
+    return `${shownAmount} / ${shownLimit}`;
 }
 
 function addFact(list, term, value, className = '') {
@@ -65,7 +69,7 @@ export function renderRunTable(host, runs, { onOpen } = {}) {
             textCell(run.status || '', 'td', 'swarm-run-status'),
             textCell(run.startedAt || '', 'td'),
             textCell(run.finishedAt || '', 'td'),
-            textCell(againstCap(run.spendBooked, run.totalSpendCap), 'td'),
+            textCell(againstCap(run.spendBooked, run.totalSpendCap, true), 'td'),
             textCell(againstCap(run.slotsBooked, run.totalSlotsCap), 'td')
         );
         const actions = document.createElement('td');
@@ -89,7 +93,7 @@ export function renderRunDetail(host, run, { onCancel, showTokens } = {}) {
     addFact(facts, 'Finished', run.finishedAt || '');
     addFact(facts, 'Summary', run.summary || '', 'swarm-summary');
     addFact(facts, 'Failure reason', run.failureReason || '', 'swarm-failure-reason');
-    addFact(facts, 'Spend', againstCap(run.spendBooked, run.totalSpendCap));
+    addFact(facts, 'Spend', againstCap(run.spendBooked, run.totalSpendCap, true));
     addFact(facts, 'Slots', againstCap(run.slotsBooked, run.totalSlotsCap));
     addFact(facts, 'Master turns', run.masterTurns == null ? '' : String(run.masterTurns));
     if (showTokens === true) {
@@ -125,7 +129,7 @@ export function renderRunDetail(host, run, { onCancel, showTokens } = {}) {
             textCell(agent.finishedAt || '', 'td'),
             textCell(agent.report || '', 'td', 'swarm-report'),
             textCell(agent.rateId || '', 'td'),
-            textCell(agent.price == null ? '' : String(agent.price), 'td'),
+            textCell(agent.price == null || agent.price === '' ? '' : formatDollars(agent.price, ''), 'td'),
             textCell(agent.slots == null ? '' : String(agent.slots), 'td'),
             bookingCell(agent.bookingRequestId)
         );
