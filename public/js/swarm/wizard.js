@@ -1,4 +1,5 @@
 import { fieldLabel, paragraph, textCell } from '../dom.js';
+import { formatDollars } from '../money.js';
 import { write } from './client.js';
 
 const MAX_LANES = 25;
@@ -612,7 +613,7 @@ export function openWizard(host, { options, swarm, onDone, onCancel }) {
         const booking = anyBooking();
         addFact(list, 'Name', state.name.trim(), 'swarm-name');
         addFact(list, 'Instructions', state.instructions, 'swarm-instructions');
-        addFact(list, 'Total spend cap', booking ? displayCap(state.totalSpendCap) : 'None');
+        addFact(list, 'Total spend cap', booking ? formatDollars(state.totalSpendCap, '') : 'None');
         addFact(list, 'Total slots cap', booking ? displayCap(state.totalSlotsCap) : 'None');
         state.lanes.forEach((lane, index) => addFact(list, `Lane ${index + 1}`, laneSummary(lane)));
         review.append(list);
@@ -765,8 +766,8 @@ function laneSummary(lane) {
     ];
     if (lane.allowBookingRequest) {
         parts.push(
-            `Min ${lane.priceMin}`,
-            `Max ${lane.priceMax}`,
+            `Min ${formatDollars(lane.priceMin, '')}`,
+            `Max ${formatDollars(lane.priceMax, '')}`,
             `Slots ${lane.bookingSlots}`,
             lane.acceptMaxSlots ? 'AI slot selection' : 'No AI slot selection'
         );

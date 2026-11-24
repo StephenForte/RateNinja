@@ -1,10 +1,10 @@
 import { request } from '../api.js';
 import { errorBox, fieldLabel, heading, paragraph, textCell } from '../dom.js';
+import { formatDollars } from '../money.js';
 
 const endpoint = '/api/managed-agents';
 const runsEndpoint = '/api/managed-agents/runs';
 const cloudBbsPostEndpoint = '/api/managed-agents/cloudbbs-post';
-const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 20 });
 const RUN_POLL_MS = 2000;
 let deactivate;
 let runTimer = null;
@@ -311,7 +311,7 @@ function agentDetail(agent, edit, remove) {
     ];
     if (agent.allowBookingRequest) {
         values.push(['Slots', String(agent.bookingSlots)]);
-        values.push(['Price (USD per container)', `${currency.format(agent.priceMin)} – ${currency.format(agent.priceMax)}`]);
+        values.push(['Price (USD per container)', `${formatDollars(agent.priceMin, '')} – ${formatDollars(agent.priceMax, '')}`]);
     }
     if (agent.savedQueryId) values.push(['Saved query', agent.savedQueryId]);
     if (agent.startedAt) values.push(['Started', formatTime(agent.startedAt)]);

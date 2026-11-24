@@ -81,7 +81,7 @@ it('renders one row per agent and opens independent keyboard-operable detail con
     assert.equal(controls[0].attributes['aria-expanded'], 'false');
     assert.equal(panels[0].hidden, true);
     assert.equal(panels[1].hidden, false);
-    for (const value of ['Alternative routes', 'Booking request', 'Slots', '$1,500.00 – $2,000.00',
+    for (const value of ['Alternative routes', 'Booking request', 'Slots', '$1,500 – $2,000',
         'synthetic-saved-query', 'Started', 'Finished', summary]) {
         assert.ok(findText(panels[0], value), value);
     }
