@@ -1,6 +1,9 @@
 import { fieldLabel, paragraph, textCell } from '../dom.js';
 import { formatDollars } from '../money.js';
 import { write } from './client.js';
+import {
+    CSV_BYTE_LIMIT, CSV_MESSAGES, DATE_FORMAT_MESSAGE, laneFromRecord, parseLaneCsv, problemLines, templateCsv
+} from './lane-csv.js';
 
 const MAX_LANES = 25;
 const MAX_INSTRUCTIONS = 20000;
@@ -174,7 +177,15 @@ export function openWizard(host, { options, swarm, onDone, onCancel }) {
     panels[2].append(step2Fields);
 
     const addButton = button('Add lane', () => addLane(), 'agent-button');
-    panels[3].append(laneHost, addButton, addHint);
+    const csvUpload = input('file', '');
+    csvUpload.accept = '.csv,text/csv';
+    const csvTools = document.createElement('div');
+    csvTools.className = 'swarm-csv';
+    csvTools.append(
+        fieldLabel('Upload CSV', csvUpload),
+        button('Download template', () => downloadTemplate(), 'agent-button')
+    );
+    panels[3].append(csvTools, laneHost, addButton, addHint);
 
     panels[4].append(policyHost);
     panels[5].append(review);
@@ -423,7 +434,7 @@ export function openWizard(host, { options, swarm, onDone, onCancel }) {
         fields.sync();
     }
 
-    function policyFieldset(fields, legendText) {
+    function policyFieldset(fields, legendText, identity) {
         const box = document.createElement('fieldset');
         const legend = document.createElement('legend');
         legend.textContent = legendText;
@@ -439,9 +450,15 @@ export function openWizard(host, { options, swarm, onDone, onCancel }) {
             fieldLabel('Max price (USD)', fields.priceMax),
             fieldLabel('Slots', fields.slots)
         );
-        box.append(legend, wrap);
+        box.append(legend);
+        if (identity) box.append(identity);
+        box.append(wrap);
         if (!canBook) box.append(paragraph('agent-hint', BOOKING_REASON));
         return box;
+    }
+
+    function laneIdentity(lane) {
+        return `${lane.rateType} ${lane.originPort} to ${lane.destinationPort}, ${lane.sailingDate}, ${lane.containerType}`;
     }
 
     function renderPolicy() {
@@ -477,7 +494,7 @@ export function openWizard(host, { options, swarm, onDone, onCancel }) {
             const error = paragraph('swarm-lane-error', '');
             error.hidden = true;
             error.setAttribute('role', 'alert');
-            const box = policyFieldset(fields, `Lane ${index + 1}`);
+            const box = policyFieldset(fields, `Lane ${index + 1}`, paragraph('swarm-lane-identity', laneIdentity(lane)));
             box.className = 'swarm-lane';
             box.setAttribute('data-position', String(index + 1));
             box.prepend(fieldLabel('Select', selected));
@@ -519,7 +536,9 @@ export function openWizard(host, { options, swarm, onDone, onCancel }) {
     }
 
     function identityMessage(lane) {
-        if (!lane.rateType || !lane.originPort || !lane.destinationPort || !lane.sailingDate || !lane.containerType) {
+        const containers = options.containerTypes || [];
+        if (!lane.rateType || !lane.originPort || !lane.destinationPort || !lane.sailingDate || !lane.containerType
+            || !containers.includes(lane.containerType)) {
             return LANE_FIELDS_MESSAGE;
         }
         const record = laneRecord(lane.rateType, lane.originPort, lane.destinationPort);
@@ -700,6 +719,91 @@ export function openWizard(host, { options, swarm, onDone, onCancel }) {
             saveAndRun.disabled = false;
         }
     }
+
+    function showCsvProblems(messages) {
+        showError(3, problemLines(messages).join('\n'));
+    }
+
+    function replaceLanes(nextLanes) {
+        state.lanes = nextLanes;
+        for (const row of step3Rows) row.row.remove();
+        step3Rows.length = 0;
+        for (const lane of state.lanes) step3Rows.push(buildStep3Row(lane));
+        refreshLanes();
+        renderPolicy();
+        step = 4;
+        paint();
+        showError(3, '');
+        showError(4, '');
+    }
+
+    function downloadTemplate() {
+        const blob = new Blob([templateCsv(options)], { type: 'text/csv' });
+        const link = document.createElement('a');
+        link.download = 'swarm-lanes.csv';
+        if (typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') return;
+        const url = URL.createObjectURL(blob);
+        link.href = url;
+        root.append(link);
+        if (typeof link.click === 'function') link.click();
+        link.remove();
+        if (typeof URL.revokeObjectURL === 'function') URL.revokeObjectURL(url);
+    }
+
+    csvUpload.addEventListener('change', async () => {
+        const file = csvUpload.files && csvUpload.files[0];
+        csvUpload.value = '';
+        if (!file) return;
+        const filename = String(file.name || '');
+        if (!filename.toLowerCase().endsWith('.csv')) {
+            showError(3, CSV_MESSAGES.name);
+            return;
+        }
+        if (Number(file.size) > CSV_BYTE_LIMIT) {
+            showError(3, CSV_MESSAGES.size);
+            return;
+        }
+        let text = '';
+        try {
+            text = await file.text();
+        } catch {
+            showError(3, CSV_MESSAGES.read);
+            return;
+        }
+        const parsed = parseLaneCsv(text);
+        if (!parsed.ok) {
+            showCsvProblems(parsed.messages);
+            return;
+        }
+        const problems = [];
+        const nextLanes = [];
+        for (const record of parsed.records) {
+            const built = laneFromRecord(record, options);
+            const rowProblems = built.messages.slice();
+            if (built.lane && !built.messages.includes(DATE_FORMAT_MESSAGE)) {
+                const identity = identityMessage(built.lane);
+                if (identity) rowProblems.push(identity);
+            }
+            if (rowProblems.length === 0) {
+                if (built.lane.allowBookingRequest === true && options.canRequestBooking !== true) {
+                    rowProblems.push(BOOKING_REASON);
+                }
+                const policy = policyMessage(built.lane);
+                if (policy) rowProblems.push(policy);
+            }
+            if (rowProblems.length) {
+                for (const message of rowProblems) problems.push(`Row ${record.rowNumber}: ${message}`);
+            } else {
+                nextLanes.push(built.lane);
+            }
+        }
+        if (problems.length) {
+            showCsvProblems(problems);
+            return;
+        }
+        if (step3Rows.length > 0 && window.confirm(CSV_MESSAGES.confirm) !== true) return;
+        replaceLanes(nextLanes);
+    });
 
     forward.addEventListener('click', () => {
         if (forward.disabled) return;
