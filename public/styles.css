@@ -3133,3 +3133,21 @@ body {
 .swarm-run-alert {
     margin: 0;
 }
+
+/* R1-69 */
+.swarm-csv {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: end;
+    margin: 0 0 14px;
+}
+
+.swarm-lane-identity {
+    margin: 0 0 8px;
+    font-weight: 600;
+}
+
+.swarm-step-3 .swarm-step-error {
+    white-space: pre-wrap;
+}
