@@ -1484,3 +1484,39 @@ any scope the client was not allowed.
 - **One helper:** `public/js/money.js` holds the formatter; the four page files use it.
 - **Planner assumption (operator may narrow):** "managed agent page" means both customer tabs,
   and "confirm page" means the wizard's Review step.
+
+### D-068 — Swarm wizard: lanes from a CSV file (2026-11-24; R1-69)
+
+- **Where:** wizard step 3 (lanes) gains "Upload CSV" and "Download template". The browser reads
+  the file, as it does for the step 1 instructions file (D-063). No new route, no migration. The
+  server's lane checks on Save are unchanged and stay the authority.
+- **Format:** one header row, then one lane per row. Header names match without regard to case
+  or outer spaces, in any order. Required columns: `Rate Type`, `Origin Port`,
+  `Destination Port`, `Sailing Date` (`YYYY-MM-DD`), `Container Type`. Other columns, each may be
+  absent: `Priority` (`high`, `normal`, `low`; blank is `normal`), `Allow Alternatives`,
+  `Date Flex Days` (whole number 0 to 14; blank is 0), `Allow Booking`, `Min Price`, `Max Price`,
+  `Slots`, `AI Slot Selection`. Yes/no cells take `yes`, `no`, `y`, `n`, `true`, `false` in any
+  case; blank is no. Prices and slots are plain numbers (no `$`, no thousands separator).
+- **Refused files:** a name that does not end in `.csv`; more than 100,000 bytes; a missing
+  required header; an unknown or repeated header; no lane rows; more than 25 lane rows. Rows with
+  every cell blank are skipped.
+- **Row rules:** the same as entry by hand. The lane must be one the customer can see, matched
+  without regard to case and stored in the spelling the options use; the date must be today or
+  later and inside a rate window of that lane; the container type must be one of the options.
+  With `Allow Booking` yes: both prices, minimum at or below maximum, and slots from 1 to the
+  options' maximum. With it no or blank: the price, slots and AI slot cells are ignored. `Allow
+  Booking` yes is refused when the company cannot request bookings.
+- **All or nothing:** one bad row means no lane changes. The wizard lists the problems with their
+  file row numbers (the header is row 1), the first 10 and a count of the rest.
+- **On success:** the uploaded lanes replace the wizard's lanes (after a confirm when it already
+  has lanes) and the wizard opens step 4. Each lane box on step 4 now shows the lane (rate type,
+  origin, destination, sailing date, container type) above its policy fields, which hold the
+  file's values. Lanes entered by hand get the same line.
+- **Template:** made in the browser from the customer's options: the header and one example row
+  for the first lane that has a current rate window (header only when there is none).
+- **Text only:** file content reaches the page through `textContent` and form values, never HTML.
+- **Planner assumptions (operator may change):** the request says yes/no for date flex, but the
+  wizard stores a number of days, so the column is days; `Allow Alternatives` is added because
+  the wizard has that setting; an upload replaces lanes and does not append; dates are
+  `YYYY-MM-DD` only, so a file re-saved by Excel with `11/24/2026` dates is refused with a
+  message that names the format.
