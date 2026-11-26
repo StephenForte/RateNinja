@@ -1569,3 +1569,22 @@ any scope the client was not allowed.
 - **Narrow screens** keep the stacked layout.
 - **Unchanged:** field labels and their text, validation, messages, the Save body, CSV upload.
   Booking fields stay disabled, not hidden, when booking is off.
+
+### D-071 — Swarm wizard Review step and run facts: readable layout (2026-11-26; R1-72)
+
+- **Defect:** the Review step (step 5) and the facts at the top of a run page put each label
+  and each value into the `.agent-details` grid as separate cells. The grid fills as many
+  columns as fit, so a label and its value land in different columns or rows (operator
+  screenshot, 2026-11-26: "Name | CSV Swarm | Instructions | blank | Total spend cap", then
+  "$1,000,000 | Total slots cap | 125 | Lane 1 | ..."). `/agents` uses the same grid correctly
+  by wrapping each pair in one element.
+- **Review step:** a short facts block (name, total spend cap, total slots cap, lane count),
+  each label directly with its value; the instructions under their own heading, full width,
+  line breaks kept; then a "Lanes" table with one row per lane: number, lane (rate type,
+  origin, destination), sailing date, container, priority, alternatives, date flex, booking,
+  minimum, maximum, slots, AI slots. Booking columns are empty for a lane with booking off.
+  Money stays in D-067 format. The table scrolls sideways in its own box on a narrow screen.
+- **Run facts:** each label sits directly with its value; the summary and the failure reason
+  take the full width.
+- **Unchanged:** every value shown today is still shown, as text; Save, Save and run, Back and
+  the saved body.
