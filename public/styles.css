@@ -3356,6 +3356,11 @@ body {
 .swarm-review,
 .swarm-run-facts {
     min-width: 0;
+}
+
+.swarm-review .swarm-name,
+.swarm-review .swarm-instructions,
+.swarm-run-facts {
     overflow-wrap: anywhere;
 }
 
@@ -3370,8 +3375,14 @@ body {
     white-space: pre-wrap;
 }
 
+.swarm-review-lanes {
+    white-space: nowrap;
+}
+
 .swarm-review-lanes td:nth-child(2) {
     min-width: 12rem;
+    overflow-wrap: anywhere;
+    white-space: normal;
 }
 
 .swarm-run-facts > .swarm-run-fact-full {
