@@ -164,8 +164,8 @@ test('run table and detail format spend and price, and leave slots and a missing
         permissions: customer,
         respond: customerFetch([swarm()], [moneyRun, openRun])
     });
-    assert.deepEqual(rowCells(container, 'Money').slice(4, 6), ['$62,870 / $75,000', '5 / 10']);
-    assert.deepEqual(rowCells(container, 'Open').slice(4, 6), ['$0 / None', '0 / None']);
+    assert.deepEqual(rowCells(container, 'Money').slice(5, 7), ['$62,870 / $75,000', '5 / 10']);
+    assert.deepEqual(rowCells(container, 'Open').slice(5, 7), ['$0 / None', '0 / None']);
     const moneyRow = walk(container).find(node => node.tag === 'tr' && node.children.some(cell => cell.textContent === 'Money'));
     await moneyRow.children.find(node => node.tag === 'td' && walk(node).some(child => child.textContent === 'Open')).children
         .find(node => node.tag === 'button').events.click();
@@ -263,7 +263,7 @@ test('admin swarm runs show the same whole-dollar spend and price', async t => {
     t.after(unmount);
     await mount(container);
     await click(container, 'Alpha Synthetic');
-    assert.deepEqual(rowCells(container, 'Admin money').slice(4, 6), ['$62,870 / $75,000', '5 / 10']);
+    assert.deepEqual(rowCells(container, 'Admin money').slice(5, 7), ['$62,870 / $75,000', '5 / 10']);
     await click(container, 'Open');
     assert.equal(fact(container, 'Spend'), '$62,870 / $75,000');
     assert.equal(fact(container, 'Slots'), '5 / 10');

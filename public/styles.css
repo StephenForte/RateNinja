@@ -3151,3 +3151,19 @@ body {
 .swarm-step-3 .swarm-step-error {
     white-space: pre-wrap;
 }
+
+/* R1-70 */
+.swarm-instructions {
+    max-width: 28rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.swarm-lane-result {
+    white-space: pre-line;
+}
+
+.agent-status-running { background: #e2f2f6; color: #0b6173; }
+.agent-status-cancelled,
+.agent-status-interrupted { background: #f3eee4; color: #6b5428; }

@@ -31,7 +31,7 @@ export function attachRuns(host, { isActive, onNavigate, onChange } = {}) {
     alert.hidden = true;
     alert.setAttribute('role', 'alert');
     const listHost = document.createElement('div');
-    listHost.className = 'swarm-run-list';
+    listHost.className = 'agent-grid-scroll swarm-run-list';
     const detailHost = document.createElement('div');
     detailHost.className = 'swarm-run-detail';
     detailHost.hidden = true;

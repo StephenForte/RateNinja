@@ -83,7 +83,11 @@ The template is the header row in the column order above, plus one example row f
   `swarm_not_ready` with a list of missing requirements. Disabled access returns 403
   `swarm_not_enabled`.
 - `GET /api/swarm-runs` returns `{ runs }` with up to 50 of the company's runs, newest first.
-  `GET /api/swarm-runs/{id}` returns `{ run }` with its agents in start order. Company runs
+  Each run includes `laneCount`. `GET /api/swarm-runs/{id}` returns `{ run }` with its agents
+  in start order and `lanes`: one entry per snapshot lane, in position order. A lane entry
+  has exactly `position`, `rateType`, `originPort`, `destinationPort`, `sailingDate`,
+  `containerType`, `priority` and `allowBookingRequest`. Price limits, requested slots and
+  the customer's instructions stay in the stored snapshot and are not returned. Company runs
   stay in history after deletion of their saved swarm. Cross-company IDs return 404.
 - `POST /api/swarm-runs/{id}/cancel` returns 202 with `{ run }` and requests cancellation
   between steps. An ended run returns 409 `not_running`. Both POST routes require the session
@@ -104,7 +108,7 @@ The template is the header row in the column order above, plus one example row f
 
 An enabled customer company sees Run on every saved swarm. Run asks for confirmation, naming the swarm and saying the run may request bookings inside its caps, then `POST /api/swarms/{id}/runs`. A 202 opens that run. Step 5 of the wizard has Save and run beside Save. Save and run saves, then starts, with no second confirmation. If the start is refused, the swarm stays in the list and the message is shown. `run_active` also offers the running run. `swarm_not_ready` shows each missing requirement.
 
-Below the swarms, Runs lists `GET /api/swarm-runs` (swarm, status, started, finished, spend and slots against the caps). A null cap reads None. Opening a run shows its status, times, summary, failure reason, spend and slots, master turns, and each agent in the order the API returned. Cancel is shown only while that run is running and cancellation is not yet requested. It posts `POST /api/swarm-runs/{id}/cancel` and shows the returned run.
+The page has two sections, Swarms and then Runs. The swarm table shows instructions on one line, cut with an ellipsis, with the full text on the cell title. Runs lists `GET /api/swarm-runs`: swarm, a status badge, started (local date and time, stored instant on the title), duration, lane count, spend and slots against the caps, and Open. A null cap reads None. Duration is finished minus started, or time so far while the run is still running. Opening a run shows its status, times, duration, summary, failure reason, spend and slots, and master turns. When the run includes `lanes`, Lane results lists every lane in position order above Agent activity. Search, price, booking and the reports use that lane's latest attempt for each role. A run with no `lanes` array shows Agent activity only. Each agent still appears in the order the API returned. Cancel is shown only while that run is running and cancellation is not yet requested. It posts `POST /api/swarm-runs/{id}/cancel` and shows the returned run. Both tables sit in a sideways-scrolling wrapper.
 
 Summaries, reports and failure reasons are shown as text. The only link is `/profile/booking-requests`. Customers do not see token counts. While a shown run is running, the page re-reads it every 2 seconds, one request at a time, and stops when it is no longer running, when the user leaves the page, or on 401 or 403.
 
@@ -115,12 +119,14 @@ active links to their company. Revoking a link hides the customer's run history.
 can see every customer with runs and can open the page without selecting a company.
 
 The read-only page shows the latest 50 runs, their recorded customer prices and the token counts
-for each run. Open a run to see its summary and agent reports. Views with a running run refresh
+for each run. Times are the viewer's local date and time, with the stored instant on the title.
+Open a run to see its summary, lane results and agent reports. The lane entries are the same
+eight fields as the customer read: no price limit and no instructions. Views with a running run refresh
 every two seconds while visible. The session endpoints are:
 
 - `GET /api/admin/swarm-runs/companies` lists visible customers with run counts and status.
-- `GET /api/admin/swarm-runs?companyId=X` lists that customer's recent runs.
-- `GET /api/admin/swarm-runs/{id}` opens a run with its agents.
+- `GET /api/admin/swarm-runs?companyId=X` lists that customer's recent runs, including `laneCount`.
+- `GET /api/admin/swarm-runs/{id}` opens a run with its agents and the same `lanes` fields as the customer read.
 
 Hidden and unknown customer or run IDs return the same 404. Run responses expose the saved swarm
 name and caps and omit its instructions and CloudBBS settings.
