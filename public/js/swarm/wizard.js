@@ -670,11 +670,16 @@ export function openWizard(host, { options, swarm, onDone, onCancel }) {
         list.className = 'agent-details';
         const booking = anyBooking();
         addFact(list, 'Name', state.name.trim(), 'swarm-name');
-        addFact(list, 'Instructions', state.instructions, 'swarm-instructions');
-        addFact(list, 'Total spend cap', booking ? formatDollars(state.totalSpendCap, '') : 'None');
-        addFact(list, 'Total slots cap', booking ? displayCap(state.totalSlotsCap) : 'None');
-        state.lanes.forEach((lane, index) => addFact(list, `Lane ${index + 1}`, laneSummary(lane)));
-        review.append(list);
+        addFact(list, 'Total spend cap', booking ? formatDollars(state.totalSpendCap, 'None') : 'None');
+        addFact(list, 'Total slots cap', booking ? state.totalSlotsCap || 'None' : 'None');
+        addFact(list, 'Lanes', String(state.lanes.length));
+        review.append(
+            list,
+            textCell('Instructions', 'h4'),
+            paragraph('swarm-instructions', state.instructions || '—'),
+            textCell('Lanes', 'h4'),
+            reviewLaneTable(state.lanes)
+        );
     }
 
     function go(next) {
@@ -885,35 +890,48 @@ function copySwarm(swarm, canBook) {
 }
 
 function addFact(list, term, value, className = '') {
-    const label = document.createElement('dt');
-    label.textContent = term;
-    const fact = document.createElement('dd');
-    if (className) fact.className = className;
-    fact.textContent = value ?? '';
-    list.append(label, fact);
+    const item = document.createElement('div');
+    item.append(textCell(term, 'dt'), textCell(value, 'dd', className));
+    list.append(item);
 }
 
-function displayCap(value) {
-    return value === '' || value == null ? '' : String(value);
-}
-
-function laneSummary(lane) {
-    const parts = [
-        `${lane.rateType} ${lane.originPort} → ${lane.destinationPort}`,
-        lane.sailingDate,
-        lane.containerType,
-        `Priority ${lane.priority}`,
-        lane.allowAlternativeRoutes ? 'Alternatives allowed' : 'No alternatives',
-        `Date flex ${lane.dateFlexDays}`,
-        lane.allowBookingRequest ? 'Booking allowed' : 'No booking'
-    ];
-    if (lane.allowBookingRequest) {
-        parts.push(
-            `Min ${formatDollars(lane.priceMin, '')}`,
-            `Max ${formatDollars(lane.priceMax, '')}`,
-            `Slots ${lane.bookingSlots}`,
-            lane.acceptMaxSlots ? 'AI slot selection' : 'No AI slot selection'
-        );
+function reviewLaneTable(lanes) {
+    const scroll = document.createElement('div');
+    scroll.className = 'agent-grid-scroll';
+    scroll.tabIndex = 0;
+    scroll.setAttribute('role', 'region');
+    scroll.setAttribute('aria-label', 'Review lanes');
+    const table = document.createElement('table');
+    table.className = 'agent-grid swarm-review-lanes';
+    const head = document.createElement('thead');
+    const header = document.createElement('tr');
+    for (const label of ['#', 'Lane', 'Sailing date', 'Container', 'Priority', 'Alternatives', 'Date flex', 'Booking', 'Min', 'Max', 'Slots', 'AI slots']) {
+        const cell = textCell(label, 'th');
+        cell.setAttribute('scope', 'col');
+        header.append(cell);
     }
-    return parts.join('. ');
+    head.append(header);
+    const body = document.createElement('tbody');
+    lanes.forEach((lane, index) => {
+        const row = document.createElement('tr');
+        const booking = lane.allowBookingRequest;
+        row.append(
+            textCell(String(index + 1)),
+            textCell(`${lane.rateType} ${lane.originPort} → ${lane.destinationPort}`),
+            textCell(lane.sailingDate),
+            textCell(lane.containerType),
+            textCell(lane.priority),
+            textCell(lane.allowAlternativeRoutes ? 'Yes' : 'No'),
+            textCell(String(lane.dateFlexDays)),
+            textCell(booking ? 'Yes' : 'No'),
+            textCell(booking ? formatDollars(lane.priceMin, '') : ''),
+            textCell(booking ? formatDollars(lane.priceMax, '') : ''),
+            textCell(booking ? lane.bookingSlots : ''),
+            textCell(booking ? (lane.acceptMaxSlots ? 'Yes' : 'No') : '')
+        );
+        body.append(row);
+    });
+    table.append(head, body);
+    scroll.append(table);
+    return scroll;
 }

@@ -194,7 +194,7 @@ test('wizard review formats money and the save body keeps the typed numbers', as
         })
     });
     await openReview(container, { spend: '' });
-    assert.equal(fact(container, 'Total spend cap'), '');
+    assert.equal(fact(container, 'Total spend cap'), 'None');
     assert.equal(fact(container, 'Total slots cap'), '4');
     assert.equal(visibleText(container, '$0'), false);
     await click(container, 'Back');
@@ -206,11 +206,15 @@ test('wizard review formats money and the save body keeps the typed numbers', as
     await click(container, 'Next');
     assert.equal(fact(container, 'Total spend cap'), '$21');
     assert.equal(fact(container, 'Total slots cap'), '4');
-    const summary = fact(container, 'Lane 1');
-    assert.equal(summary.includes('Min $21'), true);
-    assert.equal(summary.includes('Max $1,351'), true);
-    assert.equal(summary.includes('Slots 2'), true);
-    assert.equal(/Slots \$/.test(summary), false);
+    const table = walk(container).find(node => node.className === 'agent-grid swarm-review-lanes');
+    assert.ok(table);
+    const headers = table.children.find(node => node.tag === 'thead').children[0].children;
+    const firstLane = table.children.find(node => node.tag === 'tbody').children[0];
+    const laneCell = label => firstLane.children[headers.findIndex(cell => cell.textContent === label)].textContent;
+    assert.equal(laneCell('#'), '1');
+    assert.equal(laneCell('Min'), '$21');
+    assert.equal(laneCell('Max'), '$1,351');
+    assert.equal(laneCell('Slots'), '2');
     const typed = label => {
         const labels = walk(container).filter(node => node.tag === 'label'
             && node.children.some(child => child.textContent === label));

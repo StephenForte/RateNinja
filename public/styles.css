@@ -3351,3 +3351,29 @@ body {
         font-weight: 400;
     }
 }
+
+/* R1-72 */
+.swarm-review,
+.swarm-run-facts {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.swarm-review h4 {
+    margin: 16px 0 6px;
+}
+
+.swarm-review .swarm-instructions {
+    max-width: none;
+    margin: 0;
+    overflow: visible;
+    white-space: pre-wrap;
+}
+
+.swarm-review-lanes td:nth-child(2) {
+    min-width: 12rem;
+}
+
+.swarm-run-facts > .swarm-run-fact-full {
+    grid-column: 1 / -1;
+}
