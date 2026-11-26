@@ -22,14 +22,13 @@ function againstCap(booked, cap, money = false) {
     return `${shownAmount} / ${shownLimit}`;
 }
 
-function addFact(list, term, value, className = '', title = '') {
-    const label = document.createElement('dt');
-    label.textContent = term;
-    const fact = document.createElement('dd');
-    fact.textContent = value == null ? '' : String(value);
-    if (className) fact.className = className;
+function addFact(list, term, value, { className = '', title = '', fullWidth = false } = {}) {
+    const item = document.createElement('div');
+    if (fullWidth) item.className = 'swarm-run-fact-full';
+    const fact = textCell(value == null ? '' : String(value), 'dd', className);
     if (title) fact.setAttribute('title', title);
-    list.append(label, fact);
+    item.append(textCell(term, 'dt'), fact);
+    list.append(item);
 }
 
 function timeOptions(time) {
@@ -221,17 +220,17 @@ export function renderRunDetail(host, run, { onCancel, showTokens, time } = {}) 
     const started = timeText(run.startedAt, time);
     const finished = timeText(run.finishedAt, time);
     addFact(facts, 'Status', run.status || '');
-    addFact(facts, 'Started', started.text, '', started.title);
-    addFact(facts, 'Finished', finished.text, '', finished.title);
-    addFact(facts, 'Duration', runDuration(run, time), 'swarm-run-duration');
-    addFact(facts, 'Summary', run.summary || '', 'swarm-summary');
-    addFact(facts, 'Failure reason', run.failureReason || '', 'swarm-failure-reason');
+    addFact(facts, 'Started', started.text, { title: started.title });
+    addFact(facts, 'Finished', finished.text, { title: finished.title });
+    addFact(facts, 'Duration', runDuration(run, time), { className: 'swarm-run-duration' });
+    addFact(facts, 'Summary', run.summary || '', { className: 'swarm-summary', fullWidth: true });
+    addFact(facts, 'Failure reason', run.failureReason || '', { className: 'swarm-failure-reason', fullWidth: true });
     addFact(facts, 'Spend', againstCap(run.spendBooked, run.totalSpendCap, true));
     addFact(facts, 'Slots', againstCap(run.slotsBooked, run.totalSlotsCap));
     addFact(facts, 'Master turns', run.masterTurns == null ? '' : String(run.masterTurns));
     if (showTokens === true) {
-        addFact(facts, 'Input tokens', run.inputTokens == null ? '' : String(run.inputTokens), 'swarm-input-tokens');
-        addFact(facts, 'Output tokens', run.outputTokens == null ? '' : String(run.outputTokens), 'swarm-output-tokens');
+        addFact(facts, 'Input tokens', run.inputTokens, { className: 'swarm-input-tokens' });
+        addFact(facts, 'Output tokens', run.outputTokens, { className: 'swarm-output-tokens' });
     }
     host.append(facts);
     if (run.status === 'running' && run.cancelRequested === true) {
