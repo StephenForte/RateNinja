@@ -118,7 +118,6 @@ export function openWizard(host, { options, swarm, onDone, onCancel }) {
     slotsInput.step = '1';
     const laneHost = document.createElement('div');
     laneHost.className = 'swarm-lanes';
-    const addHint = paragraph('agent-hint', '');
     const policyHost = document.createElement('div');
     policyHost.className = 'swarm-policy';
     const review = document.createElement('div');
@@ -176,16 +175,24 @@ export function openWizard(host, { options, swarm, onDone, onCancel }) {
     );
     panels[2].append(step2Fields);
 
-    const addButton = button('Add lane', () => addLane(), 'agent-button');
+    const addTop = button('Add lane', addLane, 'agent-button');
+    const addBottom = button('Add lane', addLane, 'agent-button');
+    const laneCount = paragraph('agent-hint swarm-lane-count', '');
+    const addHint = paragraph('agent-hint swarm-lane-limit', '');
+    const bottomHint = paragraph('agent-hint', '');
+    laneCount.setAttribute('role', 'status');
     const csvUpload = input('file', '');
     csvUpload.accept = '.csv,text/csv';
     const csvTools = document.createElement('div');
-    csvTools.className = 'swarm-csv';
+    csvTools.className = 'swarm-csv swarm-lane-toolbar';
     csvTools.append(
+        addTop,
         fieldLabel('Upload CSV', csvUpload),
-        button('Download template', () => downloadTemplate(), 'agent-button')
+        button('Download template', downloadTemplate, 'agent-button'),
+        laneCount,
+        addHint
     );
-    panels[3].append(csvTools, laneHost, addButton, addHint);
+    panels[3].append(csvTools, laneHost, addBottom, bottomHint);
 
     panels[4].append(policyHost);
     panels[5].append(review);
@@ -249,6 +256,7 @@ export function openWizard(host, { options, swarm, onDone, onCancel }) {
         row.hint.textContent = valid.length
             ? valid.map(window => window.start === window.end ? window.start : `${window.start} to ${window.end}`).join(' · ')
             : record ? 'No current rate window for this lane.' : 'Select a lane to see available dates.';
+        row.hint.setAttribute('title', row.hint.textContent);
     }
 
     function fillDestinations(row, selected, keepDate) {
@@ -269,13 +277,15 @@ export function openWizard(host, { options, swarm, onDone, onCancel }) {
 
     function refreshLanes() {
         step3Rows.forEach((row, index) => {
-            row.legend.textContent = `Lane ${index + 1}`;
+            row.legend.textContent = row.number.textContent = `Lane ${index + 1}`;
             row.row.setAttribute('data-position', String(index + 1));
             row.up.disabled = index === 0;
             row.down.disabled = index === step3Rows.length - 1;
         });
-        addButton.disabled = step3Rows.length >= MAX_LANES;
-        addHint.textContent = step3Rows.length >= MAX_LANES ? 'A swarm can have at most 25 lanes.' : '';
+        const atLimit = step3Rows.length >= MAX_LANES;
+        addTop.disabled = addBottom.disabled = atLimit;
+        laneCount.textContent = `${step3Rows.length} of ${MAX_LANES} lanes`;
+        addHint.textContent = bottomHint.textContent = atLimit ? 'A swarm can have at most 25 lanes.' : '';
     }
 
     function moveRow(row, delta) {
@@ -302,20 +312,21 @@ export function openWizard(host, { options, swarm, onDone, onCancel }) {
     function buildStep3Row(lane) {
         const row = document.createElement('fieldset');
         row.className = 'swarm-lane';
-        const legend = document.createElement('legend');
+        const legend = textCell('', 'legend', 'swarm-lane-legend');
+        const number = laneNumber('');
         const rateType = document.createElement('select');
         const origin = document.createElement('select');
         const destination = document.createElement('select');
         const date = input('date', lane.sailingDate);
         const container = document.createElement('select');
-        const hint = textCell('', 'span', 'agent-hint');
+        const hint = textCell('', 'span', 'agent-hint swarm-date-hint');
         const error = paragraph('swarm-lane-error', '');
         error.hidden = true;
         error.setAttribute('role', 'alert');
         const controls = { rateType, origin, destination, date, container };
-        const record = { row, legend, controls, hint, error, lane, up: null, down: null };
+        const record = { row, legend, number, controls, hint, error, lane, up: null, down: null };
         const fields = document.createElement('div');
-        fields.className = 'agent-fields';
+        fields.className = 'agent-fields swarm-lane-fields';
         const dateLabel = fieldLabel('Sailing date', date);
         dateLabel.append(hint);
         fields.append(
@@ -331,9 +342,12 @@ export function openWizard(host, { options, swarm, onDone, onCancel }) {
         record.up = up;
         record.down = down;
         const rowActions = document.createElement('div');
-        rowActions.className = 'agent-actions';
+        rowActions.className = 'agent-actions swarm-lane-actions';
         rowActions.append(up, down, remove);
-        row.append(legend, fields, rowActions, error);
+        const layout = document.createElement('div');
+        layout.className = 'swarm-lane-layout';
+        layout.append(number, fields, rowActions);
+        row.append(legend, layout, error);
         fillSelect(rateType, 'Select rate type', options.rateTypes, lane.rateType);
         fillSelect(container, 'Select container type', options.containerTypes, lane.containerType);
         fillOrigins(record, lane.originPort, lane.destinationPort, true);
@@ -344,30 +358,21 @@ export function openWizard(host, { options, swarm, onDone, onCancel }) {
         return record;
     }
 
-    function blankLane() {
-        const lane = {
-            rateType: '', originPort: '', destinationPort: '', sailingDate: '', containerType: '',
+    function blankLane(previous) {
+        return {
+            rateType: previous?.rateType.value ?? '',
+            originPort: previous?.origin.value ?? '',
+            destinationPort: '',
+            sailingDate: '',
+            containerType: previous?.container.value ?? '',
             priority: 'normal', allowAlternativeRoutes: false, dateFlexDays: 0,
             allowBookingRequest: false, priceMin: '', priceMax: '', bookingSlots: '', acceptMaxSlots: false
         };
-        const rateTypes = unique(options.rateTypes);
-        if (rateTypes.length === 1) lane.rateType = rateTypes[0];
-        const origins = unique((options.lanes || []).filter(item => item.rateType === lane.rateType).map(item => item.originPort));
-        if (origins.length === 1) lane.originPort = origins[0];
-        const destinations = unique((options.lanes || [])
-            .filter(item => item.rateType === lane.rateType && item.originPort === lane.originPort)
-            .map(item => item.destinationPort));
-        if (destinations.length === 1) lane.destinationPort = destinations[0];
-        const containers = unique(options.containerTypes);
-        if (containers.length === 1) lane.containerType = containers[0];
-        const windows = validWindows(laneRecord(lane.rateType, lane.originPort, lane.destinationPort));
-        lane.sailingDate = windows[0]?.start || '';
-        return lane;
     }
 
     function addLane() {
         if (step3Rows.length >= MAX_LANES) return;
-        const lane = blankLane();
+        const lane = blankLane(step3Rows.at(-1)?.controls);
         state.lanes.push(lane);
         step3Rows.push(buildStep3Row(lane));
         refreshLanes();
@@ -434,12 +439,19 @@ export function openWizard(host, { options, swarm, onDone, onCancel }) {
         fields.sync();
     }
 
-    function policyFieldset(fields, legendText, identity) {
+    function laneNumber(text) {
+        const number = textCell(text, 'span', 'swarm-lane-number');
+        number.setAttribute('aria-hidden', 'true');
+        return number;
+    }
+
+    function policyFieldset(fields, legendText, heading) {
         const box = document.createElement('fieldset');
         const legend = document.createElement('legend');
         legend.textContent = legendText;
+        if (heading) legend.className = 'swarm-lane-legend';
         const wrap = document.createElement('div');
-        wrap.className = 'agent-fields';
+        wrap.className = 'agent-fields swarm-policy-fields';
         wrap.append(
             fieldLabel('Priority', fields.priority),
             fieldLabel('Allow alternatives', fields.alternatives),
@@ -451,8 +463,14 @@ export function openWizard(host, { options, swarm, onDone, onCancel }) {
             fieldLabel('Slots', fields.slots)
         );
         box.append(legend);
-        if (identity) box.append(identity);
-        box.append(wrap);
+        if (heading) {
+            const layout = document.createElement('div');
+            layout.className = 'swarm-policy-layout';
+            layout.append(heading, wrap);
+            box.append(layout);
+        } else {
+            box.append(wrap);
+        }
         if (!canBook) box.append(paragraph('agent-hint', BOOKING_REASON));
         return box;
     }
@@ -472,6 +490,14 @@ export function openWizard(host, { options, swarm, onDone, onCancel }) {
         templateBox.className = 'swarm-policy-template';
         const selectAll = input('checkbox', false);
         selectAll.className = 'swarm-select-all';
+        const selectedCount = paragraph('agent-hint swarm-selected-count', '');
+        selectedCount.setAttribute('role', 'status');
+        function updateSelection() {
+            const count = policyRows.filter(row => row.selected.checked).length;
+            selectAll.checked = count > 0 && count === policyRows.length;
+            selectAll.indeterminate = count > 0 && count < policyRows.length;
+            selectedCount.textContent = `${count} selected`;
+        }
         const apply = button('Apply to selected', () => {
             const policy = readPolicy(template);
             for (const row of policyRows) {
@@ -482,26 +508,39 @@ export function openWizard(host, { options, swarm, onDone, onCancel }) {
         }, 'agent-button');
         selectAll.addEventListener('change', () => {
             for (const row of policyRows) row.selected.checked = selectAll.checked === true;
+            updateSelection();
         });
         const tools = document.createElement('div');
-        tools.className = 'agent-actions';
-        tools.append(fieldLabel('Select all', selectAll), apply);
-        policyHost.append(templateBox, tools);
+        tools.className = 'agent-actions swarm-policy-actions';
+        tools.append(fieldLabel('Select all', selectAll), apply, selectedCount);
+        const toolbar = document.createElement('div');
+        toolbar.className = 'swarm-policy-toolbar';
+        toolbar.append(templateBox, tools);
+        policyHost.append(toolbar);
         state.lanes.forEach((lane, index) => {
             const fields = policyControls(lane);
             const selected = input('checkbox', false);
             selected.className = 'swarm-select';
+            selected.addEventListener('change', updateSelection);
             const error = paragraph('swarm-lane-error', '');
             error.hidden = true;
             error.setAttribute('role', 'alert');
-            const box = policyFieldset(fields, `Lane ${index + 1}`, paragraph('swarm-lane-identity', laneIdentity(lane)));
+            const number = `Lane ${index + 1}`;
+            const identity = document.createElement('div');
+            identity.className = 'swarm-policy-heading';
+            identity.append(
+                fieldLabel('Select', selected),
+                laneNumber(number),
+                paragraph('swarm-lane-identity', laneIdentity(lane))
+            );
+            const box = policyFieldset(fields, number, identity);
             box.className = 'swarm-lane';
             box.setAttribute('data-position', String(index + 1));
-            box.prepend(fieldLabel('Select', selected));
             box.append(error);
             policyHost.append(box);
             policyRows.push({ row: box, fields, selected, error, lane });
         });
+        updateSelection();
     }
 
     function readStep3() {
