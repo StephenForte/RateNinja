@@ -3167,3 +3167,187 @@ body {
 .agent-status-running { background: #e2f2f6; color: #0b6173; }
 .agent-status-cancelled,
 .agent-status-interrupted { background: #f3eee4; color: #6b5428; }
+
+/* R1-71 */
+.swarm-lane-toolbar,
+.swarm-policy-toolbar {
+    margin-bottom: 14px;
+}
+
+.swarm-lane-toolbar label,
+.swarm-lane-toolbar input[type="file"],
+.swarm-step-3 .swarm-lane,
+.swarm-step-4 .swarm-lane,
+.swarm-policy-toolbar .swarm-policy-template {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.swarm-lane-toolbar label {
+    display: grid;
+    gap: 4px;
+}
+
+.swarm-lane-toolbar .swarm-lane-count {
+    align-self: center;
+}
+
+.swarm-lane-toolbar .swarm-lane-limit {
+    flex-basis: 100%;
+}
+
+.swarm-lane-number {
+    display: none;
+}
+
+.swarm-lane-actions {
+    margin-top: 8px;
+}
+
+.swarm-policy-toolbar {
+    padding: 8px 12px;
+    border: 1px solid var(--border, #d9e2ec);
+    border-radius: 8px;
+    background: #fff;
+}
+
+.swarm-policy-toolbar .swarm-policy-template {
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.swarm-policy-actions {
+    margin-top: 8px;
+}
+
+.swarm-policy-heading {
+    display: grid;
+    gap: 4px;
+    overflow-wrap: anywhere;
+}
+
+.swarm-policy-fields input[type="checkbox"] {
+    width: 1rem;
+    min-height: 1rem;
+    margin: 0;
+    accent-color: #0b6b7d;
+}
+
+.swarm-policy-heading input[type="checkbox"],
+.swarm-policy-actions input[type="checkbox"] {
+    margin-inline-start: 4px;
+    accent-color: #0b6b7d;
+}
+
+@media (min-width: 1100px) {
+    .swarm-step-3 .swarm-lane,
+    .swarm-step-4 .swarm-lane {
+        min-inline-size: 0;
+        padding: 6px 10px;
+        margin-bottom: 6px;
+    }
+
+    .swarm-lane-legend {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+
+    .swarm-lane-number {
+        display: inline;
+        font-size: .8125rem;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .swarm-lane-layout,
+    .swarm-policy-layout {
+        display: grid;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .swarm-lane-layout {
+        grid-template-columns: 3.125rem minmax(0, 1fr) auto;
+    }
+
+    .swarm-policy-layout {
+        grid-template-columns: minmax(0, 15rem) minmax(0, 1fr);
+    }
+
+    .swarm-lane-fields {
+        grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(10.5rem, 1.25fr) minmax(0, 1fr);
+    }
+
+    .swarm-policy-fields {
+        grid-template-columns: 1.05fr 1fr 1fr .9fr 1.25fr 1fr 1fr .7fr;
+    }
+
+    .swarm-lane-fields,
+    .swarm-policy-fields {
+        gap: 8px;
+    }
+
+    .swarm-lane-fields label,
+    .swarm-policy-fields label {
+        gap: 2px;
+        font-size: .8125rem;
+        line-height: 1.2;
+    }
+
+    .swarm-policy-fields label {
+        grid-template-rows: minmax(2lh, auto) minmax(30px, auto);
+    }
+
+    .swarm-policy-fields input[type="checkbox"] {
+        align-self: center;
+    }
+
+    .swarm-lane-fields select,
+    .swarm-lane-fields input,
+    .swarm-policy-fields select,
+    .swarm-policy-fields input[type="number"] {
+        min-height: 30px;
+        padding: 3px 5px;
+    }
+
+    .swarm-date-hint {
+        font-size: .75rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .swarm-lane-actions {
+        flex-wrap: nowrap;
+        gap: 4px;
+        margin: 0;
+    }
+
+    .swarm-lane-actions button {
+        min-height: 30px;
+        padding: 3px 6px;
+        font-size: .8125rem;
+    }
+
+    .swarm-policy-heading {
+        grid-template-columns: auto minmax(0, 1fr);
+        align-items: center;
+        gap: 0 8px;
+        font-size: .8125rem;
+        line-height: 1.2;
+    }
+
+    .swarm-policy-heading label {
+        grid-row: span 2;
+    }
+
+    .swarm-policy-heading .swarm-lane-identity {
+        margin: 0;
+        font-weight: 400;
+    }
+}

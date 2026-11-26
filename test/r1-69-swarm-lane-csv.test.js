@@ -2,6 +2,7 @@
 
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
+const { addLaneButtons, clickToolbarAdd } = require('./helpers/r1-71');
 const { tags } = require('./helpers/r1-63');
 const {
     FULL_HEADER, REQUIRED_HEADER, csvText, laneRow, file, openLanes, panel, stepError, upload,
@@ -45,7 +46,7 @@ async function toLanes(t, extra) {
 async function refuse(t, csvFile, message) {
     const mounted = await toLanes(t);
     window.confirm = () => { throw new Error('unexpected confirm'); };
-    await click(mounted.container, 'Add lane');
+    await clickToolbarAdd(mounted.container);
     await upload(mounted.container, csvFile);
     assert.equal(panel(mounted.container, 3).hidden, false);
     assert.equal(panel(mounted.container, 4).hidden, true);
@@ -207,8 +208,8 @@ test('a full CSV file saves the same body as the same lanes entered by hand', as
     control(hand.container, 'Total spend cap (USD)').value = '80';
     control(hand.container, 'Total slots cap').value = '9';
     await click(hand.container, 'Next');
-    await click(hand.container, 'Add lane');
-    await click(hand.container, 'Add lane');
+    await clickToolbarAdd(hand.container);
+    await clickToolbarAdd(hand.container);
     control(lanes(hand.container)[0], 'Sailing date').value = '2026-11-30';
     await click(hand.container, 'Next');
     const handRows = lanes(hand.container);
@@ -348,7 +349,7 @@ test('each row rule refuses the file and keeps the Save body', async t => {
     ].join('\n');
     await refuse(t, file('lanes.csv', text), `Row 4: ${VISIBLE}`);
     const mounted = await toLanes(t);
-    await click(mounted.container, 'Add lane');
+    await clickToolbarAdd(mounted.container);
     await upload(mounted.container, file('lanes.csv', text));
     const error = stepError(mounted.container, 3);
     assert.equal(error.includes('Row 2:'), false);
@@ -360,11 +361,11 @@ test('25 lane rows are accepted and 11 problems show the first 10', async t => {
     await upload(accepted.container, file('lanes.csv', csvText(Array.from({ length: 25 }, () => laneRow()))));
     assert.equal(panel(accepted.container, 4).hidden, false);
     assert.equal(identities(accepted.container).length, 25);
-    assert.equal(walk(accepted.container).find(node => node.tag === 'button' && node.textContent === 'Add lane').disabled, true);
+    assert.deepEqual(addLaneButtons(accepted.container).map(add => add.disabled), [true, true]);
     const lines = Array.from({ length: 11 }, () => laneRow({ origin: 'NOPE' }));
     await refuse(t, file('lanes.csv', csvText(lines)), 'Row 2:');
     const listed = await toLanes(t);
-    await click(listed.container, 'Add lane');
+    await clickToolbarAdd(listed.container);
     await upload(listed.container, file('lanes.csv', csvText(lines)));
     const error = stepError(listed.container, 3).split('\n');
     assert.equal(error.length, 11);
@@ -378,7 +379,7 @@ test('25 lane rows are accepted and 11 problems show the first 10', async t => {
 test('confirm no keeps the current lanes and confirm yes replaces them', async t => {
     const { CSV_MESSAGES } = await csv();
     const kept = await toLanes(t);
-    await click(kept.container, 'Add lane');
+    await clickToolbarAdd(kept.container);
     let message = '';
     window.confirm = text => {
         message = text;
@@ -395,7 +396,7 @@ test('confirm no keeps the current lanes and confirm yes replaces them', async t
     assert.equal(kept.posts[0].body.lanes[0].priority, 'normal');
 
     const replaced = await toLanes(t);
-    await click(replaced.container, 'Add lane');
+    await clickToolbarAdd(replaced.container);
     window.confirm = () => true;
     await upload(replaced.container, file('lanes.csv', csvText([laneRow({ date: '2026-11-30', priority: 'high' })])));
     assert.equal(panel(replaced.container, 4).hidden, false);
@@ -421,7 +422,7 @@ test('step 4 shows lane identity as text, including hostile cell text', async t 
     assert.equal(tags(mounted.container).includes('script'), false);
     assert.equal(tags(mounted.container).includes('img'), false);
     await click(mounted.container, 'Back');
-    await click(mounted.container, 'Add lane');
+    await clickToolbarAdd(mounted.container);
     await click(mounted.container, 'Next');
     const hand = identities(mounted.container);
     assert.equal(hand[1], `Port ${hostile} to LAX, ${today}, 40HC`);
@@ -445,7 +446,7 @@ test('back to step 3 keeps uploaded lanes in the selects and Next does not chang
     await click(rows[0], 'Down');
     await click(lanes(mounted.container)[1], 'Remove');
     assert.equal(lanes(mounted.container).length, 1);
-    await click(mounted.container, 'Add lane');
+    await clickToolbarAdd(mounted.container);
     assert.equal(lanes(mounted.container).length, 2);
     await click(mounted.container, 'Next');
     rows = lanes(mounted.container);
@@ -478,7 +479,7 @@ test('the unedited template uploads and the download control is present', async 
 
 test('booking yes is refused when the company cannot request bookings', async t => {
     const mounted = await toLanes(t, { optionsOverride: { ...options, canRequestBooking: false } });
-    await click(mounted.container, 'Add lane');
+    await clickToolbarAdd(mounted.container);
     window.confirm = () => { throw new Error('unexpected confirm'); };
     await upload(mounted.container, file('lanes.csv', csvText([laneRow({
         booking: 'yes', min: '1', max: '2', slots: '1', ai: 'yes'

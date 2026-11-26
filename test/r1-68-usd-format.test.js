@@ -2,6 +2,7 @@
 
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
+const { clickToolbarAdd } = require('./helpers/r1-71');
 const { byClass, mountGrid, walk: walkAgents } = require('./helpers/r1-36');
 const { click, control, element, hiddenDeep, install, lanes, mountSwarm, options, walk } = require('./helpers/r1-63');
 const { runRecord, swarm } = require('./helpers/r1-65');
@@ -56,7 +57,7 @@ async function openReview(container, { spend, slots = '4', min = '20.5', max = '
     control(container, 'Total spend cap (USD)').value = spend;
     control(container, 'Total slots cap').value = slots;
     await click(container, 'Next');
-    await click(container, 'Add lane');
+    await clickToolbarAdd(container);
     await click(container, 'Next');
     const row = lanes(container)[0];
     const booking = control(row, 'Allow booking');
