@@ -1520,3 +1520,52 @@ any scope the client was not allowed.
   the wizard has that setting; an upload replaces lanes and does not append; dates are
   `YYYY-MM-DD` only, so a file re-saved by Excel with `11/24/2026` dates is refused with a
   message that names the format.
+
+### D-069 — Swarm run results by lane, and the `/swarm` page layout (2026-11-25; R1-70)
+
+- **Why:** a run with no booking lanes shows nothing a customer can read as a result. The run
+  page lists agents (master, search, booking) with raw timestamps; no view has one row per lane.
+- **API:** the run detail responses (`GET /api/swarm-runs/{id}` and the admin run read) gain
+  `lanes`: one entry per lane of the run's snapshot, in position order, with `position`,
+  `rateType`, `originPort`, `destinationPort`, `sailingDate`, `containerType`, `priority` and
+  `allowBookingRequest`. Nothing else from the snapshot: no prices, requested slots or
+  instructions, because the owner and system-admin view (D-066) reads the same shape. The list
+  responses gain `laneCount`.
+- **Lane results table:** the run page opens with "Lane results (N lanes)", one row for every
+  lane of the run, whether or not an agent has touched it. Columns: lane number; lane (rate
+  type, origin, destination); sailing date; container; priority; search; price; booking; result.
+  - Search: `Waiting`, `Searching`, `Rate found`, `No rate`, `Failed`, `Cancelled`, or
+    `Not searched` when the run ended first.
+  - Price: the customer price of the reported rate, in D-067 format.
+  - Booking: `Not allowed` (the lane has booking off), `Not attempted`, `Booking`,
+    `Requested, N slots` with the link to booking requests, `Not booked`, or `Failed`.
+  - Result: the search agent's report, and the booking agent's report under it when there is one.
+  - Each cell comes from the lane's latest attempt of that role. The table is built in the
+    browser from `lanes` and `agents`; no new stored data, no migration.
+- **Agent table stays** under the heading "Agent activity", below the lane results.
+- **Times:** every time on `/swarm` and `/admin/swarm-runs` shows in the viewer's local time as
+  a short date and time, with the full ISO value as the cell's title. Runs show a duration.
+- **`/swarm` page:** two headed sections, "Swarms" then "Runs". The swarm table shows one line of
+  instructions (cut with an ellipsis). The runs table: swarm, status as a badge, started,
+  duration, lanes, spend, slots, Open. Both tables scroll sideways inside their own box on a
+  narrow screen instead of widening the page.
+- **Shared view:** `public/js/swarm/run-view.js` is used by both pages (D-065), so the admin page
+  gets the same tables.
+- **Planner assumptions (operator may change):** "the last page listing all of the runs" is the
+  `/swarm` page with its Runs table; the lane table shows the report text and the price, not
+  the carrier (a run stores the rate id, not the carrier).
+
+### D-070 — Swarm wizard: compact lane and policy steps (2026-11-25; R1-71)
+
+- **Why:** each lane is a tall box on step 3 and again on step 4; 25 lanes make two very long
+  pages.
+- **Step 3:** on a screen 1100px wide or more, a lane is one row: its number, the five fields
+  and Up, Down, Remove. One toolbar above the list holds Add lane, Upload CSV, Download template
+  and the count "N of 25 lanes"; Add lane is repeated under the list. A new lane starts with the
+  rate type, origin port and container type of the lane above it.
+- **Step 4:** on the same width, a lane is one row: its select box, the lane line (D-068) and the
+  eight policy fields. The "Policy to copy" row, Select all, Apply to selected and the count
+  "N selected" sit in one toolbar above the list.
+- **Narrow screens** keep the stacked layout.
+- **Unchanged:** field labels and their text, validation, messages, the Save body, CSV upload.
+  Booking fields stay disabled, not hidden, when booking is off.
