@@ -1,5 +1,6 @@
-import { paragraph, textCell } from '../dom.js';
+import { heading, paragraph, textCell } from '../dom.js';
 import { formatDollars } from '../money.js';
+import { formatDuration, formatWhen } from './time.js';
 
 const BOOKING_REQUESTS = '/profile/booking-requests';
 
@@ -21,13 +22,35 @@ function againstCap(booked, cap, money = false) {
     return `${shownAmount} / ${shownLimit}`;
 }
 
-function addFact(list, term, value, className = '') {
+function addFact(list, term, value, className = '', title = '') {
     const label = document.createElement('dt');
     label.textContent = term;
     const fact = document.createElement('dd');
     fact.textContent = value == null ? '' : String(value);
     if (className) fact.className = className;
+    if (title) fact.setAttribute('title', title);
     list.append(label, fact);
+}
+
+function timeOptions(time) {
+    return time && typeof time === 'object' ? time : {};
+}
+
+function timeText(value, time) {
+    return formatWhen(value, timeOptions(time));
+}
+
+function timedCell(value, time, tagName = 'td') {
+    const when = timeText(value, time);
+    const cell = textCell(when.text, tagName);
+    if (when.title) cell.setAttribute('title', when.title);
+    return cell;
+}
+
+function runDuration(run, time) {
+    const options = timeOptions(time);
+    const running = run.status === 'running' && (run.finishedAt == null || run.finishedAt === '');
+    return formatDuration(run.startedAt, running ? null : run.finishedAt, options);
 }
 
 function laneText(agent) {
@@ -47,7 +70,113 @@ function bookingCell(value) {
     return cell;
 }
 
-export function renderRunTable(host, runs, { onOpen } = {}) {
+function statusCell(status) {
+    const cell = document.createElement('td');
+    const badge = document.createElement('span');
+    const name = status || '';
+    badge.className = name ? `agent-status agent-status-${name}` : 'agent-status';
+    badge.textContent = name;
+    cell.append(badge);
+    return cell;
+}
+
+function scrollTable(table) {
+    const wrap = document.createElement('div');
+    wrap.className = 'agent-grid-scroll';
+    wrap.append(table);
+    return wrap;
+}
+
+function latestAgent(agents, position, role) {
+    let chosen = null;
+    for (const agent of agents) {
+        if (agent.role !== role || agent.lanePosition !== position) continue;
+        if (!chosen || Number(agent.attempt) > Number(chosen.attempt)) chosen = agent;
+    }
+    return chosen;
+}
+
+function searchLabel(agent, runStatus) {
+    if (!agent) return runStatus === 'running' ? 'Waiting' : 'Not searched';
+    if (agent.status === 'running') return 'Searching';
+    if (agent.status === 'completed') return agent.rateId ? 'Rate found' : 'No rate';
+    if (agent.status === 'failed') return 'Failed';
+    if (agent.status === 'cancelled') return 'Cancelled';
+    return '';
+}
+
+function bookingLabel(lane, agent) {
+    if (lane.allowBookingRequest !== true) return { text: 'Not allowed', link: false };
+    if (!agent) return { text: 'Not attempted', link: false };
+    if (agent.bookingRequestId) {
+        const slots = agent.slots == null ? '0' : String(agent.slots);
+        return { text: `Requested, ${slots} slots`, link: true };
+    }
+    if (agent.status === 'running') return { text: 'Booking', link: false };
+    if (agent.status === 'completed') return { text: 'Not booked', link: false };
+    if (agent.status === 'failed') return { text: 'Failed', link: false };
+    if (agent.status === 'cancelled') return { text: 'Cancelled', link: false };
+    return { text: '', link: false };
+}
+
+function bookingLaneCell(label) {
+    const cell = document.createElement('td');
+    cell.className = 'swarm-lane-booking';
+    cell.append(document.createTextNode(label.text));
+    if (!label.link) return cell;
+    cell.append(document.createTextNode(' '));
+    const link = document.createElement('a');
+    link.href = BOOKING_REQUESTS;
+    link.setAttribute('href', BOOKING_REQUESTS);
+    link.textContent = 'Booking requests';
+    cell.append(link);
+    return cell;
+}
+
+function resultText(searchAgent, bookingAgent) {
+    const search = searchAgent && searchAgent.report ? String(searchAgent.report) : '';
+    const booking = bookingAgent && bookingAgent.report ? String(bookingAgent.report) : '';
+    if (search && booking) return `${search}\n${booking}`;
+    return search || booking;
+}
+
+function renderLaneTable(lanes, run) {
+    const agents = Array.isArray(run.agents) ? run.agents : [];
+    const title = heading(`Lane results (${lanes.length} lanes)`);
+    title.className = 'swarm-lane-heading';
+    const table = document.createElement('table');
+    table.className = 'agent-grid swarm-lane-table';
+    const head = document.createElement('tr');
+    for (const label of ['#', 'Lane', 'Sailing date', 'Container', 'Priority', 'Search', 'Price', 'Booking', 'Result']) {
+        head.append(textCell(label, 'th'));
+    }
+    const body = document.createElement('tbody');
+    for (const lane of lanes) {
+        const search = latestAgent(agents, lane.position, 'search');
+        const booking = latestAgent(agents, lane.position, 'booking');
+        const row = document.createElement('tr');
+        const price = search && search.price != null && search.price !== ''
+            ? formatDollars(search.price, '')
+            : '';
+        const result = textCell(resultText(search, booking), 'td', 'swarm-lane-result');
+        row.append(
+            textCell(lane.position == null ? '' : String(lane.position), 'td'),
+            textCell(`${lane.rateType || ''}, ${lane.originPort || ''} to ${lane.destinationPort || ''}`, 'td', 'swarm-lane-name'),
+            textCell(lane.sailingDate || '', 'td'),
+            textCell(lane.containerType || '', 'td'),
+            textCell(lane.priority || '', 'td'),
+            textCell(searchLabel(search, run.status), 'td', 'swarm-lane-search'),
+            textCell(price, 'td', 'swarm-lane-price'),
+            bookingLaneCell(bookingLabel(lane, booking)),
+            result
+        );
+        body.append(row);
+    }
+    table.append(head, body);
+    return [title, scrollTable(table)];
+}
+
+export function renderRunTable(host, runs, { onOpen, time } = {}) {
     host.replaceChildren();
     const rows = Array.isArray(runs) ? runs : [];
     if (!rows.length) {
@@ -57,7 +186,7 @@ export function renderRunTable(host, runs, { onOpen } = {}) {
     const table = document.createElement('table');
     table.className = 'agent-grid swarm-run-table';
     const head = document.createElement('tr');
-    for (const label of ['Swarm', 'Status', 'Started', 'Finished', 'Spend booked', 'Slots booked']) {
+    for (const label of ['Swarm', 'Status', 'Started', 'Duration', 'Lanes', 'Spend booked', 'Slots booked']) {
         head.append(textCell(label, 'th'));
     }
     head.append(textCell('', 'th'));
@@ -66,9 +195,10 @@ export function renderRunTable(host, runs, { onOpen } = {}) {
         const row = document.createElement('tr');
         row.append(
             textCell(run.swarmName || '', 'td', 'swarm-run-name'),
-            textCell(run.status || '', 'td', 'swarm-run-status'),
-            textCell(run.startedAt || '', 'td'),
-            textCell(run.finishedAt || '', 'td'),
+            statusCell(run.status || ''),
+            timedCell(run.startedAt, time),
+            textCell(runDuration(run, time), 'td', 'swarm-run-duration'),
+            textCell(run.laneCount == null ? '' : String(run.laneCount), 'td', 'swarm-run-lanes'),
             textCell(againstCap(run.spendBooked, run.totalSpendCap, true), 'td'),
             textCell(againstCap(run.slotsBooked, run.totalSlotsCap), 'td')
         );
@@ -83,14 +213,17 @@ export function renderRunTable(host, runs, { onOpen } = {}) {
     host.append(table);
 }
 
-export function renderRunDetail(host, run, { onCancel, showTokens } = {}) {
+export function renderRunDetail(host, run, { onCancel, showTokens, time } = {}) {
     host.replaceChildren();
     if (!run) return;
     const facts = document.createElement('dl');
     facts.className = 'agent-details swarm-run-facts';
+    const started = timeText(run.startedAt, time);
+    const finished = timeText(run.finishedAt, time);
     addFact(facts, 'Status', run.status || '');
-    addFact(facts, 'Started', run.startedAt || '');
-    addFact(facts, 'Finished', run.finishedAt || '');
+    addFact(facts, 'Started', started.text, '', started.title);
+    addFact(facts, 'Finished', finished.text, '', finished.title);
+    addFact(facts, 'Duration', runDuration(run, time), 'swarm-run-duration');
     addFact(facts, 'Summary', run.summary || '', 'swarm-summary');
     addFact(facts, 'Failure reason', run.failureReason || '', 'swarm-failure-reason');
     addFact(facts, 'Spend', againstCap(run.spendBooked, run.totalSpendCap, true));
@@ -110,6 +243,9 @@ export function renderRunDetail(host, run, { onCancel, showTokens } = {}) {
         actions.append(button('Cancel', () => onCancel(), 'agent-button'));
         host.append(actions);
     }
+    if (Array.isArray(run.lanes)) host.append(...renderLaneTable(run.lanes, run));
+    const activity = heading('Agent activity');
+    activity.className = 'swarm-agent-heading';
     const table = document.createElement('table');
     table.className = 'agent-grid swarm-agent-table';
     const head = document.createElement('tr');
@@ -125,8 +261,8 @@ export function renderRunDetail(host, run, { onCancel, showTokens } = {}) {
             textCell(laneText(agent), 'td', 'swarm-agent-lane'),
             textCell(agent.attempt == null ? '' : String(agent.attempt), 'td'),
             textCell(agent.status || '', 'td'),
-            textCell(agent.startedAt || '', 'td'),
-            textCell(agent.finishedAt || '', 'td'),
+            timedCell(agent.startedAt, time),
+            timedCell(agent.finishedAt, time),
             textCell(agent.report || '', 'td', 'swarm-report'),
             textCell(agent.rateId || '', 'td'),
             textCell(agent.price == null || agent.price === '' ? '' : formatDollars(agent.price, ''), 'td'),
@@ -136,5 +272,5 @@ export function renderRunDetail(host, run, { onCancel, showTokens } = {}) {
         body.append(row);
     }
     table.append(head, body);
-    host.append(table);
+    host.append(activity, scrollTable(table));
 }

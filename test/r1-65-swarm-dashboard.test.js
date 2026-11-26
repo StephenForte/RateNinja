@@ -3,6 +3,7 @@
 const assert = require('node:assert/strict');
 const { setImmediate: settle } = require('node:timers/promises');
 const { test } = require('node:test');
+const { clickToolbarAdd } = require('./helpers/r1-71');
 const { click, control, hiddenDeep, install, mountSwarm, options, runRecord, swarm, tags, walk } = require('./helpers/r1-65');
 
 const hostile = '<script>alert(1)</script><img src=x onerror=alert(1)>';
@@ -205,7 +206,7 @@ test('Save and run saves, then starts, and a refused start leaves the swarm in t
     control(container, 'Instructions').value = 'Hold course';
     await click(container, 'Next');
     await click(container, 'Next');
-    await click(container, 'Add lane');
+    await clickToolbarAdd(container);
     await click(container, 'Next');
     await click(container, 'Next');
     let confirmed = 0;
@@ -449,9 +450,9 @@ test('a swarm write leaves fetch in place and a positioned 400 still marks that 
     control(container, 'Name').value = 'Marked';
     await click(container, 'Next');
     await click(container, 'Next');
-    await click(container, 'Add lane');
-    await click(container, 'Add lane');
-    await click(container, 'Add lane');
+    await clickToolbarAdd(container);
+    await clickToolbarAdd(container);
+    await clickToolbarAdd(container);
     await click(container, 'Next');
     await click(container, 'Next');
     await click(container, 'Save');

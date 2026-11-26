@@ -118,12 +118,14 @@ test('admin run DTOs add only customer identity and retain the recorded agent pr
     const runKeys = [
         'id', 'swarmId', 'swarmName', 'status', 'startedByUserId', 'startedAt', 'finishedAt',
         'summary', 'failureReason', 'totalSpendCap', 'totalSlotsCap', 'spendBooked', 'slotsBooked',
-        'masterTurns', 'inputTokens', 'outputTokens', 'cancelRequested', 'companyId', 'companyName'
+        'masterTurns', 'inputTokens', 'outputTokens', 'cancelRequested', 'laneCount', 'companyId', 'companyName'
     ];
     const list = await get('owner-a', '?companyId=c1');
     const detail = await get('owner-a', '/run-c1');
     assert.deepEqual(Object.keys(list.json.runs[0]).sort(), runKeys.sort());
-    const { agents, ...detailFacts } = detail.json.run;
+    const { agents, lanes, ...detailFacts } = detail.json.run;
+    assert.equal(list.json.runs[0].laneCount, 0);
+    assert.deepEqual(lanes, []);
     assert.deepEqual(detailFacts, list.json.runs[0]);
     assert.deepEqual(agents, [{
         id: 'agent-run-c1', role: 'booking', lanePosition: 1, attempt: 1, status: 'completed',

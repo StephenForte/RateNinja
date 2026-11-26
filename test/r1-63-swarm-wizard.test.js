@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { test } = require('node:test');
+const { addLaneButtons, clickToolbarAdd } = require('./helpers/r1-71');
 const { mountSwarm, control, click, lanes, walk, tags, hiddenDeep, options, lane } = require('./helpers/r1-63');
 
 const hostile = '<script>alert(1)</script><img src=x onerror=alert(1)>';
@@ -170,11 +171,11 @@ test('25 lanes are the maximum, apply changes only the selected lanes, and value
     });
     await openNew(container);
     await click(container, 'Next');
-    for (let count = 0; count < 25; count += 1) await click(container, 'Add lane');
+    for (let count = 0; count < 25; count += 1) await clickToolbarAdd(container);
     assert.equal(lanes(container).length, 25);
-    const add = walk(container).find(node => node.tag === 'button' && node.textContent === 'Add lane');
-    assert.equal(add.disabled, true);
-    await click(container, 'Add lane');
+    const addButtons = addLaneButtons(container);
+    assert.deepEqual(addButtons.map(add => add.disabled), [true, true]);
+    for (const add of addButtons) await add.events.click();
     assert.equal(lanes(container).length, 25);
 
     const fresh = await mountSwarm(t, {
@@ -193,9 +194,9 @@ test('25 lanes are the maximum, apply changes only the selected lanes, and value
     assert.equal(control(fresh.container, 'Instructions').value, 'Hold course');
     await click(fresh.container, 'Next');
     await click(fresh.container, 'Next');
-    await click(fresh.container, 'Add lane');
-    await click(fresh.container, 'Add lane');
-    await click(fresh.container, 'Add lane');
+    await clickToolbarAdd(fresh.container);
+    await clickToolbarAdd(fresh.container);
+    await clickToolbarAdd(fresh.container);
     await click(fresh.container, 'Next');
     const template = walk(fresh.container).find(node => String(node.className).includes('swarm-policy-template'));
     control(template, 'Priority').value = 'high';
@@ -235,7 +236,7 @@ test('booking lanes block Save until both caps are valid, and no booking sends n
     });
     await openNew(container, 'Booked');
     await click(container, 'Next');
-    await click(container, 'Add lane');
+    await clickToolbarAdd(container);
     await click(container, 'Next');
     const row = lanes(container)[0];
     const booking = control(row, 'Allow booking');
@@ -276,7 +277,7 @@ test('booking lanes block Save until both caps are valid, and no booking sends n
     control(container, 'Total spend cap (USD)').value = '99';
     control(container, 'Total slots cap').value = '8';
     await click(container, 'Next');
-    await click(container, 'Add lane');
+    await clickToolbarAdd(container);
     await click(container, 'Next');
     await click(container, 'Next');
     await click(container, 'Save');
@@ -306,8 +307,8 @@ test('POST and PUT bodies match the API shape and the shown lane order', async t
     control(container, 'Total spend cap (USD)').value = '80';
     control(container, 'Total slots cap').value = '9';
     await click(container, 'Next');
-    await click(container, 'Add lane');
-    await click(container, 'Add lane');
+    await clickToolbarAdd(container);
+    await clickToolbarAdd(container);
     let rows = lanes(container);
     control(rows[1], 'Sailing date').value = '2026-11-30';
     await click(rows[1], 'Up');
@@ -377,9 +378,9 @@ test('a 400 with position marks that lane and shows the server message as text',
     });
     await openNew(container, 'Marked');
     await click(container, 'Next');
-    await click(container, 'Add lane');
-    await click(container, 'Add lane');
-    await click(container, 'Add lane');
+    await clickToolbarAdd(container);
+    await clickToolbarAdd(container);
+    await clickToolbarAdd(container);
     await click(container, 'Next');
     await click(container, 'Next');
     await click(container, 'Save');
@@ -422,7 +423,7 @@ test('booking controls stay disabled when the company cannot request bookings', 
     });
     await openNew(container, 'No book');
     await click(container, 'Next');
-    await click(container, 'Add lane');
+    await clickToolbarAdd(container);
     await click(container, 'Next');
     const booking = control(lanes(container)[0], 'Allow booking');
     assert.equal(booking.disabled, true);
@@ -468,7 +469,7 @@ test('a blank booking price is refused and a zero price is sent as zero', async 
     control(container, 'Total spend cap (USD)').value = '12';
     control(container, 'Total slots cap').value = '4';
     await click(container, 'Next');
-    await click(container, 'Add lane');
+    await clickToolbarAdd(container);
     await click(container, 'Next');
     const row = lanes(container)[0];
     const booking = control(row, 'Allow booking');

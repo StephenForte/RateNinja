@@ -3,6 +3,7 @@ import { formatDollars } from '../money.js';
 import { renderSettings } from './admin.js';
 import { read, write } from './client.js';
 import { attachRuns } from './runs.js';
+import { formatWhen } from './time.js';
 import { openWizard } from './wizard.js';
 
 const PREMIUM = 'Premium feature. Contact Kings to enable Managed Agent Swarm.';
@@ -17,8 +18,27 @@ function button(text, action, className = '') {
     return control;
 }
 
+const INSTRUCTION_PREVIEW = 80;
+
 function money(value) {
     return value == null ? 'None' : String(value);
+}
+
+function instructionCell(value) {
+    const full = value || '';
+    const text = full.length > INSTRUCTION_PREVIEW
+        ? `${full.slice(0, INSTRUCTION_PREVIEW - 1)}…`
+        : full;
+    const cell = textCell(text, 'td', 'swarm-instructions');
+    cell.setAttribute('title', full);
+    return cell;
+}
+
+function updatedCell(value) {
+    const when = formatWhen(value);
+    const cell = textCell(when.text || '—', 'td');
+    if (when.title) cell.setAttribute('title', when.title);
+    return cell;
 }
 
 export async function mount(container, context = {}) {
@@ -69,8 +89,11 @@ async function renderCustomer(view, pageError, status, isActive, stops) {
     let runButtons = [];
     const bar = document.createElement('div');
     bar.className = 'agent-bar';
+    const swarmSection = document.createElement('section');
+    swarmSection.className = 'swarm-section';
+    swarmSection.append(heading('Swarms'));
     const listHost = document.createElement('div');
-    listHost.className = 'agent-list';
+    listHost.className = 'agent-grid-scroll agent-list';
     const refusal = document.createElement('div');
     refusal.className = 'swarm-refusal';
     refusal.hidden = true;
@@ -82,7 +105,8 @@ async function renderCustomer(view, pageError, status, isActive, stops) {
     wizardHost.hidden = true;
     const newButton = button('New swarm', () => showWizard(null), 'agent-button agent-primary');
     bar.append(newButton);
-    view.append(bar, listHost, refusal, runsHost, wizardHost);
+    swarmSection.append(listHost);
+    view.append(bar, swarmSection, refusal, runsHost, wizardHost);
     const monitor = attachRuns(runsHost, {
         isActive,
         onNavigate: clearRefusal,
@@ -118,7 +142,7 @@ async function renderCustomer(view, pageError, status, isActive, stops) {
         wizardHost.hidden = true;
         wizardHost.replaceChildren();
         bar.hidden = false;
-        listHost.hidden = false;
+        swarmSection.hidden = false;
         monitor.setShown(true);
         monitor.showList();
         renderList();
@@ -128,7 +152,7 @@ async function renderCustomer(view, pageError, status, isActive, stops) {
         pageError.hide();
         clearRefusal();
         bar.hidden = true;
-        listHost.hidden = true;
+        swarmSection.hidden = true;
         monitor.setShown(false);
         wizardHost.hidden = false;
         openWizard(wizardHost, {
@@ -166,11 +190,11 @@ async function renderCustomer(view, pageError, status, isActive, stops) {
             const row = document.createElement('tr');
             row.append(
                 textCell(swarm.name || '', 'td', 'swarm-name'),
-                textCell(swarm.instructions || '', 'td', 'swarm-instructions'),
+                instructionCell(swarm.instructions || ''),
                 textCell(String(Array.isArray(swarm.lanes) ? swarm.lanes.length : 0), 'td'),
                 textCell(formatDollars(swarm.totalSpendCap, 'None'), 'td'),
                 textCell(money(swarm.totalSlotsCap), 'td'),
-                textCell(swarm.updatedAt || '—', 'td')
+                updatedCell(swarm.updatedAt)
             );
             const actions = document.createElement('td');
             const runButton = button('Run', () => startRun(swarm), 'agent-button');
