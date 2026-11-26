@@ -1,6 +1,7 @@
 import { request } from '../api.js';
 import { errorBox, heading, paragraph, textCell } from '../dom.js';
 import { renderRunDetail, renderRunTable } from '../swarm/run-view.js';
+import { formatWhen } from '../swarm/time.js';
 
 const API = '/api/admin/swarm-runs';
 const POLL_MS = 2000;
@@ -35,7 +36,10 @@ function renderCompanies(host, companies, onOpen) {
         const row = document.createElement('tr');
         const name = document.createElement('td');
         name.append(button(company.name, () => onOpen(company)));
-        row.append(name, textCell(String(company.runCount)), textCell(company.lastStartedAt),
+        const started = formatWhen(company.lastStartedAt);
+        const startedCell = textCell(started.text, 'td');
+        if (started.title) startedCell.setAttribute('title', started.title);
+        row.append(name, textCell(String(company.runCount)), startedCell,
             textCell(company.running ? 'Running' : ''));
         body.append(row);
     }

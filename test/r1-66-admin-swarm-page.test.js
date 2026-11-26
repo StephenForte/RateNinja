@@ -68,6 +68,7 @@ test('the empty page explains that no customer has run a swarm', async t => {
 });
 
 test('the admin opens a customer and sees tokens and literal reports in a read-only detail', async t => {
+    const { formatWhen } = await import('../public/js/swarm/time.js');
     t.mock.timers.enable({ apis: ['setTimeout'] });
     let detailReads = 0;
     const { calls, container } = await mountPage(t, path => {
@@ -77,7 +78,8 @@ test('the admin opens a customer and sees tokens and literal reports in a read-o
         const run = ++detailReads === 1 ? running : { ...running, status: 'completed', summary: 'Finished' };
         return Response.json({ run });
     });
-    for (const text of [company.name, '2', LATEST, 'Running']) assert.ok(visible(container, text), text);
+    for (const text of [company.name, '2', formatWhen(LATEST).text, 'Running']) assert.ok(visible(container, text), text);
+    assert.ok(walk(container).some(node => node.attributes && node.attributes.title === LATEST));
     assertReadOnly(container);
     await click(container, company.name);
     assertReadOnly(container);
