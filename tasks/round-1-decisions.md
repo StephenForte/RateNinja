@@ -1588,3 +1588,25 @@ any scope the client was not allowed.
   take the full width.
 - **Unchanged:** every value shown today is still shown, as text; Save, Save and run, Back and
   the saved body.
+
+### D-072 — Swarm run page: download the lane results as CSV (2026-11-27; R1-73)
+
+- **Request (operator, 2026-11-27):** "on the confirmation page, the user will need to download
+  the results in csv format". Planner reading, flagged to the operator: the page is the run
+  page, and the results are the Lane results table (D-069).
+- **Control:** a "Download CSV" button beside the Lane results heading, on `/swarm` and on
+  `/admin/swarm-runs` (they share the run view). Shown whenever the run has at least one lane.
+  The file holds what the table shows at the moment of the click; no request is made.
+- **File:** one header row, then one row per lane in position order. Columns: `#`, `Rate Type`,
+  `Origin`, `Destination`, `Sailing Date`, `Container`, `Priority`, `Search`, `Price USD`,
+  `Booking`, `Slots Requested`, `Booking Request Id`, `Result`. Search, Booking and Result carry
+  the same words as the page (Booking without the link text). `Price USD` is a plain number
+  with no `$` or thousands separator, so a spreadsheet can sum it. UTF-8 with a byte order
+  mark; RFC 4180 quoting.
+- **Safety:** a cell whose first character is `=`, `+`, `-`, `@`, a tab or a carriage return
+  gets a leading apostrophe, because Result text is written by an agent and a spreadsheet
+  would run it as a formula.
+- **Name:** `swarm-run-<swarm name>-<start date>.csv`, the name reduced to lower-case letters,
+  digits and hyphens, at most 40 characters; `swarm-run.csv` when nothing is left.
+- **Unchanged:** the API, the lane results table, the agent activity table, the runs list. No
+  migration.
