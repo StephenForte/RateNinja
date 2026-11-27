@@ -1593,7 +1593,8 @@ any scope the client was not allowed.
 
 - **Request (operator, 2026-11-27):** "on the confirmation page, the user will need to download
   the results in csv format". Planner reading, flagged to the operator: the page is the run
-  page, and the results are the Lane results table (D-069).
+  page, and the results are the Lane results table (D-069). The operator confirmed this
+  reading and the points below on 2026-11-27.
 - **Control:** a "Download CSV" button beside the Lane results heading, on `/swarm` and on
   `/admin/swarm-runs` (they share the run view). Shown whenever the run has at least one lane.
   The file holds what the table shows at the moment of the click; no request is made.
