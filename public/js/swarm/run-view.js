@@ -1,5 +1,6 @@
 import { heading, paragraph, textCell } from '../dom.js';
 import { formatDollars } from '../money.js';
+import { bookingLabel, laneResultsCsv, laneResultsFilename, latestAgent, resultText, searchLabel } from './run-csv.js';
 import { formatDuration, formatWhen } from './time.js';
 
 const BOOKING_REQUESTS = '/profile/booking-requests';
@@ -86,36 +87,19 @@ function scrollTable(table) {
     return wrap;
 }
 
-function latestAgent(agents, position, role) {
-    let chosen = null;
-    for (const agent of agents) {
-        if (agent.role !== role || agent.lanePosition !== position) continue;
-        if (!chosen || Number(agent.attempt) > Number(chosen.attempt)) chosen = agent;
-    }
-    return chosen;
-}
-
-function searchLabel(agent, runStatus) {
-    if (!agent) return runStatus === 'running' ? 'Waiting' : 'Not searched';
-    if (agent.status === 'running') return 'Searching';
-    if (agent.status === 'completed') return agent.rateId ? 'Rate found' : 'No rate';
-    if (agent.status === 'failed') return 'Failed';
-    if (agent.status === 'cancelled') return 'Cancelled';
-    return '';
-}
-
-function bookingLabel(lane, agent) {
-    if (lane.allowBookingRequest !== true) return { text: 'Not allowed', link: false };
-    if (!agent) return { text: 'Not attempted', link: false };
-    if (agent.bookingRequestId) {
-        const slots = agent.slots == null ? '0' : String(agent.slots);
-        return { text: `Requested, ${slots} slots`, link: true };
-    }
-    if (agent.status === 'running') return { text: 'Booking', link: false };
-    if (agent.status === 'completed') return { text: 'Not booked', link: false };
-    if (agent.status === 'failed') return { text: 'Failed', link: false };
-    if (agent.status === 'cancelled') return { text: 'Cancelled', link: false };
-    return { text: '', link: false };
+function downloadLaneResults(run, parent) {
+    const blob = new Blob([laneResultsCsv(run)], { type: 'text/csv' });
+    const link = document.createElement('a');
+    const filename = laneResultsFilename(run);
+    link.download = filename;
+    link.setAttribute('download', filename);
+    if (typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') return;
+    const url = URL.createObjectURL(blob);
+    link.href = url;
+    parent.append(link);
+    if (typeof link.click === 'function') link.click();
+    link.remove();
+    if (typeof URL.revokeObjectURL === 'function') URL.revokeObjectURL(url);
 }
 
 function bookingLaneCell(label) {
@@ -132,17 +116,16 @@ function bookingLaneCell(label) {
     return cell;
 }
 
-function resultText(searchAgent, bookingAgent) {
-    const search = searchAgent && searchAgent.report ? String(searchAgent.report) : '';
-    const booking = bookingAgent && bookingAgent.report ? String(bookingAgent.report) : '';
-    if (search && booking) return `${search}\n${booking}`;
-    return search || booking;
-}
-
 function renderLaneTable(lanes, run) {
     const agents = Array.isArray(run.agents) ? run.agents : [];
     const title = heading(`Lane results (${lanes.length} lanes)`);
     title.className = 'swarm-lane-heading';
+    const headingRow = document.createElement('div');
+    headingRow.className = 'swarm-lane-heading-row';
+    headingRow.append(title);
+    if (lanes.length > 0) {
+        headingRow.append(button('Download CSV', () => downloadLaneResults(run, headingRow), 'agent-button swarm-lane-csv'));
+    }
     const table = document.createElement('table');
     table.className = 'agent-grid swarm-lane-table';
     const head = document.createElement('tr');
@@ -172,7 +155,7 @@ function renderLaneTable(lanes, run) {
         body.append(row);
     }
     table.append(head, body);
-    return [title, scrollTable(table)];
+    return [headingRow, scrollTable(table)];
 }
 
 export function renderRunTable(host, runs, { onOpen, time } = {}) {
