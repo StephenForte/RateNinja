@@ -3388,3 +3388,20 @@ body {
 .swarm-run-facts > .swarm-run-fact-full {
     grid-column: 1 / -1;
 }
+
+/* R1-73 */
+.swarm-lane-heading-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 12px;
+}
+
+.swarm-lane-heading-row .swarm-lane-heading {
+    margin: 0;
+}
+
+.swarm-lane-csv {
+    margin: 0;
+}

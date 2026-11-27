@@ -259,7 +259,7 @@ export function laneFromRecord(record, options) {
     return { lane, messages };
 }
 
-function csvField(value) {
+export function csvField(value) {
     const text = value == null ? '' : String(value);
     if (/[",\r\n]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
     return text;
