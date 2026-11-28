@@ -3428,3 +3428,39 @@ body {
     margin: 0;
     overflow-wrap: anywhere;
 }
+
+/* R1-75 */
+.swarm-run-progress {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+    margin-bottom: 12px;
+}
+
+.swarm-run-progress-label {
+    margin: 0;
+    font-weight: 600;
+}
+
+.swarm-run-progress > progress {
+    width: 100%;
+    height: 12px;
+    accent-color: #0b6b7d;
+}
+
+.swarm-run-progress-counts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: .875rem;
+}
+
+.swarm-lane-search > .agent-status,
+.swarm-lane-booking > .agent-status {
+    display: inline-block;
+    white-space: nowrap;
+    text-transform: none;
+}

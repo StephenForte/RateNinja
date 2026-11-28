@@ -134,7 +134,7 @@ test('search, booking and result in the file match the lane table', async t => {
     const shown = tableRows(detail);
     assert.equal(fileRows.length, shown.length);
     shown.forEach((row, index) => {
-        assert.equal(fileRows[index][7], row.children[5].textContent);
+        assert.equal(fileRows[index][7], labelText(row.children[5]));
         assert.equal(fileRows[index][9], labelText(row.children[7]).trim());
         assert.equal(fileRows[index][12], row.children[8].textContent);
     });

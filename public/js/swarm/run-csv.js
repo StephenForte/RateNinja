@@ -50,6 +50,24 @@ export function bookingLabel(lane, agent) {
     return { text: '', link: false };
 }
 
+export function laneProgress(run) {
+    const lanes = Array.isArray(run?.lanes) ? run.lanes : [];
+    const agents = Array.isArray(run?.agents) ? run.agents : [];
+    const counts = { Searching: 0, Waiting: 0, 'Rate found': 0, 'No rate': 0, Failed: 0 };
+    let searched = 0;
+    let bookingsRequested = 0;
+    for (const lane of lanes) {
+        const search = latestAgent(agents, lane.position, 'search');
+        const label = searchLabel(search, run.status);
+        if (Object.hasOwn(counts, label)) counts[label] += 1;
+        if (['completed', 'failed', 'cancelled'].includes(search?.status)) searched += 1;
+        const booking = latestAgent(agents, lane.position, 'booking');
+        // Count a recorded request even when lane policy masks it in the table.
+        if (bookingLabel(lane, booking).link || booking?.bookingRequestId) bookingsRequested += 1;
+    }
+    return { total: lanes.length, searched, counts, bookingsRequested };
+}
+
 export function resultText(searchAgent, bookingAgent) {
     const search = searchAgent && searchAgent.report ? String(searchAgent.report) : '';
     const booking = bookingAgent && bookingAgent.report ? String(bookingAgent.report) : '';

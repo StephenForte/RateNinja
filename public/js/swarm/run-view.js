@@ -1,6 +1,6 @@
 import { heading, paragraph, textCell } from '../dom.js';
 import { formatDollars } from '../money.js';
-import { bookingLabel, laneResultsCsv, laneResultsFilename, latestAgent, resultText, searchLabel } from './run-csv.js';
+import { bookingLabel, laneProgress, laneResultsCsv, laneResultsFilename, latestAgent, resultText, searchLabel } from './run-csv.js';
 import { formatDuration, formatWhen } from './time.js';
 
 const BOOKING_REQUESTS = '/profile/booking-requests';
@@ -142,9 +142,27 @@ function runFacts(run, { showTokens, time }) {
     return facts;
 }
 
-function scrollTable(table) {
+function runProgress(run) {
+    const { total, searched, counts, bookingsRequested } = laneProgress(run);
+    const block = document.createElement('div');
+    block.className = 'swarm-run-progress';
+    const label = `Searched ${searched} of ${total} lanes`;
+    const progress = document.createElement('progress');
+    progress.max = total;
+    progress.value = searched;
+    progress.setAttribute('aria-label', label);
+    const list = document.createElement('ul');
+    list.className = 'swarm-run-progress-counts';
+    for (const [name, count] of Object.entries({ ...counts, 'Bookings requested': bookingsRequested })) {
+        list.append(textCell(`${name} ${count}`, 'li'));
+    }
+    block.append(paragraph('swarm-run-progress-label', label), progress, list);
+    return block;
+}
+
+function scrollTable(table, className) {
     const wrap = document.createElement('div');
-    wrap.className = 'agent-grid-scroll';
+    wrap.className = `agent-grid-scroll ${className}`;
     wrap.append(table);
     return wrap;
 }
@@ -164,10 +182,24 @@ function downloadLaneResults(run, parent) {
     if (typeof URL.revokeObjectURL === 'function') URL.revokeObjectURL(url);
 }
 
+const LANE_STATUS_COLORS = {
+    'Rate found': 'completed',
+    Searching: 'running',
+    Booking: 'running',
+    Failed: 'failed'
+};
+
+function laneStatusCell(label, className, requested = false) {
+    const cell = textCell('', 'td', className);
+    if (label) {
+        const color = requested ? 'completed' : LANE_STATUS_COLORS[label];
+        cell.append(textCell(label, 'span', color ? `agent-status agent-status-${color}` : 'agent-status'));
+    }
+    return cell;
+}
+
 function bookingLaneCell(label) {
-    const cell = document.createElement('td');
-    cell.className = 'swarm-lane-booking';
-    cell.append(document.createTextNode(label.text));
+    const cell = laneStatusCell(label.text, 'swarm-lane-booking', label.link);
     if (!label.link) return cell;
     cell.append(document.createTextNode(' '));
     const link = document.createElement('a');
@@ -209,7 +241,7 @@ function renderLaneTable(lanes, run) {
             textCell(lane.sailingDate || '', 'td'),
             textCell(lane.containerType || '', 'td'),
             textCell(lane.priority || '', 'td'),
-            textCell(searchLabel(search, run.status), 'td', 'swarm-lane-search'),
+            laneStatusCell(searchLabel(search, run.status), 'swarm-lane-search'),
             textCell(price, 'td', 'swarm-lane-price'),
             bookingLaneCell(bookingLabel(lane, booking)),
             result
@@ -217,7 +249,7 @@ function renderLaneTable(lanes, run) {
         body.append(row);
     }
     table.append(head, body);
-    return [headingRow, scrollTable(table)];
+    return [headingRow, scrollTable(table, 'swarm-lane-scroll')];
 }
 
 export function renderRunTable(host, runs, { onOpen, time } = {}) {
@@ -258,10 +290,27 @@ export function renderRunTable(host, runs, { onOpen, time } = {}) {
 }
 
 export function renderRunDetail(host, run, { onCancel, showTokens, showSwarmName, time } = {}) {
+    const previous = host.swarmRunDetail;
+    const sameRun = run?.id != null && previous?.id === run.id && host.children[0] === previous.header;
+    const laneScroll = sameRun ? previous.laneWrapper?.scrollLeft ?? 0 : 0;
+    const agentScroll = sameRun ? previous.agentWrapper.scrollLeft ?? 0 : 0;
+    const focus = sameRun && document.activeElement;
+    const cancelFocused = focus && focus === previous.cancel;
+    const csvFocused = focus && focus === previous.csv;
+
     host.replaceChildren();
+    delete host.swarmRunDetail;
     if (!run) return;
-    host.append(runHeader(run, { onCancel, showSwarmName }), runFacts(run, { showTokens, time }));
-    if (Array.isArray(run.lanes)) host.append(...renderLaneTable(run.lanes, run));
+    const header = runHeader(run, { onCancel, showSwarmName });
+    host.append(header);
+    if (Array.isArray(run.lanes) && run.lanes.length > 0) host.append(runProgress(run));
+    host.append(runFacts(run, { showTokens, time }));
+    let laneHeading;
+    let laneWrapper;
+    if (Array.isArray(run.lanes)) {
+        [laneHeading, laneWrapper] = renderLaneTable(run.lanes, run);
+        host.append(laneHeading, laneWrapper);
+    }
     const activity = heading('Agent activity');
     activity.className = 'swarm-agent-heading';
     const table = document.createElement('table');
@@ -290,5 +339,13 @@ export function renderRunDetail(host, run, { onCancel, showTokens, showSwarmName
         body.append(row);
     }
     table.append(head, body);
-    host.append(activity, scrollTable(table));
+    const agentWrapper = scrollTable(table, 'swarm-agent-scroll');
+    host.append(activity, agentWrapper);
+    const cancel = typeof onCancel === 'function' ? header.children[header.children.length - 1] : null;
+    const csv = laneHeading?.children[1];
+    host.swarmRunDetail = { id: run.id, header, laneWrapper, agentWrapper, cancel, csv };
+    if (cancelFocused) cancel?.focus({ preventScroll: true });
+    if (csvFocused) csv?.focus({ preventScroll: true });
+    if (laneWrapper) laneWrapper.scrollLeft = laneScroll;
+    agentWrapper.scrollLeft = agentScroll;
 }
