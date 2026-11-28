@@ -1,6 +1,6 @@
 'use strict';
 
-// Lane results and Agent activity as renderRunDetail appended them at af42190.
+// Lane results and Agent activity, including the R1-75 badges and wrapper classes.
 // Display strings are passed in from the fixture; this does not render the view.
 
 const BOOKING_REQUESTS = '/profile/booking-requests';
@@ -116,10 +116,10 @@ function laneActivityTail({ startedText, finishedText, price }) {
         leaf('td', '2026-12-01'),
         leaf('td', '40HC'),
         leaf('td', 'high'),
-        leaf('td', 'Rate found', 'swarm-lane-search'),
+        branch('td', 'swarm-lane-search', [leaf('span', 'Rate found', 'agent-status agent-status-completed')]),
         leaf('td', price, 'swarm-lane-price'),
         branch('td', 'swarm-lane-booking', [
-            textNode('Requested, 2 slots'),
+            leaf('span', 'Requested, 2 slots', 'agent-status agent-status-completed'),
             textNode(' '),
             leaf('a', 'Booking requests', '', { href: BOOKING_REQUESTS })
         ]),
@@ -143,14 +143,14 @@ function laneActivityTail({ startedText, finishedText, price }) {
             leaf('h2', 'Lane results (1 lanes)', 'swarm-lane-heading'),
             leaf('button', 'Download CSV', 'agent-button swarm-lane-csv')
         ]),
-        branch('div', 'agent-grid-scroll', [
+        branch('div', 'agent-grid-scroll swarm-lane-scroll', [
             branch('table', 'agent-grid swarm-lane-table', [
                 branch('tr', '', cells(['#', 'Lane', 'Sailing date', 'Container', 'Priority', 'Search', 'Price', 'Booking', 'Result'])),
                 branch('tbody', '', [laneRow])
             ])
         ]),
         leaf('h2', 'Agent activity', 'swarm-agent-heading'),
-        branch('div', 'agent-grid-scroll', [
+        branch('div', 'agent-grid-scroll swarm-agent-scroll', [
             branch('table', 'agent-grid swarm-agent-table', [
                 branch('tr', '', cells(['Role', 'Lane', 'Attempt', 'Status', 'Started', 'Finished', 'Report', 'Rate id', 'Price', 'Slots', 'Booking request id'])),
                 branch('tbody', '', [

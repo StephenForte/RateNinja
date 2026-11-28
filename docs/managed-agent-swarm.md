@@ -118,6 +118,8 @@ The page has two sections, Swarms and then Runs. The swarm table shows instructi
 
 Each run fact keeps its label with its value. Summary and Failure reason each span the full facts panel. Summaries, reports and failure reasons are shown as text. The only link is `/profile/booking-requests`. Customers do not see token counts. While a shown run is running, the page re-reads it every 2 seconds, one request at a time, and stops when it is no longer running, when the user leaves the page, or on 401 or 403.
 
+Customer and admin run details show lane progress between the header and facts when the run has lanes. A lane counts as searched when its latest search completed, failed or was cancelled. The panel also shows Searching, Waiting, Rate found, No rate, Failed and Bookings requested. The last count uses each lane's latest booking attempt and counts one lane per recorded request. Search and Booking badges highlight results, active attempts and failures using the same colours as run statuses. When the same run refreshes, both tables keep their horizontal scroll positions, and Cancel or Download CSV keeps keyboard focus while the button is available.
+
 ## Admin view of runs
 
 Open **Admin → Swarm runs** and choose a customer. Contract owner admins can see customers with
