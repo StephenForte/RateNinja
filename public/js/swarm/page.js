@@ -107,12 +107,24 @@ async function renderCustomer(view, pageError, status, isActive, stops) {
     bar.append(newButton);
     swarmSection.append(listHost);
     view.append(bar, swarmSection, refusal, runsHost, wizardHost);
+    let wizardOpen = false;
+    let runOpen = false;
+    function syncChrome() {
+        const hide = wizardOpen || runOpen;
+        bar.hidden = hide;
+        swarmSection.hidden = hide;
+    }
     const monitor = attachRuns(runsHost, {
         isActive,
         onNavigate: clearRefusal,
-        onChange() { syncRunButtons(); }
+        onChange() { syncRunButtons(); },
+        onRunView(open) {
+            runOpen = open === true;
+            syncChrome();
+        }
     });
     stops.push(() => monitor.stop());
+    syncChrome();
 
     function clearRefusal() {
         refusal.replaceChildren();
@@ -139,20 +151,20 @@ async function renderCustomer(view, pageError, status, isActive, stops) {
     }
 
     function showList() {
+        wizardOpen = false;
         wizardHost.hidden = true;
         wizardHost.replaceChildren();
-        bar.hidden = false;
-        swarmSection.hidden = false;
         monitor.setShown(true);
         monitor.showList();
+        syncChrome();
         renderList();
     }
 
     function showWizard(swarm) {
         pageError.hide();
         clearRefusal();
-        bar.hidden = true;
-        swarmSection.hidden = true;
+        wizardOpen = true;
+        syncChrome();
         monitor.setShown(false);
         wizardHost.hidden = false;
         openWizard(wizardHost, {
