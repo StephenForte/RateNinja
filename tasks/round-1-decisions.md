@@ -1636,3 +1636,25 @@ any scope the client was not allowed.
   lane progress bar and counts, badges in the lane table, keeping table scroll across the
   2-second refresh (measured: sideways scroll 200 goes back to 0). Folding Agent activity is
   dropped.
+
+### D-074 — Swarm run page: lane progress, lane badges, and a refresh that keeps your place (2026-11-28; R1-75)
+
+- **Request (operator, 2026-11-28):** the R1-74 line-up "is nice"; now do the three items set
+  aside in D-073: the lane progress bar, coloured lane badges, and table scroll kept across
+  the 2-second refresh.
+- **Measured earlier (planner, `af42190`, browser, running run of 25 lanes):** nothing counts
+  finished lanes; Search and Booking states are plain words; each refresh rebuilds the page
+  and a lane table scrolled 200px sideways returns to 0.
+- **Progress:** under the run header, for every run with at least one lane, on both run
+  pages: a bar and the words "Searched X of N lanes", then counts for Searching, Waiting,
+  Rate found, No rate, Failed and Bookings requested. A lane counts as searched when its
+  latest search attempt has finished (completed, failed or cancelled). The counts use the
+  same lane words as the table and the CSV.
+- **Badges:** the Search and Booking states in the lane table are badges. Words unchanged
+  (the CSV of D-072 still matches). Rate found and Requested use the completed colour;
+  Searching and Booking the running colour; Failed the failed colour; the rest neutral.
+- **Refresh:** a refresh of the same run keeps the sideways scroll of the lane table and of
+  the agent activity table, and keyboard focus on Cancel and Download CSV. Opening another
+  run starts fresh.
+- **Unchanged:** the header and facts (D-073), Agent activity, the CSV, the 2-second
+  interval, the runs list, the API. No migration.
