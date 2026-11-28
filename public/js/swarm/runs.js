@@ -13,7 +13,7 @@ function button(text, action, className = '') {
     return control;
 }
 
-export function attachRuns(host, { isActive, onNavigate, onChange } = {}) {
+export function attachRuns(host, { isActive, onNavigate, onChange, onRunView } = {}) {
     let runs = [];
     let detail = null;
     let mode = 'list';
@@ -89,7 +89,10 @@ export function attachRuns(host, { isActive, onNavigate, onChange } = {}) {
         listHost.hidden = true;
         detailHost.hidden = false;
         const cancellable = detail && detail.status === 'running' && detail.cancelRequested !== true;
-        renderRunDetail(detailBody, detail, cancellable ? { onCancel: cancel } : {});
+        renderRunDetail(detailBody, detail, {
+            showSwarmName: true,
+            ...(cancellable ? { onCancel: cancel } : {})
+        });
     }
 
     function arm() {
@@ -180,13 +183,19 @@ export function attachRuns(host, { isActive, onNavigate, onChange } = {}) {
         }
     }
 
+    function reportRunView(open) {
+        if (typeof onRunView === 'function') onRunView(open);
+    }
+
     async function open(id) {
         if (!alive() || !id) return;
-        if (typeof onNavigate === 'function' && mode !== 'detail') onNavigate();
+        const entering = mode !== 'detail';
+        if (typeof onNavigate === 'function' && entering) onNavigate();
         mode = 'detail';
         listHost.hidden = true;
         detailHost.hidden = false;
         clearListTimer();
+        if (entering) reportRunView(true);
         await refreshDetail(id);
     }
 
@@ -197,6 +206,7 @@ export function attachRuns(host, { isActive, onNavigate, onChange } = {}) {
     }
 
     function showList() {
+        const leaving = mode === 'detail';
         detailTarget = null;
         if (detail) remember(detail);
         mode = 'list';
@@ -205,6 +215,7 @@ export function attachRuns(host, { isActive, onNavigate, onChange } = {}) {
         clearDetailTimer();
         paintList();
         arm();
+        if (leaving) reportRunView(false);
         refreshList();
     }
 

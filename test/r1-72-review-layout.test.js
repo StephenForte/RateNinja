@@ -69,13 +69,15 @@ test('Run facts pair every value and span narrative facts across the grid', asyn
     const { renderRunDetail } = await import('../public/js/swarm/run-view.js');
     const host = element('main');
     const run = runRecord({ status: 'failed', failureReason: 'Synthetic failure.' });
-    const baseTerms = ['Status', 'Started', 'Finished', 'Duration', 'Summary', 'Failure reason', 'Spend', 'Slots', 'Master turns'];
+    const baseTerms = ['Started', 'Finished', 'Duration', 'Summary', 'Failure reason', 'Spend', 'Slots', 'Master turns'];
     const time = { locale: 'en-US', timeZone: 'UTC' };
 
     renderRunDetail(host, run, { time, showTokens: true });
-    const [status, started, finished, duration, summary, failure, spend, slots, turns, input, output] =
-        factValues(byClass(host, 'swarm-run-facts'), [...baseTerms, 'Input tokens', 'Output tokens']);
+    const status = byClass(host, 'agent-status');
+    assert.equal(status.className, 'agent-status agent-status-failed');
     assert.equal(status.textContent, 'failed');
+    const [started, finished, duration, summary, failure, spend, slots, turns, input, output] =
+        factValues(byClass(host, 'swarm-run-facts'), [...baseTerms, 'Input tokens', 'Output tokens']);
     assert.equal(started.attributes.title, run.startedAt);
     assert.equal(finished.attributes.title, run.finishedAt);
     assert.equal(duration.className, 'swarm-run-duration');

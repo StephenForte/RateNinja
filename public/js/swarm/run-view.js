@@ -80,6 +80,68 @@ function statusCell(status) {
     return cell;
 }
 
+const RUN_STATUSES = ['running', 'completed', 'failed', 'cancelled', 'interrupted'];
+
+function statusBadge(status) {
+    const name = typeof status === 'string' ? status : '';
+    const badge = document.createElement('span');
+    badge.className = RUN_STATUSES.includes(name) ? `agent-status agent-status-${name}` : 'agent-status';
+    badge.textContent = name;
+    return badge;
+}
+
+function present(value) {
+    return value != null && value !== '';
+}
+
+function runHeader(run, { onCancel, showSwarmName }) {
+    const row = document.createElement('div');
+    row.className = 'swarm-run-header';
+    if (showSwarmName === true) {
+        const title = heading(typeof run.swarmName === 'string' ? run.swarmName : '');
+        title.className = 'swarm-run-title';
+        row.append(title);
+    }
+    row.append(statusBadge(run.status));
+    if (run.status === 'running') {
+        const updating = document.createElement('p');
+        updating.className = 'swarm-run-updating';
+        updating.textContent = 'Updating every 2 seconds';
+        row.append(updating);
+    }
+    if (run.status === 'running' && run.cancelRequested === true) {
+        row.append(paragraph('swarm-cancel-requested', 'Cancel requested'));
+    }
+    if (typeof onCancel === 'function') {
+        row.append(button('Cancel', () => onCancel(), 'agent-button'));
+    }
+    return row;
+}
+
+function runFacts(run, { showTokens, time }) {
+    const facts = document.createElement('dl');
+    facts.className = 'agent-details swarm-run-facts';
+    const started = timeText(run.startedAt, time);
+    addFact(facts, 'Started', started.text, { title: started.title });
+    if (present(run.finishedAt)) {
+        const finished = timeText(run.finishedAt, time);
+        addFact(facts, 'Finished', finished.text, { title: finished.title });
+    }
+    addFact(facts, 'Duration', runDuration(run, time), { className: 'swarm-run-duration' });
+    if (present(run.summary)) addFact(facts, 'Summary', run.summary, { className: 'swarm-summary', fullWidth: true });
+    if (present(run.failureReason)) {
+        addFact(facts, 'Failure reason', run.failureReason, { className: 'swarm-failure-reason', fullWidth: true });
+    }
+    addFact(facts, 'Spend', againstCap(run.spendBooked, run.totalSpendCap, true));
+    addFact(facts, 'Slots', againstCap(run.slotsBooked, run.totalSlotsCap));
+    addFact(facts, 'Master turns', run.masterTurns == null ? '' : String(run.masterTurns));
+    if (showTokens === true) {
+        addFact(facts, 'Input tokens', run.inputTokens, { className: 'swarm-input-tokens' });
+        addFact(facts, 'Output tokens', run.outputTokens, { className: 'swarm-output-tokens' });
+    }
+    return facts;
+}
+
 function scrollTable(table) {
     const wrap = document.createElement('div');
     wrap.className = 'agent-grid-scroll';
@@ -195,36 +257,10 @@ export function renderRunTable(host, runs, { onOpen, time } = {}) {
     host.append(table);
 }
 
-export function renderRunDetail(host, run, { onCancel, showTokens, time } = {}) {
+export function renderRunDetail(host, run, { onCancel, showTokens, showSwarmName, time } = {}) {
     host.replaceChildren();
     if (!run) return;
-    const facts = document.createElement('dl');
-    facts.className = 'agent-details swarm-run-facts';
-    const started = timeText(run.startedAt, time);
-    const finished = timeText(run.finishedAt, time);
-    addFact(facts, 'Status', run.status || '');
-    addFact(facts, 'Started', started.text, { title: started.title });
-    addFact(facts, 'Finished', finished.text, { title: finished.title });
-    addFact(facts, 'Duration', runDuration(run, time), { className: 'swarm-run-duration' });
-    addFact(facts, 'Summary', run.summary || '', { className: 'swarm-summary', fullWidth: true });
-    addFact(facts, 'Failure reason', run.failureReason || '', { className: 'swarm-failure-reason', fullWidth: true });
-    addFact(facts, 'Spend', againstCap(run.spendBooked, run.totalSpendCap, true));
-    addFact(facts, 'Slots', againstCap(run.slotsBooked, run.totalSlotsCap));
-    addFact(facts, 'Master turns', run.masterTurns == null ? '' : String(run.masterTurns));
-    if (showTokens === true) {
-        addFact(facts, 'Input tokens', run.inputTokens, { className: 'swarm-input-tokens' });
-        addFact(facts, 'Output tokens', run.outputTokens, { className: 'swarm-output-tokens' });
-    }
-    host.append(facts);
-    if (run.status === 'running' && run.cancelRequested === true) {
-        host.append(paragraph('swarm-cancel-requested', 'Cancel requested'));
-    }
-    if (typeof onCancel === 'function') {
-        const actions = document.createElement('div');
-        actions.className = 'agent-actions swarm-run-actions';
-        actions.append(button('Cancel', () => onCancel(), 'agent-button'));
-        host.append(actions);
-    }
+    host.append(runHeader(run, { onCancel, showSwarmName }), runFacts(run, { showTokens, time }));
     if (Array.isArray(run.lanes)) host.append(...renderLaneTable(run.lanes, run));
     const activity = heading('Agent activity');
     activity.className = 'swarm-agent-heading';

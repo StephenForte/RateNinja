@@ -3405,3 +3405,26 @@ body {
 .swarm-lane-csv {
     margin: 0;
 }
+
+/* R1-74 */
+.swarm-run-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    min-width: 0;
+    max-width: 100%;
+    margin-bottom: 12px;
+}
+
+.swarm-run-header > * {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.swarm-run-title,
+.swarm-run-updating,
+.swarm-run-header .swarm-cancel-requested {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
