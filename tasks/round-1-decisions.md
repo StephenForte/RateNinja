@@ -1611,3 +1611,32 @@ any scope the client was not allowed.
   digits and hyphens, at most 40 characters; `swarm-run.csv` when nothing is left.
 - **Unchanged:** the API, the lane results table, the agent activity table, the runs list. No
   migration.
+
+### D-073 — Swarm run page: clear status and progress while a run is running (2026-11-28; R1-74)
+
+- **Request (operator, 2026-11-28):** "when running the agent swarm status is a bit confusing.
+  we need a better ux layout and status update".
+- **Measured (planner, main `af42190`, browser, synthetic running run of 25 lanes):** the run
+  page has no swarm name; status is the plain word "running" among the facts; Finished,
+  Summary and Failure reason show as labels with nothing under them; nothing says how many
+  lanes are done or that the page is updating; every 2-second refresh rebuilds the whole
+  page, so a lane table scrolled 200px sideways snaps back to 0; Agent activity (15 raw rows
+  after 4 minutes) sits under the lanes at the same weight.
+- **Header:** swarm name as the heading (customer page; the admin page already titles it),
+  the status as the same badge the runs list uses, "Updating every 2 seconds" while running,
+  "Cancel requested" when asked, and Cancel in the same row.
+- **Progress:** a bar and the words "Searched X of N lanes", then counts: Searching, Waiting,
+  Rate found, No rate, Failed, Bookings requested. A lane counts as searched when its latest
+  search attempt has finished. Shown for every run with lanes, running or not.
+- **Facts:** Started, Finished, Duration, Spend, Slots, Master turns (tokens for admin).
+  Status moves to the header. Finished, Summary and Failure reason are shown only when they
+  have a value; Summary and Failure reason keep the full width.
+- **Lane table:** Search and Booking states are badges. Words unchanged, so the CSV (D-072)
+  still matches.
+- **Agent activity:** folded under "Agent activity (N)", closed by default.
+- **Refresh:** a refresh keeps the sideways scroll of both tables, keyboard focus on Cancel
+  and Download CSV, and whether Agent activity is open.
+- **Unchanged:** the API, the 2-second interval, the CSV, the runs list, the wizard. No
+  migration.
+- **Planner assumptions, flagged to the operator:** the page meant is the run page; folding
+  Agent activity; no change to what the engine reports.
